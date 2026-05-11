@@ -16,8 +16,10 @@ use Throwable;
 
 /**
  * Nextcloud preview provider that extracts `screenshot.png` from an `.elpx`
- * package and returns it as the preview image. If the entry is missing or
- * unreadable, returns null so Nextcloud falls back to the generic MIME icon.
+ * package and returns it as the preview image. When the entry is missing
+ * or unreadable, falls back to the bundled `img/elpx-preview-fallback.png`
+ * (a document outline with the eXeLearning logo) so the Files grid still
+ * shows a recognisable thumbnail instead of the generic ZIP icon.
  *
  * `content.xml` is never parsed here — see AGENTS.md.
  */
@@ -27,6 +29,9 @@ class ElpxPreviewProvider implements IProviderV2 {
 	 * The double backslash is needed because Nextcloud wraps this in `#…#`.
 	 */
 	public const MIME_REGEX = '/^application\/(vnd\.exelearning\.elpx|x-exelearning|zip|octet-stream)$/';
+
+	/** Bundled bitmap returned when the package has no screenshot.png. */
+	private const FALLBACK_IMAGE = __DIR__ . '/../../img/elpx-preview-fallback.png';
 
 	public function __construct(
 		private readonly ZipEntryService $zipEntries,
@@ -50,7 +55,35 @@ class ElpxPreviewProvider implements IProviderV2 {
 	public function getThumbnail(File $file, int $maxX, int $maxY): ?IImage {
 		try {
 			$bytes = $this->zipEntries->readEntry($file, 'screenshot.png');
-			if ($bytes === null) {
+			if ($bytes !== null) {
+				$image = new Image();
+				$image->loadFromData($bytes);
+				if ($image->valid()) {
+					$image->scaleDownToFit($maxX, $maxY);
+					return $image;
+				}
+			}
+		} catch (Throwable $e) {
+			$this->logger->debug('eXeLearning preview failed', [
+				'app' => 'exelearning',
+				'exception' => $e,
+				'file' => $file->getName(),
+			]);
+		}
+		return $this->loadFallbackThumbnail($maxX, $maxY);
+	}
+
+	/**
+	 * Loads the bundled preview fallback. Failures are swallowed and `null`
+	 * is returned so Nextcloud falls back to the MIME icon as it did before
+	 * the fallback existed.
+	 * @param int $maxX Maximum width allowed for the thumbnail.
+	 * @param int $maxY Maximum height allowed for the thumbnail.
+	 */
+	private function loadFallbackThumbnail(int $maxX, int $maxY): ?IImage {
+		try {
+			$bytes = @file_get_contents(self::FALLBACK_IMAGE);
+			if ($bytes === false) {
 				return null;
 			}
 			$image = new Image();
@@ -61,10 +94,9 @@ class ElpxPreviewProvider implements IProviderV2 {
 			$image->scaleDownToFit($maxX, $maxY);
 			return $image;
 		} catch (Throwable $e) {
-			$this->logger->debug('eXeLearning preview failed', [
+			$this->logger->debug('eXeLearning preview fallback unavailable', [
 				'app' => 'exelearning',
 				'exception' => $e,
-				'file' => $file->getName(),
 			]);
 			return null;
 		}
