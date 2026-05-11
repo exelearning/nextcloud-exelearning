@@ -99,6 +99,8 @@ jobs:
       - name: Validate appinfo/info.xml against the appstore schema
         run: |
           set -euo pipefail
-          curl -fsSL -o appinfo/info.xsd \
+          # Download the schema outside the working tree so the repo stays
+          # clean (otherwise `appinfo/info.xsd` shows up as untracked).
+          curl -fsSL -o "${RUNNER_TEMP}/info.xsd" \
             https://apps.nextcloud.com/schema/apps/info.xsd
-          xmllint --noout --schema appinfo/info.xsd appinfo/info.xml
+          xmllint --noout --schema "${RUNNER_TEMP}/info.xsd" appinfo/info.xml
