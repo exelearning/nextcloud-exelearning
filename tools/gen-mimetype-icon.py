@@ -22,7 +22,12 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_LOGO = Path("/tmp/exe-logo.png")
-OUT_PATH = REPO_ROOT / "img" / "mimetype-exelearning.svg"
+# Nextcloud apps ship MIME icons under img/filetypes/<alias>.svg by
+# convention. The Files preview chain we rely on (ElpxPreviewProvider)
+# does not need this file directly, but we keep it at the canonical
+# path so admins who choose to wire mimetypealiases.json + copy the
+# SVG into core/img/filetypes/ have an obvious source.
+OUT_PATH = REPO_ROOT / "img" / "filetypes" / "exelearning.svg"
 
 # 32x32 viewBox; document insets and fold size match the preview PNG.
 SVG_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>

@@ -193,14 +193,6 @@ admin install should also configure mapping:
 }
 ```
 
-`config/mimetypealiases.json` (optional, controls the file icon):
-
-```json
-{
-    "application/vnd.exelearning.elpx": "exelearning"
-}
-```
-
 Then refresh Nextcloud's MIME caches:
 
 ```bash
@@ -209,6 +201,43 @@ sudo -E -u www-data php occ maintenance:mimetype:update-db --repair-filecache
 ```
 
 Do **not** edit Nextcloud core `mimetypemapping.dist.json` directly.
+
+### Optional: a static `.elpx` MIME icon
+
+The Files list normally shows the preview provided by
+`ElpxPreviewProvider` (the package's `screenshot.png`, or the bundled
+fallback when there is none), so most installs do not need anything
+else. If you want `.elpx` files to display a custom icon **outside**
+of the preview path — sharing dialogs, breadcrumbs, contexts that
+bypass `core/preview` — the documented (admin-side) procedure is:
+
+1. Add an alias to `config/mimetypealiases.json`:
+
+   ```json
+   {
+       "application/vnd.exelearning.elpx": "exelearning",
+       "application/x-exelearning": "exelearning"
+   }
+   ```
+
+2. Copy this app's icon into Nextcloud core (the only directory
+   Nextcloud's `MimeIconProvider` scans):
+
+   ```bash
+   sudo install -o www-data -g www-data -m 0644 \
+       /var/www/nextcloud/apps/exelearning/img/filetypes/exelearning.svg \
+       /var/www/nextcloud/core/img/filetypes/exelearning.svg
+   ```
+
+3. Refresh the MIME caches again:
+
+   ```bash
+   sudo -E -u www-data php occ maintenance:mimetype:update-js
+   sudo -E -u www-data php occ maintenance:mimetype:update-db --repair-filecache
+   ```
+
+Step 2 is brittle because Nextcloud upgrades may replace `core/img/`;
+restore it after each upgrade or stage it via a theme override.
 
 ## Viewer integration
 
@@ -243,8 +272,15 @@ intercepts other Nextcloud routes.
 package and returns it as a Nextcloud preview image. `content.xml` is never
 parsed.
 
-If the screenshot is missing, Nextcloud falls back to the generic MIME icon
-in `img/mimetype-exelearning.svg`.
+When the package has no `screenshot.png` (or it fails to decode), the
+provider falls back to the bundled `img/elpx-preview-fallback.png` —
+a white document silhouette with the upstream eXeLearning logo —
+generated from the upstream PNG by `tools/gen-preview-fallback.py`.
+
+The matching MIME icon for non-preview contexts lives at
+`img/filetypes/exelearning.svg`. Nextcloud does not auto-discover icons
+in app directories; see _MIME mapping → Optional: a static `.elpx`
+MIME icon_ for the admin steps that wire it up.
 
 ## Optional editor support
 

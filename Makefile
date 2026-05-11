@@ -329,21 +329,21 @@ up:
 	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 writable --value=true  --type=boolean        >/dev/null
 	@echo ">> enabling exelearning"
 	@docker exec -u www-data $(DOCKER_NAME) php occ app:enable exelearning
+	@# `.elpx` extension → MIME mapping. This is the only piece a
+	@# Nextcloud app cannot ship by itself: the file is read from
+	@# /var/www/html/config/. See README → "Custom MIME types" for the
+	@# manual admin steps required on production installs.
 	@echo ">> registering .elpx MIME mapping"
 	@docker exec $(DOCKER_NAME) bash -c \
 		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}" \
 		 > /var/www/html/config/mimetypemapping.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypemapping.json'
-	@# Alias the .elpx MIME types to "exelearning" so Nextcloud picks up
-	@# the bundled img/mimetype-exelearning.svg as the file icon. Without
-	@# this the Files list shows the generic gear icon for .elpx files.
-	@echo ">> aliasing .elpx MIME types to the exelearning icon"
-	@docker exec $(DOCKER_NAME) bash -c \
-		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\",\"application/x-exelearning\":\"exelearning\"}" \
-		 > /var/www/html/config/mimetypealiases.json && \
-		 chown www-data:www-data /var/www/html/config/mimetypealiases.json'
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
+	@# Files-list icons are served by ElpxPreviewProvider via
+	@# core/preview?...&mimeFallback=true; when an .elpx package has no
+	@# screenshot.png, the provider returns img/elpx-preview-fallback.png.
+	@# No additional mimetypealiases.json hack is needed for that.
 	@echo
 	@echo "================================================================"
 	@echo " Nextcloud + eXeLearning is ready."
