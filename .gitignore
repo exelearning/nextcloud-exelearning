@@ -1,0 +1,36 @@
+# Node / build output
+node_modules/
+js/*.js
+js/*.js.map
+js/*.js.LICENSE.txt
+js/*.css
+js/*.css.map
+!js/.gitkeep
+dist/
+
+# PHP
+vendor/
+composer.lock
+
+# Editor scratch
+.cache/
+exelearning/
+
+# Bundled editor (downloaded artifacts)
+js/editor/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Test output
+coverage/
+.phpunit.cache/
+.phpunit.result.cache
+
+# App build outputs
+build/
+release/
+*.tar.gz

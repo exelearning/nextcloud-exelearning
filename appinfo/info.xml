@@ -1,0 +1,41 @@
+<?xml version="1.0"?>
+<info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+      xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
+    <id>exelearning</id>
+    <name>eXeLearning</name>
+    <summary>Preview and edit eXeLearning .elpx packages in Nextcloud</summary>
+    <description><![CDATA[
+Provides a Nextcloud Files viewer for eXeLearning `.elpx` packages by
+rendering the internal `index.html` inside a sandboxed iframe.
+
+The app registers a Nextcloud Viewer handler so `.elpx` files open in a modal
+with the package fully navigable: HTML pages, CSS, JavaScript, images, audio
+and video resolve from the package contents through a scoped Service Worker.
+
+Optional features:
+
+- `screenshot.png` thumbnails as Nextcloud previews.
+- "Edit with eXeLearning" action that opens the bundled static eXeLearning
+  editor (must be installed via `make download-editor`).
+
+This app is Nextcloud-native and does not depend on Google Drive.
+    ]]></description>
+    <version>0.1.0</version>
+    <licence>agpl</licence>
+    <author mail="dev@exelearning.net">eXeLearning</author>
+    <namespace>ExeLearning</namespace>
+    <category>files</category>
+    <website>https://exelearning.net</website>
+    <bugs>https://github.com/exelearning/nextcloud-exelearning/issues</bugs>
+    <repository>https://github.com/exelearning/nextcloud-exelearning</repository>
+    <screenshot>https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/img/screenshot.png</screenshot>
+
+    <dependencies>
+        <php min-version="8.1" max-version="8.3"/>
+        <nextcloud min-version="29" max-version="31"/>
+    </dependencies>
+
+    <types>
+        <filesystem/>
+    </types>
+</info>

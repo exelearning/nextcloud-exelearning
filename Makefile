@@ -1,0 +1,295 @@
+# nextcloud-exelearning — build and packaging.
+#
+# Targets mirror the conventions of gdrive-exelearning so contributors who
+# arrive from that project find the same names. The eXeLearning static
+# editor is optional: the viewer (preview) works without it.
+
+APP_NAME := exelearning
+APP_VERSION := $(shell sed -n 's:.*<version>\(.*\)</version>.*:\1:p' appinfo/info.xml)
+BUILD_DIR := $(CURDIR)/build
+RELEASE_DIR := $(BUILD_DIR)/$(APP_NAME)
+
+# --- Editor variables (optional bundle) ----------------------------------
+EXELEARNING_EDITOR_REPO ?= exelearning/exelearning
+# Optional pin: leave empty to track the latest GitHub release.
+EXELEARNING_EDITOR_REF ?=
+EXELEARNING_EDITOR_REF_TYPE ?= tag
+EDITOR_SOURCE_DIR := exelearning
+EDITOR_OUTPUT_DIR := $(CURDIR)/js/editor
+EDITOR_REPO_URL := https://github.com/$(EXELEARNING_EDITOR_REPO)
+EDITOR_API_LATEST := https://api.github.com/repos/$(EXELEARNING_EDITOR_REPO)/releases/latest
+
+TMP_DIR := .cache
+EDITOR_ZIP := $(TMP_DIR)/exelearning-static.zip
+EDITOR_EXTRACT_DIR := $(TMP_DIR)/exelearning-static
+
+# --- Docker / try-it-out variables ---------------------------------------
+DOCKER_NAME ?= nc-exelearning
+DOCKER_PORT ?= 8080
+DOCKER_IMAGE ?= nextcloud:30
+NC_ADMIN_USER ?= admin
+NC_ADMIN_PASS ?= admin
+
+.PHONY: help install build dev watch-js lint typecheck test clean \
+	composer-install composer-test \
+	download-editor fetch-editor-source build-editor clean-editor \
+	appstore \
+	up down restart logs shell occ-status status sync
+
+help:
+	@echo "Common targets:"
+	@echo "  install         - install JS and PHP dependencies"
+	@echo "  build           - build the frontend bundle into js/"
+	@echo "  dev             - one-shot development build"
+	@echo "  watch-js        - rebuild on file changes"
+	@echo "  lint            - lint frontend sources"
+	@echo "  typecheck       - run vue-tsc / tsc"
+	@echo "  test            - run JS and PHP tests"
+	@echo ""
+	@echo "Try-it-out (Docker) targets:"
+	@echo "  up              - build + start Nextcloud with this app loaded"
+	@echo "  down            - remove the running container"
+	@echo "  restart         - down + up"
+	@echo "  sync            - re-copy app files into a running container"
+	@echo "  logs            - tail container logs"
+	@echo "  shell           - open a www-data shell inside the container"
+	@echo "  status          - show 'occ status' from the container"
+	@echo ""
+	@echo "  download-editor - download the prebuilt eXeLearning static editor"
+	@echo "  build-editor    - clone and build the eXeLearning static editor"
+	@echo "  clean           - remove build artifacts"
+	@echo "  appstore        - package the app as tar.gz for the app store"
+
+# --- Dependencies --------------------------------------------------------
+install: composer-install
+	npm install
+
+composer-install:
+	@if command -v composer >/dev/null 2>&1; then \
+		composer install --no-dev --prefer-dist; \
+	else \
+		echo "composer not found, skipping PHP dependency install"; \
+	fi
+
+# --- Frontend ------------------------------------------------------------
+build:
+	npm run build
+
+dev:
+	npm run dev
+
+watch-js:
+	npm run watch
+
+lint:
+	npm run lint
+
+typecheck:
+	npm run typecheck
+
+# --- Tests ---------------------------------------------------------------
+test: composer-test
+	npm test
+
+composer-test:
+	@if [ -f vendor/bin/phpunit ]; then \
+		vendor/bin/phpunit --configuration tests/phpunit.xml; \
+	else \
+		echo "phpunit not installed (run 'composer install' first), skipping"; \
+	fi
+
+# --- Editor bundle (optional) -------------------------------------------
+# Download the prebuilt static editor from a GitHub release. Defaults to the
+# latest tag; override with EXELEARNING_EDITOR_REF=vX.Y.Z if you need a pin.
+download-editor:
+	@mkdir -p "$(TMP_DIR)"
+	@rm -rf "$(EDITOR_EXTRACT_DIR)" "$(EDITOR_ZIP)"
+	@REF="$(EXELEARNING_EDITOR_REF)"; \
+	if [ -z "$$REF" ]; then \
+		REF=$$(curl -fsSL "$(EDITOR_API_LATEST)" | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'); \
+	fi; \
+	if [ -z "$$REF" ]; then \
+		echo "Could not resolve the latest eXeLearning release."; exit 1; \
+	fi; \
+	URL="$${EDITOR_ZIP_URL:-$(EDITOR_REPO_URL)/releases/download/$$REF/exelearning-static-$$REF.zip}"; \
+	echo "Downloading eXeLearning editor $$REF from $$URL"; \
+	curl -fL "$$URL" -o "$(EDITOR_ZIP)"; \
+	unzip -q "$(EDITOR_ZIP)" -d "$(EDITOR_EXTRACT_DIR)"
+	@rm -rf "$(EDITOR_OUTPUT_DIR)"
+	@mkdir -p "$(EDITOR_OUTPUT_DIR)"
+	@if [ "$$(find "$(EDITOR_EXTRACT_DIR)" -mindepth 1 -maxdepth 1 -type d | wc -l | tr -d ' ')" = "1" ] && \
+		[ "$$(find "$(EDITOR_EXTRACT_DIR)" -mindepth 1 -maxdepth 1 | wc -l | tr -d ' ')" = "1" ]; then \
+		cp -R "$$(find "$(EDITOR_EXTRACT_DIR)" -mindepth 1 -maxdepth 1 -type d)"/. "$(EDITOR_OUTPUT_DIR)/"; \
+	else \
+		cp -R "$(EDITOR_EXTRACT_DIR)"/. "$(EDITOR_OUTPUT_DIR)/"; \
+	fi
+	@# Nextcloud's root .htaccess rewrites unknown extensions (incl. .json)
+	@# through index.php. Disable rewriting in the editor subtree so static
+	@# assets like data/bundle.json are served directly by Apache.
+	@printf '<IfModule mod_rewrite.c>\n    RewriteEngine off\n</IfModule>\n' \
+		> "$(EDITOR_OUTPUT_DIR)/.htaccess"
+
+# Shallow-clone the editor source. Defaults to the latest release tag.
+fetch-editor-source:
+	rm -rf "$(EDITOR_SOURCE_DIR)"
+	@REF="$(EXELEARNING_EDITOR_REF)"; \
+	REF_TYPE="$(EXELEARNING_EDITOR_REF_TYPE)"; \
+	if [ -z "$$REF" ]; then \
+		REF=$$(curl -fsSL "$(EDITOR_API_LATEST)" | grep '"tag_name"' | head -n1 | sed -E 's/.*"tag_name": *"([^"]+)".*/\1/'); \
+		REF_TYPE="tag"; \
+	fi; \
+	if [ -z "$$REF" ]; then \
+		echo "Could not resolve the latest eXeLearning release."; exit 1; \
+	fi; \
+	echo "Fetching eXeLearning editor source $$REF (type=$$REF_TYPE)"; \
+	if [ "$$REF_TYPE" = "branch" ] || [ "$$REF_TYPE" = "tag" ]; then \
+		git clone --depth 1 --branch "$$REF" "$(EDITOR_REPO_URL).git" "$(EDITOR_SOURCE_DIR)"; \
+	elif [ "$$REF_TYPE" = "commit" ]; then \
+		git clone --depth 1 "$(EDITOR_REPO_URL).git" "$(EDITOR_SOURCE_DIR)"; \
+		cd "$(EDITOR_SOURCE_DIR)" && git checkout "$$REF"; \
+	else \
+		echo "EXELEARNING_EDITOR_REF_TYPE must be branch, tag, or commit"; \
+		exit 1; \
+	fi
+
+build-editor:
+	rm -rf "$(EDITOR_OUTPUT_DIR)"
+	$(MAKE) fetch-editor-source
+	cd "$(EDITOR_SOURCE_DIR)" && bun install
+	cd "$(EDITOR_SOURCE_DIR)" && OUTPUT_DIR="$(EDITOR_OUTPUT_DIR)" bun run build:static
+
+clean-editor:
+	rm -rf "$(EDITOR_SOURCE_DIR)" "$(EDITOR_OUTPUT_DIR)" "$(EDITOR_ZIP)" "$(EDITOR_EXTRACT_DIR)"
+
+# --- Packaging -----------------------------------------------------------
+clean:
+	rm -rf $(BUILD_DIR) js/*.js js/*.js.map js/*.css js/*.css.map dist coverage
+
+appstore: clean build
+	@mkdir -p $(RELEASE_DIR)
+	@rsync -a --exclude-from=.gitignore \
+		--exclude='.git' --exclude='node_modules' --exclude='tests' \
+		--exclude='exelearning' --exclude='.cache' \
+		--exclude='build' --exclude='*.tar.gz' \
+		./ $(RELEASE_DIR)/
+	@tar -C $(BUILD_DIR) -czf $(BUILD_DIR)/$(APP_NAME)-$(APP_VERSION).tar.gz $(APP_NAME)
+	@echo "Built $(BUILD_DIR)/$(APP_NAME)-$(APP_VERSION).tar.gz"
+
+# --- Docker quick-start --------------------------------------------------
+# `make up` builds the frontend, starts a Nextcloud container with the
+# auto-install variables (admin user + SQLite database) so Nextcloud
+# finishes setup unattended, then copies the app files into the container
+# with `docker cp`. Bind-mounting the repo into Docker-on-macOS is too
+# slow because every file under node_modules/ traverses the shared
+# filesystem during install; copying just the runtime files (a few MB)
+# sidesteps that.
+#
+# Override host port with `make up DOCKER_PORT=9000`.
+APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
+
+up:
+	@command -v docker >/dev/null 2>&1 || { echo "docker is not installed"; exit 1; }
+	@if [ ! -d node_modules ]; then \
+		echo ">> npm install"; npm install; \
+	fi
+	@echo ">> npm run build"
+	@npm run build
+	@if [ ! -f js/nextcloud-exelearning-main.js ]; then \
+		echo "ERROR: js/nextcloud-exelearning-main.js missing after build."; exit 1; \
+	fi
+	@docker rm -f $(DOCKER_NAME) >/dev/null 2>&1 || true
+	@echo ">> starting $(DOCKER_IMAGE) as $(DOCKER_NAME) on :$(DOCKER_PORT)"
+	@docker run -d --name $(DOCKER_NAME) \
+		-p $(DOCKER_PORT):80 \
+		-e NEXTCLOUD_ADMIN_USER=$(NC_ADMIN_USER) \
+		-e NEXTCLOUD_ADMIN_PASSWORD=$(NC_ADMIN_PASS) \
+		-e NEXTCLOUD_TRUSTED_DOMAINS="localhost 127.0.0.1" \
+		-e SQLITE_DATABASE=nextcloud \
+		$(DOCKER_IMAGE) >/dev/null
+	@echo ">> waiting for Nextcloud to finish installing"
+	@for i in $$(seq 1 120); do \
+		state=$$(docker exec -u www-data $(DOCKER_NAME) php occ status 2>/dev/null | grep "installed:" | awk '{print $$3}'); \
+		if [ "$$state" = "true" ]; then \
+			echo "   Nextcloud installed."; break; \
+		fi; \
+		if ! docker ps --format '{{.Names}}' | grep -q "^$(DOCKER_NAME)$$"; then \
+			echo; echo "ERROR: container stopped. Last 40 log lines:"; \
+			docker logs --tail 40 $(DOCKER_NAME) 2>&1 | tail -40; exit 1; \
+		fi; \
+		printf "."; sleep 2; \
+		if [ $$i = 120 ]; then \
+			echo; echo "Timed out waiting for Nextcloud install. Last 40 log lines:"; \
+			docker logs --tail 40 $(DOCKER_NAME) 2>&1 | tail -40; exit 1; \
+		fi; \
+	done
+	@echo ">> copying app files into container"
+	@docker exec $(DOCKER_NAME) mkdir -p /var/www/html/custom_apps/exelearning
+	@for d in $(APP_RUNTIME_DIRS); do \
+		echo "   - $$d/"; \
+		parent="$$(dirname $$d)"; \
+		docker exec $(DOCKER_NAME) mkdir -p "/var/www/html/custom_apps/exelearning/$$parent"; \
+		docker exec $(DOCKER_NAME) rm -rf "/var/www/html/custom_apps/exelearning/$$d"; \
+		docker cp "$(CURDIR)/$$d" "$(DOCKER_NAME):/var/www/html/custom_apps/exelearning/$$parent/"; \
+	done
+	@docker exec $(DOCKER_NAME) chown -R www-data:www-data /var/www/html/custom_apps
+	@echo ">> configuring apps_paths so /custom_apps is writable"
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 0 path     --value=/var/www/html/apps         >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 0 url      --value=/apps                       >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 0 writable --value=false --type=boolean        >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 path     --value=/var/www/html/custom_apps   >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 url      --value=/custom_apps                >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 writable --value=true  --type=boolean        >/dev/null
+	@echo ">> enabling exelearning"
+	@docker exec -u www-data $(DOCKER_NAME) php occ app:enable exelearning
+	@echo ">> registering .elpx MIME mapping"
+	@docker exec $(DOCKER_NAME) bash -c \
+		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}" \
+		 > /var/www/html/config/mimetypemapping.json && \
+		 chown www-data:www-data /var/www/html/config/mimetypemapping.json'
+	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
+	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
+	@echo
+	@echo "================================================================"
+	@echo " Nextcloud + eXeLearning is ready."
+	@echo "   URL:   http://localhost:$(DOCKER_PORT)"
+	@echo "   User:  $(NC_ADMIN_USER)"
+	@echo "   Pass:  $(NC_ADMIN_PASS)"
+	@echo
+	@echo " Upload a .elpx file in Files and click it. Stop with 'make down'."
+	@echo "================================================================"
+
+# Re-copy the app files into the running container (after editing PHP code
+# or rebuilding js/). Much faster than `make restart`.
+#
+# Also gracefully restarts Apache so PHP opcache picks up controller-level
+# attribute changes (e.g. adding `#[NoCSRFRequired]` is invisible until the
+# reflection cache for that class invalidates).
+sync:
+	@docker ps --format '{{.Names}}' | grep -q "^$(DOCKER_NAME)$$" || { echo "$(DOCKER_NAME) not running. Use 'make up' first."; exit 1; }
+	@for d in $(APP_RUNTIME_DIRS); do \
+		echo ">> sync $$d/"; \
+		parent="$$(dirname $$d)"; \
+		docker exec $(DOCKER_NAME) rm -rf "/var/www/html/custom_apps/exelearning/$$d"; \
+		docker exec $(DOCKER_NAME) mkdir -p "/var/www/html/custom_apps/exelearning/$$parent"; \
+		docker cp "$(CURDIR)/$$d" "$(DOCKER_NAME):/var/www/html/custom_apps/exelearning/$$parent/"; \
+	done
+	@docker exec $(DOCKER_NAME) chown -R www-data:www-data /var/www/html/custom_apps
+	@docker exec $(DOCKER_NAME) apachectl -k graceful 2>&1 | grep -v "ServerName" || true
+	@echo "Synced."
+
+down:
+	@docker rm -f $(DOCKER_NAME) >/dev/null 2>&1 || true
+	@echo "Container $(DOCKER_NAME) removed."
+
+restart:
+	@$(MAKE) down
+	@$(MAKE) up
+
+logs:
+	@docker logs -f $(DOCKER_NAME)
+
+shell:
+	@docker exec -it -u www-data $(DOCKER_NAME) bash
+
+status:
+	@docker exec -u www-data $(DOCKER_NAME) php occ status
