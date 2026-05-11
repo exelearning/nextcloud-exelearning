@@ -1,0 +1,99 @@
+name: CI
+
+# Frontend (Biome + ESLint + vue-tsc + Vitest) and backend
+# (Nextcloud coding standard + PHPUnit + appstore schema validation)
+# checks. Runs on every push to main, every pull request, and on demand.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  frontend:
+    name: Frontend (Biome + ESLint + vue-tsc + Vitest)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # Biome lints .ts/.js under src/. Vue single-file components stay
+      # with ESLint (better Vue 2 support); see biome.json for scope.
+      - name: Biome lint
+        run: npm run lint:biome
+
+      - name: ESLint
+        run: npm run lint
+
+      - name: TypeScript check (vue-tsc)
+        run: npm run typecheck
+
+      - name: Unit tests (Vitest)
+        run: npm test
+
+  backend:
+    name: Backend (Nextcloud coding standard + PHPUnit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read PHP version requirement from appinfo/info.xml
+        id: php
+        run: |
+          set -euo pipefail
+          PHP_MIN=$(sed -n 's:.*<php[^>]*min-version="\([0-9.]*\)".*:\1:p' \
+            appinfo/info.xml | head -n1)
+          echo "version=${PHP_MIN:-8.1}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.php.outputs.version }}
+          tools: composer:v2, cs2pr
+          coverage: none
+
+      # composer.lock is not committed (see .gitignore), so resolve from
+      # composer.json. `nextcloud/coding-standard` provides php-cs-fixer
+      # with the Nextcloud preset that .php-cs-fixer.dist.php loads.
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: PHP syntax check
+        run: |
+          set -euo pipefail
+          ! find appinfo lib tests -name '*.php' -print0 \
+            | xargs -0 -n1 -I{} php -l '{}' \
+            | grep -v '^No syntax errors detected'
+
+      - name: PHP CS Fixer (Nextcloud coding standard)
+        run: vendor/bin/php-cs-fixer fix --dry-run --diff --using-cache=no
+
+      - name: PHPUnit
+        run: vendor/bin/phpunit --configuration tests/phpunit.xml
+
+      # Catches schema regressions in info.xml before the Nextcloud
+      # appstore validator does.
+      - name: Validate appinfo/info.xml against the appstore schema
+        run: |
+          set -euo pipefail
+          curl -fsSL -o appinfo/info.xsd \
+            https://apps.nextcloud.com/schema/apps/info.xsd
+          xmllint --noout --schema appinfo/info.xsd appinfo/info.xml
