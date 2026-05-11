@@ -1,0 +1,70 @@
+# nextcloud-exelearning .distignore
+#
+# Patterns listed here are stripped from the Nextcloud distribution
+# tarball produced by `make package`. Each line is passed verbatim to
+# `rsync --exclude-from=.distignore`, so the syntax matches rsync
+# exclude rules (one pattern per line, comments start with `#`).
+#
+# Mirror any addition you make here in `.gitattributes` so that
+# `git archive` exports stay aligned.
+
+# --- Version control & developer metadata --------------------------------
+.git
+.github
+.gitignore
+.gitattributes
+.distignore
+.editorconfig
+.idea
+.vscode
+.DS_Store
+*.swp
+.omc
+.claude
+
+# --- Dependency directories ---------------------------------------------
+# Nextcloud generates the PSR-4 autoloader from appinfo at install time,
+# so the app's own composer vendor/ tree is not needed at runtime.
+node_modules
+vendor
+
+# --- Build configuration & tooling --------------------------------------
+package.json
+package-lock.json
+composer.json
+composer.lock
+webpack.config.js
+tsconfig.json
+vitest.config.ts
+
+# --- Tests, coverage and caches -----------------------------------------
+tests
+coverage
+.cache
+.phpunit.cache
+.phpunit.result.cache
+*.log
+
+# --- Build / release outputs (recreated by `make package`) --------------
+build
+dist
+release
+*.tar.gz
+*.zip
+
+# --- eXeLearning editor source clone ------------------------------------
+# The built editor (downloaded or compiled) lives under js/editor/ and is
+# bundled separately; the upstream source clone is never shipped.
+exelearning
+.editor-version
+
+# --- Project documentation (kept in the repo only) ----------------------
+AGENTS.md
+CHANGELOG.md
+CONTRIBUTING.md
+Makefile
+
+# --- JS source maps and license headers ---------------------------------
+# Not required at runtime; keeping them out reduces archive size.
+js/*.map
+js/*.LICENSE.txt

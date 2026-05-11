@@ -7,7 +7,12 @@
 APP_NAME := exelearning
 APP_VERSION := $(shell sed -n 's:.*<version>\(.*\)</version>.*:\1:p' appinfo/info.xml)
 BUILD_DIR := $(CURDIR)/build
+ARTIFACT_DIR := $(BUILD_DIR)/artifacts
 RELEASE_DIR := $(BUILD_DIR)/$(APP_NAME)
+# Override on the command line to label release artefacts independently
+# from appinfo/info.xml, e.g. `make package PACKAGE_VERSION=0.2.0-rc1`.
+PACKAGE_VERSION ?= $(APP_VERSION)
+PACKAGE_NAME := $(APP_NAME)-$(PACKAGE_VERSION).tar.gz
 
 # --- Editor variables (optional bundle) ----------------------------------
 EXELEARNING_EDITOR_REPO ?= exelearning/exelearning
@@ -33,7 +38,7 @@ NC_ADMIN_PASS ?= admin
 .PHONY: help install build dev watch-js lint typecheck test clean \
 	composer-install composer-test \
 	download-editor fetch-editor-source build-editor clean-editor \
-	appstore \
+	package appstore \
 	up down restart logs shell occ-status status sync
 
 help:
@@ -58,7 +63,9 @@ help:
 	@echo "  download-editor - download the prebuilt eXeLearning static editor"
 	@echo "  build-editor    - clone and build the eXeLearning static editor"
 	@echo "  clean           - remove build artifacts"
-	@echo "  appstore        - package the app as tar.gz for the app store"
+	@echo "  package         - build a distribution tarball for the app store"
+	@echo "                    Usage: make package [PACKAGE_VERSION=x.y.z]"
+	@echo "  appstore        - alias of 'package' (legacy name)"
 
 # --- Dependencies --------------------------------------------------------
 install: composer-install
@@ -165,15 +172,33 @@ clean-editor:
 clean:
 	rm -rf $(BUILD_DIR) js/*.js js/*.js.map js/*.css js/*.css.map dist coverage
 
-appstore: clean build
+# Produce build/artifacts/$(APP_NAME)-$(PACKAGE_VERSION).tar.gz with
+# `$(APP_NAME)/` as the single top-level directory, as required by the
+# Nextcloud appstore. Files are filtered through .distignore (which is
+# the canonical exclude list for distribution; .gitignore is only used
+# for the local working copy).
+package: clean build
+	@if [ ! -f .distignore ]; then \
+		echo "Error: .distignore is missing — cannot build a distribution package."; \
+		exit 1; \
+	fi
+	@mkdir -p $(ARTIFACT_DIR)
+	@rm -rf $(RELEASE_DIR)
 	@mkdir -p $(RELEASE_DIR)
-	@rsync -a --exclude-from=.gitignore \
-		--exclude='.git' --exclude='node_modules' --exclude='tests' \
-		--exclude='exelearning' --exclude='.cache' \
-		--exclude='build' --exclude='*.tar.gz' \
-		./ $(RELEASE_DIR)/
-	@tar -C $(BUILD_DIR) -czf $(BUILD_DIR)/$(APP_NAME)-$(APP_VERSION).tar.gz $(APP_NAME)
-	@echo "Built $(BUILD_DIR)/$(APP_NAME)-$(APP_VERSION).tar.gz"
+	@echo ">> staging $(APP_NAME) $(PACKAGE_VERSION) into $(RELEASE_DIR)"
+	@rsync -a --delete --exclude-from=.distignore ./ $(RELEASE_DIR)/
+	@echo ">> creating $(ARTIFACT_DIR)/$(PACKAGE_NAME)"
+	@tar -C $(BUILD_DIR) -czf $(ARTIFACT_DIR)/$(PACKAGE_NAME) $(APP_NAME)
+	@rm -rf $(RELEASE_DIR)
+	@echo
+	@echo "================================================================"
+	@echo " Built $(ARTIFACT_DIR)/$(PACKAGE_NAME)"
+	@echo "   - app id : $(APP_NAME)"
+	@echo "   - version: $(PACKAGE_VERSION)"
+	@echo "================================================================"
+
+# Backwards-compatible alias for the historical target name.
+appstore: package
 
 # --- Docker quick-start --------------------------------------------------
 # `make up` builds the frontend, starts a Nextcloud container with the

@@ -1,0 +1,54 @@
+# Files marked `export-ignore` are stripped when someone runs
+# `git archive` against this repository (e.g. on the Nextcloud appstore
+# build path that signs a Git tag). Keep this list in sync with
+# `.distignore`, which controls the equivalent exclusions for the
+# `make package` rsync build.
+
+# --- Version control & developer metadata --------------------------------
+.git*                       export-ignore
+.github                     export-ignore
+.editorconfig               export-ignore
+.idea                       export-ignore
+.vscode                     export-ignore
+.DS_Store                   export-ignore
+*.swp                       export-ignore
+.omc                        export-ignore
+.claude                     export-ignore
+.distignore                 export-ignore
+
+# --- Dependency directories ---------------------------------------------
+node_modules                export-ignore
+vendor                      export-ignore
+
+# --- Build configuration & tooling --------------------------------------
+package.json                export-ignore
+package-lock.json           export-ignore
+composer.json               export-ignore
+composer.lock               export-ignore
+webpack.config.js           export-ignore
+tsconfig.json               export-ignore
+vitest.config.ts            export-ignore
+
+# --- Tests, coverage and caches -----------------------------------------
+tests                       export-ignore
+coverage                    export-ignore
+.cache                      export-ignore
+.phpunit.cache              export-ignore
+.phpunit.result.cache       export-ignore
+
+# --- Build / release outputs --------------------------------------------
+build                       export-ignore
+dist                        export-ignore
+release                     export-ignore
+*.tar.gz                    export-ignore
+*.zip                       export-ignore
+
+# --- eXeLearning editor source clone ------------------------------------
+exelearning                 export-ignore
+.editor-version             export-ignore
+
+# --- Project documentation (kept in the repo only) ----------------------
+AGENTS.md                   export-ignore
+CHANGELOG.md                export-ignore
+CONTRIBUTING.md             export-ignore
+Makefile                    export-ignore
