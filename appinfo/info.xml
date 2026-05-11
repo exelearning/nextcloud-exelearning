@@ -24,6 +24,9 @@ This app is Nextcloud-native and does not depend on Google Drive.
     <licence>agpl</licence>
     <author mail="dev@exelearning.net">eXeLearning</author>
     <namespace>ExeLearning</namespace>
+    <types>
+        <filesystem/>
+    </types>
     <category>files</category>
     <website>https://exelearning.net</website>
     <bugs>https://github.com/exelearning/nextcloud-exelearning/issues</bugs>
@@ -34,8 +37,4 @@ This app is Nextcloud-native and does not depend on Google Drive.
         <php min-version="8.1" max-version="8.3"/>
         <nextcloud min-version="29" max-version="31"/>
     </dependencies>
-
-    <types>
-        <filesystem/>
-    </types>
 </info>
