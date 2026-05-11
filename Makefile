@@ -52,7 +52,7 @@ help:
 	@echo "  test            - run JS and PHP tests"
 	@echo ""
 	@echo "Try-it-out (Docker) targets:"
-	@echo "  up              - build + start Nextcloud with this app loaded"
+	@echo "  up              - build + download editor (if missing) + start Nextcloud"
 	@echo "  down            - remove the running container"
 	@echo "  restart         - down + up"
 	@echo "  sync            - re-copy app files into a running container"
@@ -219,8 +219,19 @@ up:
 	fi
 	@echo ">> npm run build"
 	@npm run build
-	@if [ ! -f js/nextcloud-exelearning-main.js ]; then \
-		echo "ERROR: js/nextcloud-exelearning-main.js missing after build."; exit 1; \
+	@if [ ! -f js/$(APP_NAME)-main.js ]; then \
+		echo "ERROR: js/$(APP_NAME)-main.js missing after build."; exit 1; \
+	fi
+	@# Make sure the optional eXeLearning static editor is present so the
+	@# /apps/exelearning/editor route works inside the container. Skip the
+	@# download when js/editor/index.html already exists; refresh the
+	@# bundle explicitly with `make download-editor` (optionally pinning
+	@# EXELEARNING_EDITOR_REF=vX.Y.Z) when a new upstream tag ships.
+	@if [ ! -f js/editor/index.html ]; then \
+		echo ">> downloading eXeLearning static editor"; \
+		$(MAKE) --no-print-directory download-editor; \
+	else \
+		echo ">> eXeLearning editor present at js/editor/ (run 'make download-editor' to refresh)"; \
 	fi
 	@docker rm -f $(DOCKER_NAME) >/dev/null 2>&1 || true
 	@echo ">> starting $(DOCKER_IMAGE) as $(DOCKER_NAME) on :$(DOCKER_PORT)"
