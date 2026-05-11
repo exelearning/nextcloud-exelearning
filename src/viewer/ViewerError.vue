@@ -1,7 +1,11 @@
 <template>
 	<div class="exelearning-viewer__error" role="alert">
-		<h2 class="exelearning-viewer__error-title">{{ title }}</h2>
-		<p v-if="message" class="exelearning-viewer__error-message">{{ message }}</p>
+		<h2 class="exelearning-viewer__error-title">
+			{{ title }}
+		</h2>
+		<p v-if="message" class="exelearning-viewer__error-message">
+			{{ message }}
+		</p>
 		<details v-if="detail" class="exelearning-viewer__error-detail">
 			<summary>{{ t('exelearning', 'Show details') }}</summary>
 			<pre>{{ detail }}</pre>

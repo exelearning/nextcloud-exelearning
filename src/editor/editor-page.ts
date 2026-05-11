@@ -8,6 +8,14 @@
 
 // Same publicPath fix as main.ts — installs that put apps under
 // /custom_apps/<id>/ would otherwise 404 on any webpack-emitted chunk.
+import axios from '@nextcloud/axios'
+import { loadState } from '@nextcloud/initial-state'
+import { generateUrl } from '@nextcloud/router'
+import { translate as t } from '@nextcloud/l10n'
+
+import { loadElpx } from '../elpx/elpx-loader'
+import { EditorFrame } from './editor-frame'
+
 declare let __webpack_public_path__: string
 declare global {
 	interface Window {
@@ -19,14 +27,9 @@ if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
 	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
 }
 
-import axios from '@nextcloud/axios'
-import { loadState } from '@nextcloud/initial-state'
-import { generateUrl } from '@nextcloud/router'
-import { translate as t } from '@nextcloud/l10n'
-
-import { loadElpx } from '../elpx/elpx-loader'
-import { EditorFrame } from './editor-frame'
-
+/**
+ *
+ */
 function appWebRoot(): string {
 	// Falls back to the canonical /apps path so unit tests and stripped-down
 	// pages without OC.appswebroots still produce a sensible URL.
@@ -42,6 +45,9 @@ interface InitialFile {
 	writable: boolean
 }
 
+/**
+ *
+ */
 async function boot(): Promise<void> {
 	const root = document.getElementById('exelearning-editor-root')
 	if (!root) return
@@ -85,10 +91,15 @@ async function boot(): Promise<void> {
 		})
 	} catch (error) {
 		const detail = error instanceof Error ? error.message : String(error)
-		renderMessage(root, t('exelearning', 'Failed to load the eXeLearning editor.') + ' — ' + detail)
+		renderMessage(root, `${t('exelearning', 'Failed to load the eXeLearning editor.')} — ${detail}`)
 	}
 }
 
+/**
+ *
+ * @param key
+ * @param fallback
+ */
 function safeLoad<T>(key: string, fallback: T): T {
 	try {
 		return (loadState('exelearning', key, fallback) as T) ?? fallback
@@ -97,6 +108,11 @@ function safeLoad<T>(key: string, fallback: T): T {
 	}
 }
 
+/**
+ *
+ * @param target
+ * @param text
+ */
 function renderMessage(target: HTMLElement, text: string): void {
 	target.innerHTML = ''
 	const p = document.createElement('p')
@@ -105,6 +121,12 @@ function renderMessage(target: HTMLElement, text: string): void {
 	target.appendChild(p)
 }
 
+/**
+ *
+ * @param file
+ * @param bytes
+ * @param ifMatch
+ */
 async function uploadToNextcloud(file: InitialFile, bytes: ArrayBuffer, ifMatch: string): Promise<void> {
 	const url = generateUrl('/apps/exelearning/editor/save')
 	const form = new FormData()
@@ -118,5 +140,3 @@ async function uploadToNextcloud(file: InitialFile, bytes: ArrayBuffer, ifMatch:
 }
 
 void boot()
-
-export {}

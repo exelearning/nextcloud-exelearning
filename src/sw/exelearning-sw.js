@@ -20,99 +20,107 @@
 /* eslint-env serviceworker */
 /* global self */
 
-const sessions = new Map();
+const sessions = new Map()
 
-const RUNTIME_TAIL = '/apps/exelearning/runtime/';
+const RUNTIME_TAIL = '/apps/exelearning/runtime/'
 
 self.addEventListener('install', () => {
-	self.skipWaiting();
-});
+	self.skipWaiting()
+})
 
 self.addEventListener('activate', (event) => {
-	event.waitUntil(self.clients.claim());
-});
+	event.waitUntil(self.clients.claim())
+})
 
 self.addEventListener('message', (event) => {
-	const port = event.ports && event.ports[0];
+	const port = event.ports?.[0]
 	const reply = (payload) => {
 		if (port) {
-			try { port.postMessage(payload); } catch (e) { /* port closed */ void e; }
+			try { port.postMessage(payload) } catch (e) { /* port closed */ void e }
 		}
-	};
-	const data = event.data;
+	}
+	const data = event.data
 	if (!data || typeof data.type !== 'string') {
-		reply({ ok: false, error: 'Invalid message' });
-		return;
+		reply({ ok: false, error: 'Invalid message' })
+		return
 	}
 	try {
 		switch (data.type) {
 		case 'EXELEARNING_REGISTER_SESSION':
-			registerSession(data);
-			reply({ ok: true });
-			break;
+			registerSession(data)
+			reply({ ok: true })
+			break
 		case 'EXELEARNING_UNREGISTER_SESSION':
-			sessions.delete(data.sessionId);
-			reply({ ok: true });
-			break;
+			sessions.delete(data.sessionId)
+			reply({ ok: true })
+			break
 		case 'EXELEARNING_PING':
-			reply({ ok: true, sessions: sessions.size });
-			break;
+			reply({ ok: true, sessions: sessions.size })
+			break
 		default:
-			reply({ ok: false, error: 'Unknown message type: ' + data.type });
+			reply({ ok: false, error: `Unknown message type: ${data.type}` })
 		}
 	} catch (error) {
-		reply({ ok: false, error: error && error.message ? error.message : String(error) });
+		reply({ ok: false, error: error?.message ? error.message : String(error) })
 	}
-});
+})
 
+/**
+ *
+ * @param data
+ */
 function registerSession(data) {
 	if (!data.sessionId || typeof data.sessionId !== 'string') {
-		throw new Error('Missing sessionId');
+		throw new Error('Missing sessionId')
 	}
 	if (!Array.isArray(data.files)) {
-		throw new Error('Missing files array');
+		throw new Error('Missing files array')
 	}
-	const files = new Map();
+	const files = new Map()
 	for (const entry of data.files) {
-		if (!entry || typeof entry.path !== 'string') continue;
-		const path = normalizeEntry(entry.path);
-		if (path === null) continue;
+		if (!entry || typeof entry.path !== 'string') continue
+		const path = normalizeEntry(entry.path)
+		if (path === null) continue
 		files.set(path, {
 			mime: typeof entry.mime === 'string' ? entry.mime : 'application/octet-stream',
 			bytes: entry.bytes instanceof ArrayBuffer ? entry.bytes : null,
-		});
+		})
 	}
 	sessions.set(data.sessionId, {
 		files,
 		indexEntry: typeof data.indexEntry === 'string' ? data.indexEntry : 'index.html',
 		filename: typeof data.filename === 'string' ? data.filename : '',
 		createdAt: Date.now(),
-	});
+	})
 }
 
 self.addEventListener('fetch', (event) => {
-	const request = event.request;
-	if (request.method !== 'GET') return;
-	const url = new URL(request.url);
-	const match = matchRuntimeUrl(url.pathname);
-	if (!match) return;
-	event.respondWith(handleRuntimeFetch(match));
-});
+	const request = event.request
+	if (request.method !== 'GET') return
+	const url = new URL(request.url)
+	const match = matchRuntimeUrl(url.pathname)
+	if (!match) return
+	event.respondWith(handleRuntimeFetch(match))
+})
 
+/**
+ *
+ * @param match
+ */
 function handleRuntimeFetch(match) {
-	const session = sessions.get(match.sessionId);
+	const session = sessions.get(match.sessionId)
 	if (!session) {
 		return new Response('Session not registered. Reload the package.', {
 			status: 410,
 			headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-		});
+		})
 	}
-	const file = session.files.get(match.entry);
+	const file = session.files.get(match.entry)
 	if (!file || !file.bytes) {
-		return new Response('Not found in package: ' + match.entry, {
+		return new Response(`Not found in package: ${match.entry}`, {
 			status: 404,
 			headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-		});
+		})
 	}
 	const headers = new Headers({
 		'Content-Type': file.mime,
@@ -122,51 +130,63 @@ function handleRuntimeFetch(match) {
 		// Keep package HTML isolated from the parent Nextcloud window even
 		// though the iframe sandbox already blocks top navigation.
 		'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'",
-	});
-	return new Response(file.bytes, { status: 200, headers });
+	})
+	return new Response(file.bytes, { status: 200, headers })
 }
 
+/**
+ *
+ * @param pathname
+ */
 function matchRuntimeUrl(pathname) {
-	const idx = pathname.indexOf(RUNTIME_TAIL);
-	if (idx < 0) return null;
-	const remainder = pathname.slice(idx + RUNTIME_TAIL.length);
-	const slash = remainder.indexOf('/');
-	if (slash <= 0) return null;
-	const sessionId = safeDecode(remainder.slice(0, slash));
-	const rawEntry = remainder.slice(slash + 1);
+	const idx = pathname.indexOf(RUNTIME_TAIL)
+	if (idx < 0) return null
+	const remainder = pathname.slice(idx + RUNTIME_TAIL.length)
+	const slash = remainder.indexOf('/')
+	if (slash <= 0) return null
+	const sessionId = safeDecode(remainder.slice(0, slash))
+	const rawEntry = remainder.slice(slash + 1)
 	const decoded = rawEntry
 		.split('/')
 		.map(safeDecode)
-		.join('/');
-	const entry = normalizeEntry(decoded);
-	if (!sessionId || entry === null) return null;
-	return { sessionId, entry };
+		.join('/')
+	const entry = normalizeEntry(decoded)
+	if (!sessionId || entry === null) return null
+	return { sessionId, entry }
 }
 
+/**
+ *
+ * @param value
+ */
 function safeDecode(value) {
 	try {
-		return decodeURIComponent(value);
+		return decodeURIComponent(value)
 	} catch (e) {
-		void e;
-		return value;
+		void e
+		return value
 	}
 }
 
+/**
+ *
+ * @param input
+ */
 function normalizeEntry(input) {
 	if (typeof input !== 'string' || input.length === 0 || input.indexOf('\0') >= 0) {
-		return null;
+		return null
 	}
-	const cleaned = input.replace(/\\/g, '/').replace(/^\/+/, '');
-	const parts = cleaned.split('/');
-	const stack = [];
+	const cleaned = input.replace(/\\/g, '/').replace(/^\/+/, '')
+	const parts = cleaned.split('/')
+	const stack = []
 	for (const part of parts) {
-		if (part === '' || part === '.') continue;
+		if (part === '' || part === '.') continue
 		if (part === '..') {
-			if (stack.length === 0) return null;
-			stack.pop();
-			continue;
+			if (stack.length === 0) return null
+			stack.pop()
+			continue
 		}
-		stack.push(part);
+		stack.push(part)
 	}
-	return stack.length === 0 ? null : stack.join('/');
+	return stack.length === 0 ? null : stack.join('/')
 }

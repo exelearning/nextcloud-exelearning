@@ -7,7 +7,7 @@
 		<div v-else-if="state === 'error'" class="exelearning-editor-embed__error">
 			<p>{{ errorMessage }}</p>
 		</div>
-		<div ref="frameSlot" class="exelearning-editor-embed__slot"></div>
+		<div ref="frameSlot" class="exelearning-editor-embed__slot" />
 	</div>
 </template>
 

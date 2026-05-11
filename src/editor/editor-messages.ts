@@ -40,6 +40,10 @@ export interface SaveFileResponse {
 	size?: number
 }
 
+/**
+ *
+ * @param value
+ */
 export function isEditorMessage(value: unknown): value is EditorMessage {
 	return (
 		typeof value === 'object'
@@ -49,6 +53,10 @@ export function isEditorMessage(value: unknown): value is EditorMessage {
 	)
 }
 
+/**
+ *
+ * @param value
+ */
 export function normalizeBytes(value: unknown): ArrayBuffer {
 	if (value instanceof ArrayBuffer) {
 		return value

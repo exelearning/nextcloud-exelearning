@@ -15,7 +15,11 @@
 				class="exelearning-view-page__action"
 				:title="t('exelearning', 'Edit with eXeLearning')"
 				@click="switchToEditor">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+				<svg xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					width="20"
+					height="20"
+					fill="currentColor">
 					<path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z" />
 				</svg>
 				<span>{{ t('exelearning', 'Edit') }}</span>
@@ -26,7 +30,11 @@
 				:disabled="saving"
 				:title="t('exelearning', 'Save to Nextcloud')"
 				@click="save">
-				<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+				<svg xmlns="http://www.w3.org/2000/svg"
+					viewBox="0 0 24 24"
+					width="20"
+					height="20"
+					fill="currentColor">
 					<path d="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z" />
 				</svg>
 				<span>{{ saving ? t('exelearning', 'Saving…') : t('exelearning', 'Save') }}</span>

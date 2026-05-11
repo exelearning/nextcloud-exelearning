@@ -27,13 +27,6 @@ export interface ZipReadResult {
 	totalUncompressedBytes: number
 }
 
-export class ZipReadError extends Error {
-	constructor(message: string, public readonly code: ZipReadErrorCode) {
-		super(message)
-		this.name = 'ZipReadError'
-	}
-}
-
 export type ZipReadErrorCode =
 	| 'NOT_A_ZIP'
 	| 'TOO_MANY_ENTRIES'
@@ -41,12 +34,22 @@ export type ZipReadErrorCode =
 	| 'UNSAFE_ENTRY'
 	| 'CORRUPT'
 
+export class ZipReadError extends Error {
+
+	constructor(message: string, public readonly code: ZipReadErrorCode) {
+		super(message)
+		this.name = 'ZipReadError'
+	}
+
+}
+
 const ZIP_LOCAL_SIGNATURE = 0x04034b50
 
 /**
  * Cheap sanity check on the file header before handing the buffer to fflate.
  * Empty .elpx files and accidental text uploads (e.g. `.html` renamed) fail
  * here with a clear error instead of hitting the inflate path.
+ * @param buffer
  */
 export function looksLikeZip(buffer: ArrayBuffer): boolean {
 	if (buffer.byteLength < 4) {
@@ -56,6 +59,11 @@ export function looksLikeZip(buffer: ArrayBuffer): boolean {
 	return view.getUint32(0, true) === ZIP_LOCAL_SIGNATURE
 }
 
+/**
+ *
+ * @param buffer
+ * @param limits
+ */
 export async function readPackage(
 	buffer: ArrayBuffer,
 	limits: ZipReadLimits = DEFAULT_LIMITS,

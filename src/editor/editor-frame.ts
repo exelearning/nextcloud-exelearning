@@ -36,6 +36,7 @@ export interface SavedFile {
 }
 
 export class EditorFrame {
+
 	private readonly iframe: HTMLIFrameElement
 	private readonly handlers = new Set<MessageHandler>()
 	private readonly options: EditorFrameOptions
@@ -162,7 +163,7 @@ export class EditorFrame {
 				if (errorTypes.includes(message.type)) {
 					window.clearTimeout(timeout)
 					unsubscribe()
-					const errorMessage = typeof message['error'] === 'string' ? message['error'] : message.type
+					const errorMessage = typeof message.error === 'string' ? message.error : message.type
 					reject(new Error(`The eXeLearning editor reported an error: ${errorMessage}`))
 				}
 			})
@@ -177,4 +178,5 @@ export class EditorFrame {
 			handler(event.data)
 		}
 	}
+
 }

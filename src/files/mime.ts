@@ -17,6 +17,10 @@ export const ELPX_MIME_TYPES = [
 
 export const ELPX_EXTENSIONS = ['.elpx', '.elp']
 
+/**
+ *
+ * @param name
+ */
 export function hasElpxExtension(name: string): boolean {
 	const lower = name.toLowerCase()
 	return ELPX_EXTENSIONS.some((ext) => lower.endsWith(ext))
@@ -29,6 +33,10 @@ export interface FileLike {
 	displayName?: string
 }
 
+/**
+ *
+ * @param file
+ */
 export function isElpxFile(file: FileLike): boolean {
 	const name = file.name ?? file.basename ?? file.displayName ?? ''
 	if (name && hasElpxExtension(name)) {

@@ -32,6 +32,10 @@ export interface IframeOptions {
 	title: string
 }
 
+/**
+ *
+ * @param options
+ */
 export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 	const iframe = document.createElement('iframe')
 	iframe.className = 'exelearning-viewer__iframe'
@@ -51,6 +55,10 @@ export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 	return iframe
 }
 
+/**
+ *
+ * @param iframe
+ */
 function rewireExternalLinks(iframe: HTMLIFrameElement): void {
 	const doc = iframe.contentDocument
 	if (!doc) return
@@ -59,7 +67,7 @@ function rewireExternalLinks(iframe: HTMLIFrameElement): void {
 		if (!target) return
 		const href = target.getAttribute('href')
 		if (!href) return
-		if (/^(?:[a-z][a-z0-9+.\-]*:|\/\/)/i.test(href)) {
+		if (/^(?:[a-z][a-z0-9+.-]*:|\/\/)/i.test(href)) {
 			target.setAttribute('target', '_blank')
 			target.setAttribute('rel', 'noopener noreferrer')
 		}

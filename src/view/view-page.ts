@@ -1,4 +1,9 @@
 // Same publicPath fix as main.ts.
+import Vue from 'vue'
+import { loadState } from '@nextcloud/initial-state'
+
+import ElpxViewPage from './ElpxViewPage.vue'
+
 declare let __webpack_public_path__: string
 declare global {
 	interface Window {
@@ -10,11 +15,6 @@ if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
 	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
 }
 
-import Vue from 'vue'
-import { loadState } from '@nextcloud/initial-state'
-
-import ElpxViewPage from './ElpxViewPage.vue'
-
 interface InitialFile {
 	id: number
 	name: string
@@ -24,6 +24,11 @@ interface InitialFile {
 	writable: boolean
 }
 
+/**
+ *
+ * @param key
+ * @param fallback
+ */
 function safeLoad<T>(key: string, fallback: T): T {
 	try {
 		return (loadState('exelearning', key, fallback) as T) ?? fallback
@@ -32,6 +37,9 @@ function safeLoad<T>(key: string, fallback: T): T {
 	}
 }
 
+/**
+ *
+ */
 function boot(): void {
 	const mount = document.getElementById('exelearning-view-root')
 	if (!mount) return
@@ -50,5 +58,3 @@ function boot(): void {
 }
 
 boot()
-
-export {}

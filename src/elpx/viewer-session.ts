@@ -21,6 +21,7 @@ export interface ViewerSessionData {
 }
 
 export class ViewerSession {
+
 	public readonly data: ViewerSessionData
 
 	private constructor(data: ViewerSessionData) {
@@ -60,8 +61,12 @@ export class ViewerSession {
 	file(entry: string): SessionFile | undefined {
 		return this.data.files.get(entry)
 	}
+
 }
 
+/**
+ *
+ */
 function randomSessionId(): string {
 	const cryptoApi = typeof globalThis.crypto !== 'undefined' ? globalThis.crypto : undefined
 	if (cryptoApi && typeof cryptoApi.randomUUID === 'function') {

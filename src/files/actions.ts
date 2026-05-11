@@ -35,18 +35,31 @@ interface NodeShape {
 	permissions?: number
 }
 
+/**
+ *
+ */
 function eyeIconSvgInline(): string {
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg>`
+	return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M12,9A3,3 0 0,0 9,12A3,3 0 0,0 12,15A3,3 0 0,0 15,12A3,3 0 0,0 12,9M12,17A5,5 0 0,1 7,12A5,5 0 0,1 12,7A5,5 0 0,1 17,12A5,5 0 0,1 12,17M12,4.5C7,4.5 2.73,7.61 1,12C2.73,16.39 7,19.5 12,19.5C17,19.5 21.27,16.39 23,12C21.27,7.61 17,4.5 12,4.5Z"/></svg>'
 }
 
+/**
+ *
+ */
 function pencilIconSvgInline(): string {
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>`
+	return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25z"/></svg>'
 }
 
+/**
+ *
+ */
 function downloadIconSvgInline(): string {
-	return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>`
+	return '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5,20H19V18H5M19,9H15V3H9V9H5L12,16L19,9Z"/></svg>'
 }
 
+/**
+ *
+ * @param node
+ */
 function isElpxNode(node: Node): boolean {
 	return isElpxFile(node as unknown as NodeShape)
 }
@@ -107,8 +120,11 @@ const downloadAction = new FileAction({
 	},
 })
 
+/**
+ *
+ */
 export function registerFileActions(): void {
-	registerFileAction(viewAction)        // default — opens /apps/exelearning/view
-	registerFileAction(editAction)        // kebab  — opens /apps/exelearning/editor
-	registerFileAction(downloadAction)    // kebab  — native download
+	registerFileAction(viewAction) // default — opens /apps/exelearning/view
+	registerFileAction(editAction) // kebab  — opens /apps/exelearning/editor
+	registerFileAction(downloadAction) // kebab  — native download
 }

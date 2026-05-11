@@ -22,6 +22,10 @@ export interface PackageValidation {
 	error?: string
 }
 
+/**
+ *
+ * @param entries
+ */
 export function inspectPackage(entries: ReadonlyMap<string, Uint8Array>): PackageShape {
 	let indexEntry: string | null = null
 	for (const candidate of ROOT_INDEX_CANDIDATES) {
@@ -47,6 +51,10 @@ export function inspectPackage(entries: ReadonlyMap<string, Uint8Array>): Packag
 	}
 }
 
+/**
+ *
+ * @param entries
+ */
 export function validatePackage(entries: ReadonlyMap<string, Uint8Array>): PackageValidation {
 	const shape = inspectPackage(entries)
 	if (shape.indexEntry === null) {

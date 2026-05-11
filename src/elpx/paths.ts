@@ -7,7 +7,7 @@
 
 export const RUNTIME_PREFIX = '/apps/exelearning/runtime'
 
-const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/
+const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 
 /**
  * Returns a canonical, slash-separated path with no `.`/`..` segments and no
@@ -15,6 +15,7 @@ const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.\-]*:/
  * file URL, NUL byte, ...).
  *
  * This matches the rule used by the PHP-side {@see ZipEntryService}.
+ * @param input
  */
 export function normalizeEntryPath(input: string): string | null {
 	if (input.length === 0 || input.includes('\0')) {
@@ -49,6 +50,8 @@ export function normalizeEntryPath(input: string): string | null {
  * Resolves a relative resource href against a base entry path (e.g. when the
  * iframe-loaded page navigates to `./html/page.html`). Returns null if the
  * resolution escapes the package root.
+ * @param baseEntry
+ * @param href
  */
 export function resolveRelativeEntry(baseEntry: string, href: string): string | null {
 	if (isExternalUrl(href)) {
@@ -61,6 +64,10 @@ export function resolveRelativeEntry(baseEntry: string, href: string): string | 
 	return normalizeEntryPath(combined)
 }
 
+/**
+ *
+ * @param href
+ */
 export function isExternalUrl(href: string): boolean {
 	if (href.startsWith('//')) return true
 	if (PROTOCOL_LIKE.test(href)) {
@@ -79,6 +86,9 @@ export interface RuntimeUrl {
 /**
  * Builds an iframe-loadable URL for an entry inside the package. The Service
  * Worker scope must match {@link RUNTIME_PREFIX}.
+ * @param base
+ * @param sessionId
+ * @param entry
  */
 export function buildRuntimeUrl(base: string, sessionId: string, entry: string): string {
 	const normalized = normalizeEntryPath(entry)
@@ -95,11 +105,13 @@ export function buildRuntimeUrl(base: string, sessionId: string, entry: string):
 /**
  * Parses a runtime URL produced by {@link buildRuntimeUrl} back into its
  * session and entry components. The base path must match RUNTIME_PREFIX.
+ * @param url
+ * @param base
  */
 export function parseRuntimeUrl(url: string, base: string): RuntimeUrl | null {
 	const pathname = url.startsWith('/') ? url : new URL(url, 'http://placeholder/').pathname
 	const cleanBase = base.replace(/\/+$/, '')
-	if (!pathname.startsWith(cleanBase + '/')) {
+	if (!pathname.startsWith(`${cleanBase}/`)) {
 		return null
 	}
 	const remainder = pathname.slice(cleanBase.length + 1)

@@ -5,17 +5,6 @@
 // publicPath only knows about the first; for any chunk webpack loads at
 // runtime we redirect it through OC.appswebroots, which Nextcloud
 // guarantees is correct for the current install.
-declare let __webpack_public_path__: string
-declare global {
-	interface Window {
-		OC?: { appswebroots?: Record<string, string> }
-	}
-}
-if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
-}
-
 /**
  * Entry point loaded by Nextcloud as an init script (see
  * {@link \OCA\ExeLearning\AppInfo\Application::boot}). It runs before the
@@ -30,6 +19,17 @@ if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
 
 import { registerFileActions } from './files/actions'
 
+declare let __webpack_public_path__: string
+declare global {
+	interface Window {
+		OC?: { appswebroots?: Record<string, string> }
+	}
+}
+if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
+	// eslint-disable-next-line @typescript-eslint/no-unused-vars
+	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
+}
+
 // The Viewer handler is intentionally not registered any more. The
 // previous "Iniciar la presentación" toolbar comes from
 // @nextcloud/viewer's own modal chrome and there is no public API on the
@@ -41,6 +41,9 @@ import { registerFileActions } from './files/actions'
 // by the editor page as a read-only fallback when the static editor is
 // not installed.
 
+/**
+ *
+ */
 function safeBoot(): void {
 	try {
 		registerFileActions()
@@ -54,5 +57,3 @@ function safeBoot(): void {
 }
 
 safeBoot()
-
-export {}

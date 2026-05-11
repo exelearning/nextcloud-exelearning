@@ -20,6 +20,10 @@ export interface LoadedElpx {
 	contentLength?: number
 }
 
+/**
+ *
+ * @param options
+ */
 export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	if (options.fileId === undefined && (options.path === undefined || options.path === '')) {
 		throw new Error('Either fileId or path is required to load an .elpx package.')
@@ -39,7 +43,7 @@ export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	const filename = parseFilename(typeof disposition === 'string' ? disposition : null)
 		?? deriveFilename(options.path, options.fileId)
 
-	const etagHeader = response.headers['etag']
+	const etagHeader = response.headers.etag
 	return {
 		bytes: response.data,
 		filename,
@@ -50,6 +54,10 @@ export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	}
 }
 
+/**
+ *
+ * @param header
+ */
 function parseFilename(header: string | null): string | null {
 	if (!header) return null
 	const match = header.match(/filename\*=UTF-8''([^;]+)/i) ?? header.match(/filename="?([^";]+)"?/i)
@@ -61,6 +69,11 @@ function parseFilename(header: string | null): string | null {
 	}
 }
 
+/**
+ *
+ * @param path
+ * @param fileId
+ */
 function deriveFilename(path?: string, fileId?: number): string {
 	if (path) {
 		const slash = path.lastIndexOf('/')

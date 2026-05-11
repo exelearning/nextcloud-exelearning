@@ -5,12 +5,10 @@
 				<span class="icon-loading" aria-hidden="true" />
 				<p>{{ status || t('exelearning', 'Opening eXeLearning package…') }}</p>
 			</div>
-			<ViewerError
-				v-else-if="state === 'error'"
+			<ViewerError v-else-if="state === 'error'"
 				:title="errorTitle"
 				:message="errorMessage"
-				:detail="errorDetail"
-			/>
+				:detail="errorDetail" />
 		</div>
 	</div>
 </template>

@@ -39,6 +39,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 	pdf: 'application/pdf',
 }
 
+/**
+ *
+ * @param entry
+ */
 export function mimeForEntry(entry: string): string {
 	const dot = entry.lastIndexOf('.')
 	if (dot < 0 || dot === entry.length - 1) {
@@ -48,6 +52,10 @@ export function mimeForEntry(entry: string): string {
 	return MIME_BY_EXTENSION[extension] ?? 'application/octet-stream'
 }
 
+/**
+ *
+ * @param entry
+ */
 export function isHtmlEntry(entry: string): boolean {
 	const mime = mimeForEntry(entry)
 	return mime.startsWith('text/html') || mime.startsWith('application/xhtml+xml')

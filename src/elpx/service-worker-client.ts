@@ -25,6 +25,9 @@ export interface RuntimeWorker {
 let activeWorker: RuntimeWorker | null = null
 let pendingRegistration: Promise<RuntimeWorker> | null = null
 
+/**
+ *
+ */
 export async function ensureRuntimeWorker(): Promise<RuntimeWorker> {
 	if (activeWorker) {
 		return activeWorker
@@ -41,9 +44,12 @@ export async function ensureRuntimeWorker(): Promise<RuntimeWorker> {
 	return pendingRegistration
 }
 
+/**
+ *
+ */
 async function registerRuntimeWorker(): Promise<RuntimeWorker> {
 	const scriptUrl = generateUrl('/apps/exelearning/sw.js')
-	const scope = generateUrl(RUNTIME_PREFIX) + '/'
+	const scope = `${generateUrl(RUNTIME_PREFIX)}/`
 	const runtimeBase = generateUrl(RUNTIME_PREFIX)
 	const registration = await navigator.serviceWorker.register(scriptUrl, {
 		scope,
@@ -55,6 +61,10 @@ async function registerRuntimeWorker(): Promise<RuntimeWorker> {
 	return worker
 }
 
+/**
+ *
+ * @param registration
+ */
 function waitForActive(registration: ServiceWorkerRegistration): Promise<void> {
 	if (registration.active && navigator.serviceWorker.controller) {
 		return Promise.resolve()
@@ -77,6 +87,11 @@ function waitForActive(registration: ServiceWorkerRegistration): Promise<void> {
 	})
 }
 
+/**
+ *
+ * @param worker
+ * @param session
+ */
 export async function registerSession(worker: RuntimeWorker, session: ViewerSession): Promise<void> {
 	const target = worker.registration.active ?? worker.registration.waiting ?? worker.registration.installing
 	if (!target) {
@@ -103,6 +118,11 @@ export async function registerSession(worker: RuntimeWorker, session: ViewerSess
 	})
 }
 
+/**
+ *
+ * @param worker
+ * @param sessionId
+ */
 export async function unregisterSession(worker: RuntimeWorker, sessionId: string): Promise<void> {
 	const target = worker.registration.active ?? worker.registration.waiting ?? worker.registration.installing
 	if (!target) {
@@ -121,13 +141,18 @@ interface RuntimeMessage {
 	[key: string]: unknown
 }
 
+/**
+ *
+ * @param target
+ * @param message
+ */
 function postWithReply(target: ServiceWorker, message: RuntimeMessage): Promise<void> {
 	return new Promise((resolve, reject) => {
 		const channel = new MessageChannel()
 		channel.port1.onmessage = (event) => {
 			channel.port1.close()
 			const data = event.data as { ok?: boolean; error?: string } | undefined
-			if (data && data.ok) {
+			if (data?.ok) {
 				resolve()
 			} else {
 				reject(new Error(data?.error ?? 'Service Worker rejected the message.'))
