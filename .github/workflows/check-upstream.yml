@@ -1,0 +1,119 @@
+name: Check eXeLearning upstream releases
+
+# Runs daily and on demand. When `exelearning/exelearning` publishes a
+# new release, this workflow opens a tracking issue in this repository
+# so a maintainer can decide whether to bump the bundled editor and cut
+# a new Nextcloud app release. Nothing is pushed or published
+# automatically — Nextcloud appstore submissions need a deliberate
+# version bump and code-signed tarball, so we keep the human in the
+# loop.
+
+on:
+  schedule:
+    # Daily at 08:00 UTC. Adjust if you prefer another time window.
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  check_upstream:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Resolve latest upstream eXeLearning release
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh api repos/exelearning/exelearning/releases/latest \
+            --jq '.tag_name' 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "Could not resolve a latest release for exelearning/exelearning."
+            echo "tag=" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Latest upstream tag: $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Compare against the editor pin used by this repo
+        if: steps.latest.outputs.tag != ''
+        id: compare
+        run: |
+          set -euo pipefail
+          LATEST="${{ steps.latest.outputs.tag }}"
+
+          # Look for a marker file first (mirrors wp-exelearning's
+          # .editor-version), then fall back to the Makefile pin.
+          PINNED=""
+          if [ -f .editor-version ]; then
+            PINNED=$(tr -d '[:space:]' < .editor-version)
+          fi
+          if [ -z "$PINNED" ]; then
+            PINNED=$(grep -E '^EXELEARNING_EDITOR_REF[[:space:]]*\??=' Makefile \
+              | head -n1 \
+              | sed -E 's/^[^=]*=[[:space:]]*//' \
+              | tr -d '[:space:]')
+          fi
+
+          echo "Latest upstream:    $LATEST"
+          echo "Pinned in this app: ${PINNED:-<unset, tracking latest>}"
+
+          if [ "$LATEST" = "$PINNED" ]; then
+            echo "Already up to date."
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+            echo "pinned=${PINNED:-none}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Open tracking issue if a newer editor release exists
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          LATEST: ${{ steps.latest.outputs.tag }}
+          PINNED: ${{ steps.compare.outputs.pinned }}
+        run: |
+          set -euo pipefail
+          TITLE="Bundled eXeLearning editor: upstream ${LATEST} available"
+
+          # Avoid spamming: skip if an open issue already tracks this tag.
+          EXISTING=$(gh issue list \
+            --state open \
+            --search "${TITLE} in:title" \
+            --json number \
+            --jq '.[0].number' || true)
+          if [ -n "$EXISTING" ]; then
+            echo "Tracking issue already open (#$EXISTING). Nothing to do."
+            exit 0
+          fi
+
+          gh issue create \
+            --title "$TITLE" \
+            --body "$(cat <<EOF
+          A new release of [\`exelearning/exelearning\`](https://github.com/exelearning/exelearning/releases/tag/${LATEST}) was published upstream.
+
+          - Upstream tag: \`${LATEST}\`
+          - Pinned in this app: \`${PINNED}\`
+
+          To rebuild the bundled static editor against this tag:
+
+          \`\`\`sh
+          make download-editor EXELEARNING_EDITOR_REF=${LATEST}
+          # or build it from source instead
+          make build-editor EXELEARNING_EDITOR_REF=${LATEST} EXELEARNING_EDITOR_REF_TYPE=tag
+          \`\`\`
+
+          When you are ready to ship the change, bump \`appinfo/info.xml\`
+          and create a GitHub release — the [release workflow](../actions/workflows/release.yml)
+          will run \`make package\` and attach \`exelearning-<version>.tar.gz\`
+          to that release automatically.
+
+          _Opened automatically by \`.github/workflows/check-upstream.yml\`._
+          EOF
+          )"

@@ -1,0 +1,123 @@
+name: Build and publish app release
+
+# Builds the Nextcloud appstore-ready tarball (`exelearning-<version>.tar.gz`)
+# and attaches it to the GitHub Release that triggered the workflow.
+#
+# Triggered automatically when a release is published, and available via
+# `workflow_dispatch` for manual builds (handy when iterating on the
+# packaging itself or when staging release candidates).
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version label for the package (defaults to appinfo/info.xml)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Read app metadata from appinfo/info.xml
+        id: meta
+        run: |
+          set -euo pipefail
+          APP_ID=$(sed -n 's:.*<id>\(.*\)</id>.*:\1:p' appinfo/info.xml | head -n1)
+          INFO_VERSION=$(sed -n 's:.*<version>\(.*\)</version>.*:\1:p' appinfo/info.xml | head -n1)
+          PHP_MIN=$(sed -n 's:.*<php[^>]*min-version="\([0-9.]*\)".*:\1:p' appinfo/info.xml | head -n1)
+          echo "app_id=$APP_ID" >> "$GITHUB_OUTPUT"
+          echo "info_version=$INFO_VERSION" >> "$GITHUB_OUTPUT"
+          echo "php_version=${PHP_MIN:-8.1}" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve package version
+        id: version
+        env:
+          INPUT_VERSION: ${{ github.event.inputs.version }}
+          INFO_VERSION: ${{ steps.meta.outputs.info_version }}
+        run: |
+          set -euo pipefail
+          if [ "${{ github.event_name }}" = "release" ]; then
+            RAW="${GITHUB_REF##*/}"
+            VERSION="${RAW#v}"
+          elif [ -n "${INPUT_VERSION}" ]; then
+            VERSION="${INPUT_VERSION}"
+          else
+            VERSION="${INFO_VERSION}"
+          fi
+          if [ -z "$VERSION" ]; then
+            echo "Could not resolve a version label."; exit 1
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Building ${{ steps.meta.outputs.app_id }} version $VERSION"
+
+      - name: Verify info.xml matches the release tag
+        if: github.event_name == 'release'
+        env:
+          INFO_VERSION: ${{ steps.meta.outputs.info_version }}
+          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if [ "$INFO_VERSION" != "$PACKAGE_VERSION" ]; then
+            echo "::error::appinfo/info.xml declares version '$INFO_VERSION' but the release tag is '$PACKAGE_VERSION'."
+            echo "Bump appinfo/info.xml before publishing the release."
+            exit 1
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.meta.outputs.php_version }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          if [ -f composer.json ]; then
+            composer install --no-dev --prefer-dist --optimize-autoloader || true
+          fi
+
+      - name: Build the Nextcloud distribution tarball
+        run: make package PACKAGE_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Compute artefact paths
+        id: artefact
+        env:
+          APP_ID: ${{ steps.meta.outputs.app_id }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          NAME="${APP_ID}-${VERSION}.tar.gz"
+          PATH_REL="build/artifacts/${NAME}"
+          test -f "${PATH_REL}" || { echo "::error::Expected ${PATH_REL} but it was not produced."; exit 1; }
+          echo "name=${NAME}" >> "$GITHUB_OUTPUT"
+          echo "path=${PATH_REL}" >> "$GITHUB_OUTPUT"
+
+      - name: Upload tarball as workflow artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.artefact.outputs.name }}
+          path: ${{ steps.artefact.outputs.path }}
+
+      - name: Attach tarball to the GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: ${{ steps.artefact.outputs.path }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
