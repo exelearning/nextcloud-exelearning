@@ -20,6 +20,18 @@
 node_modules                export-ignore
 vendor                      export-ignore
 
+# --- Frontend sources ---------------------------------------------------
+# Compiled into js/ at build time; only src/sw/ is loaded at runtime by
+# SwController.php. `git archive` does not support whitelist rules, so
+# list every src/ subdirectory other than sw/ explicitly.
+src/editor                  export-ignore
+src/elpx                    export-ignore
+src/files                   export-ignore
+src/main.ts                 export-ignore
+src/types                   export-ignore
+src/view                    export-ignore
+src/viewer                  export-ignore
+
 # --- Build configuration & tooling --------------------------------------
 package.json                export-ignore
 package-lock.json           export-ignore
@@ -28,6 +40,11 @@ composer.lock               export-ignore
 webpack.config.js           export-ignore
 tsconfig.json               export-ignore
 vitest.config.ts            export-ignore
+biome.json                  export-ignore
+.eslintrc.cjs               export-ignore
+.php-cs-fixer.dist.php      export-ignore
+.php-cs-fixer.cache         export-ignore
+tools                       export-ignore
 
 # --- Tests, coverage and caches -----------------------------------------
 tests                       export-ignore

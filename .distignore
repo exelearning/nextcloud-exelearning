@@ -3,10 +3,22 @@
 # Patterns listed here are stripped from the Nextcloud distribution
 # tarball produced by `make package`. Each line is passed verbatim to
 # `rsync --exclude-from=.distignore`, so the syntax matches rsync
-# exclude rules (one pattern per line, comments start with `#`).
+# filter rules (one pattern per line, comments start with `#`,
+# `+ ` lines whitelist, `- ` lines exclude, bare lines exclude).
+# Order matters: the first matching rule wins.
 #
 # Mirror any addition you make here in `.gitattributes` so that
 # `git archive` exports stay aligned.
+
+# --- Frontend sources -------------------------------------------------
+# All TypeScript / Vue under src/ is compiled into js/ at build time
+# and not needed at runtime, EXCEPT src/sw/ which `SwController.php`
+# reads to serve /apps/exelearning/sw.js. Whitelist that subtree
+# before excluding the rest of src/.
++ src/
++ src/sw/
++ src/sw/**
+- src/**
 
 # --- Version control & developer metadata --------------------------------
 .git
@@ -36,6 +48,11 @@ composer.lock
 webpack.config.js
 tsconfig.json
 vitest.config.ts
+biome.json
+.eslintrc.cjs
+.php-cs-fixer.dist.php
+.php-cs-fixer.cache
+tools
 
 # --- Tests, coverage and caches -----------------------------------------
 tests
