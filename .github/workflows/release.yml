@@ -1,19 +1,25 @@
 name: Build and publish app release
 
-# Builds the Nextcloud appstore-ready tarball (`exelearning-<version>.tar.gz`)
-# and attaches it to the GitHub Release that triggered the workflow.
+# Builds the Nextcloud appstore-ready tarball
+# (`exelearning-<version>.tar.gz`, with the bundled eXeLearning static
+# editor inside) and publishes it to a GitHub Release.
 #
-# Triggered automatically when a release is published, and available via
-# `workflow_dispatch` for manual builds (handy when iterating on the
-# packaging itself or when staging release candidates).
+# Triggered automatically when a release is published, and available
+# via `workflow_dispatch` for manual builds — handy when refreshing
+# the bundled editor against a new upstream tag without changing any
+# app code (mirrors the wp-exelearning auto-release flow).
 
 on:
   release:
     types: [published]
   workflow_dispatch:
     inputs:
+      editor_ref:
+        description: "eXeLearning editor tag to bundle (e.g. v3.7.0). 'latest' resolves the most recent GitHub release."
+        required: false
+        default: "latest"
       version:
-        description: "Version label for the package (defaults to appinfo/info.xml)"
+        description: "Override package version label (defaults to the editor tag without the leading v)"
         required: false
         default: ""
 
@@ -38,11 +44,32 @@ jobs:
           echo "info_version=$INFO_VERSION" >> "$GITHUB_OUTPUT"
           echo "php_version=${PHP_MIN:-8.1}" >> "$GITHUB_OUTPUT"
 
+      # Resolve the editor tag once at the top of the job so the same
+      # value powers the editor download, the package version (when
+      # workflow_dispatch defaults), and the GitHub Release tag.
+      - name: Resolve eXeLearning editor tag
+        id: editor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          INPUT_REF: ${{ github.event.inputs.editor_ref }}
+        run: |
+          set -euo pipefail
+          REF="${INPUT_REF:-latest}"
+          if [ -z "$REF" ] || [ "$REF" = "latest" ]; then
+            REF=$(gh api repos/exelearning/exelearning/releases/latest --jq '.tag_name')
+          fi
+          if [ -z "$REF" ]; then
+            echo "::error::Could not resolve a latest editor release."; exit 1
+          fi
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "Editor tag: $REF"
+
       - name: Resolve package version
         id: version
         env:
           INPUT_VERSION: ${{ github.event.inputs.version }}
           INFO_VERSION: ${{ steps.meta.outputs.info_version }}
+          EDITOR_REF: ${{ steps.editor.outputs.ref }}
         run: |
           set -euo pipefail
           if [ "${{ github.event_name }}" = "release" ]; then
@@ -51,26 +78,29 @@ jobs:
           elif [ -n "${INPUT_VERSION}" ]; then
             VERSION="${INPUT_VERSION}"
           else
-            VERSION="${INFO_VERSION}"
+            # Default for workflow_dispatch: use the editor tag as the
+            # package version so refreshes are easy to trace, matching
+            # the wp-exelearning convention.
+            VERSION="${EDITOR_REF#v}"
           fi
           if [ -z "$VERSION" ]; then
-            echo "Could not resolve a version label."; exit 1
+            echo "::error::Could not resolve a version label."; exit 1
           fi
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Building ${{ steps.meta.outputs.app_id }} version $VERSION"
+          echo "Package version: $VERSION"
 
-      - name: Verify info.xml matches the release tag
-        if: github.event_name == 'release'
+      - name: Resolve GitHub Release tag
+        id: tag
         env:
-          INFO_VERSION: ${{ steps.meta.outputs.info_version }}
-          PACKAGE_VERSION: ${{ steps.version.outputs.version }}
+          EDITOR_REF: ${{ steps.editor.outputs.ref }}
         run: |
           set -euo pipefail
-          if [ "$INFO_VERSION" != "$PACKAGE_VERSION" ]; then
-            echo "::error::appinfo/info.xml declares version '$INFO_VERSION' but the release tag is '$PACKAGE_VERSION'."
-            echo "Bump appinfo/info.xml before publishing the release."
-            exit 1
+          if [ "${{ github.event_name }}" = "release" ]; then
+            TAG="${GITHUB_REF##*/}"
+          else
+            TAG="${EDITOR_REF}"
           fi
+          echo "name=$TAG" >> "$GITHUB_OUTPUT"
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -92,6 +122,15 @@ jobs:
             composer install --no-dev --prefer-dist --optimize-autoloader || true
           fi
 
+      # `make download-editor` reads EXELEARNING_EDITOR_REF from env.
+      # Bundling the prebuilt static editor (~73 MB) is what makes the
+      # release tarball usable out of the box; without it the .elpx
+      # editor route 404s in production installs.
+      - name: Download the eXeLearning static editor
+        env:
+          EXELEARNING_EDITOR_REF: ${{ steps.editor.outputs.ref }}
+        run: make download-editor
+
       - name: Build the Nextcloud distribution tarball
         run: make package PACKAGE_VERSION=${{ steps.version.outputs.version }}
 
@@ -107,6 +146,7 @@ jobs:
           test -f "${PATH_REL}" || { echo "::error::Expected ${PATH_REL} but it was not produced."; exit 1; }
           echo "name=${NAME}" >> "$GITHUB_OUTPUT"
           echo "path=${PATH_REL}" >> "$GITHUB_OUTPUT"
+          echo "Tarball size: $(du -h "${PATH_REL}" | cut -f1)"
 
       - name: Upload tarball as workflow artefact
         uses: actions/upload-artifact@v7
@@ -114,10 +154,21 @@ jobs:
           name: ${{ steps.artefact.outputs.name }}
           path: ${{ steps.artefact.outputs.path }}
 
-      - name: Attach tarball to the GitHub Release
-        if: github.event_name == 'release'
+      # On `release: published` the release already exists and we just
+      # add the tarball to it. On `workflow_dispatch` the release is
+      # created (or updated) using the editor tag as the release name —
+      # the same flow wp-exelearning uses for editor refreshes.
+      - name: Publish to GitHub Release
         uses: softprops/action-gh-release@v3
         with:
+          tag_name: ${{ steps.tag.outputs.name }}
+          name: ${{ steps.tag.outputs.name }}
           files: ${{ steps.artefact.outputs.path }}
+          fail_on_unmatched_files: true
+          body: |
+            Automated build bundling the eXeLearning static editor `${{ steps.editor.outputs.ref }}`.
+
+            App version: `${{ steps.version.outputs.version }}` (from
+            `appinfo/info.xml`: `${{ steps.meta.outputs.info_version }}`).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
