@@ -64,7 +64,7 @@ class EditorController extends Controller {
 					'etag' => $file->getEtag(),
 					'writable' => $file->isUpdateable(),
 				]);
-			} catch (NotFoundException | NotPermittedException) {
+			} catch (NotFoundException|NotPermittedException) {
 				// fall through: editor still opens, just without a preloaded file
 			}
 		} elseif ($path !== null && $path !== '') {
@@ -78,7 +78,7 @@ class EditorController extends Controller {
 					'etag' => $file->getEtag(),
 					'writable' => $file->isUpdateable(),
 				]);
-			} catch (NotFoundException | NotPermittedException) {
+			} catch (NotFoundException|NotPermittedException) {
 				// fall through
 			}
 		}

@@ -92,7 +92,7 @@ class ZipEntryService {
 	 * unsafe (path traversal, absolute path).
 	 */
 	public function normalizeEntry(string $entry): ?string {
-		$entry = ltrim($entry, "/\\");
+		$entry = ltrim($entry, '/\\');
 		$entry = str_replace('\\', '/', $entry);
 		if ($entry === '' || str_contains($entry, "\0")) {
 			return null;

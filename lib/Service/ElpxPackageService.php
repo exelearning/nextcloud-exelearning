@@ -22,8 +22,8 @@ class ElpxPackageService {
 	}
 
 	/**
-	 * @throws NotFoundException     when the file does not exist or the user
-	 *                               cannot see it
+	 * @throws NotFoundException when the file does not exist or the user
+	 *                           cannot see it
 	 * @throws NotPermittedException when the file is not a readable .elpx
 	 */
 	public function getForUserById(string $userId, int $fileId): File {

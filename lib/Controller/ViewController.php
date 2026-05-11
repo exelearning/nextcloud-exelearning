@@ -55,13 +55,13 @@ class ViewController extends Controller {
 		if ($fileId !== null && $fileId > 0) {
 			try {
 				$file = $this->packageService->getForUserById($user->getUID(), $fileId);
-			} catch (NotFoundException | NotPermittedException) {
+			} catch (NotFoundException|NotPermittedException) {
 				$file = null;
 			}
 		} elseif ($path !== null && $path !== '') {
 			try {
 				$file = $this->packageService->getForUserByPath($user->getUID(), $path);
-			} catch (NotFoundException | NotPermittedException) {
+			} catch (NotFoundException|NotPermittedException) {
 				$file = null;
 			}
 		}
