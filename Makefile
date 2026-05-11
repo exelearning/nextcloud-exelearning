@@ -14,6 +14,33 @@ RELEASE_DIR := $(BUILD_DIR)/$(APP_NAME)
 PACKAGE_VERSION ?= $(APP_VERSION)
 PACKAGE_NAME := $(APP_NAME)-$(PACKAGE_VERSION).tar.gz
 
+# --- PHP runtime selection ----------------------------------------------
+# appinfo/info.xml declares PHP 8.1–8.3 as the supported range. macOS
+# users frequently end up with PHP 8.4+ in their PATH (Homebrew default),
+# which makes Composer / PHPUnit / php-cs-fixer print compatibility
+# warnings and occasionally crash on syntax not yet supported on 8.1.
+# Pick the highest in-range PHP available, in this order:
+#   1. an explicit `PHP=` override on the command line
+#   2. Homebrew's `php@8.3` keg
+#   3. distro-style versioned binaries (php8.3, php83)
+#   4. `php` in PATH, with a warning when it falls outside 8.1–8.3
+PHP ?= $(shell \
+	for candidate in \
+		/opt/homebrew/opt/php@8.3/bin/php \
+		/usr/local/opt/php@8.3/bin/php \
+		/opt/homebrew/opt/php@8.2/bin/php \
+		/usr/local/opt/php@8.2/bin/php \
+		/opt/homebrew/opt/php@8.1/bin/php \
+		/usr/local/opt/php@8.1/bin/php \
+		php8.3 php83 php8.2 php82 php8.1 php81 php; do \
+		if command -v $$candidate >/dev/null 2>&1; then \
+			echo $$candidate; \
+			exit 0; \
+		fi; \
+	done; \
+	echo php)
+COMPOSER ?= $(PHP) $(shell command -v composer 2>/dev/null || echo composer)
+
 # --- Editor variables (optional bundle) ----------------------------------
 EXELEARNING_EDITOR_REPO ?= exelearning/exelearning
 # Optional pin: leave empty to track the latest GitHub release.
@@ -36,7 +63,7 @@ NC_ADMIN_USER ?= admin
 NC_ADMIN_PASS ?= admin
 
 .PHONY: help install build dev watch-js lint typecheck test clean \
-	composer-install composer-test \
+	composer-install composer-test cs-check cs-fix php-version \
 	download-editor fetch-editor-source build-editor clean-editor \
 	package appstore \
 	up down restart logs shell occ-status status sync
@@ -50,6 +77,9 @@ help:
 	@echo "  lint            - lint frontend sources"
 	@echo "  typecheck       - run vue-tsc / tsc"
 	@echo "  test            - run JS and PHP tests"
+	@echo "  cs-check        - php-cs-fixer dry-run (Nextcloud coding standard)"
+	@echo "  cs-fix          - apply php-cs-fixer fixes"
+	@echo "  php-version     - show which PHP binary Make picked up"
 	@echo ""
 	@echo "Try-it-out (Docker) targets:"
 	@echo "  up              - build + download editor (if missing) + start Nextcloud"
@@ -73,10 +103,16 @@ install: composer-install
 
 composer-install:
 	@if command -v composer >/dev/null 2>&1; then \
-		composer install --no-dev --prefer-dist; \
+		$(COMPOSER) install --no-dev --prefer-dist; \
 	else \
 		echo "composer not found, skipping PHP dependency install"; \
 	fi
+
+# Print which PHP binary the Makefile is using so you can confirm it
+# falls within the 8.1–8.3 range declared in appinfo/info.xml.
+php-version:
+	@echo "PHP binary : $(PHP)"
+	@$(PHP) -v | head -n1
 
 # --- Frontend ------------------------------------------------------------
 build:
@@ -100,9 +136,25 @@ test: composer-test
 
 composer-test:
 	@if [ -f vendor/bin/phpunit ]; then \
-		vendor/bin/phpunit --configuration tests/phpunit.xml; \
+		$(PHP) vendor/bin/phpunit --configuration tests/phpunit.xml; \
 	else \
 		echo "phpunit not installed (run 'composer install' first), skipping"; \
+	fi
+
+# Run php-cs-fixer (Nextcloud preset) in dry-run mode — same command CI
+# uses, so a green local run means a green CI lint job.
+cs-check:
+	@if [ -f vendor/bin/php-cs-fixer ]; then \
+		$(PHP) vendor/bin/php-cs-fixer fix --dry-run --diff --using-cache=no; \
+	else \
+		echo "php-cs-fixer not installed (run 'composer install' first), skipping"; \
+	fi
+
+cs-fix:
+	@if [ -f vendor/bin/php-cs-fixer ]; then \
+		$(PHP) vendor/bin/php-cs-fixer fix; \
+	else \
+		echo "php-cs-fixer not installed (run 'composer install' first), skipping"; \
 	fi
 
 # --- Editor bundle (optional) -------------------------------------------
