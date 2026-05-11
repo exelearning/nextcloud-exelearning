@@ -334,6 +334,14 @@ up:
 		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}" \
 		 > /var/www/html/config/mimetypemapping.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypemapping.json'
+	@# Alias the .elpx MIME types to "exelearning" so Nextcloud picks up
+	@# the bundled img/mimetype-exelearning.svg as the file icon. Without
+	@# this the Files list shows the generic gear icon for .elpx files.
+	@echo ">> aliasing .elpx MIME types to the exelearning icon"
+	@docker exec $(DOCKER_NAME) bash -c \
+		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\",\"application/x-exelearning\":\"exelearning\"}" \
+		 > /var/www/html/config/mimetypealiases.json && \
+		 chown www-data:www-data /var/www/html/config/mimetypealiases.json'
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
 	@echo
