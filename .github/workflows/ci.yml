@@ -90,7 +90,12 @@ jobs:
         run: vendor/bin/phpunit --configuration tests/phpunit.xml
 
       # Catches schema regressions in info.xml before the Nextcloud
-      # appstore validator does.
+      # appstore validator does. `xmllint` ships in the libxml2-utils
+      # package, which the GitHub-hosted ubuntu-latest images no longer
+      # preinstall.
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
       - name: Validate appinfo/info.xml against the appstore schema
         run: |
           set -euo pipefail
