@@ -18,8 +18,9 @@ export const ELPX_MIME_TYPES = [
 export const ELPX_EXTENSIONS = ['.elpx', '.elp']
 
 /**
- *
- * @param name
+ * Case-insensitive check for filenames the app should claim. Used as a
+ * fallback when the server-side MIME detection misclassifies an upload.
+ * @param name Filename or basename, with extension included.
  */
 export function hasElpxExtension(name: string): boolean {
 	const lower = name.toLowerCase()
@@ -34,8 +35,12 @@ export interface FileLike {
 }
 
 /**
- *
- * @param file
+ * Decides whether the given file should trigger this app's actions. Uses
+ * the filename when available (the most reliable signal) and only accepts
+ * plain `application/zip` when the extension also matches — otherwise
+ * every ZIP in the user's Files would gain an "Open with eXeLearning"
+ * action.
+ * @param file Minimal Files-app shape (mime + name/basename/displayName).
  */
 export function isElpxFile(file: FileLike): boolean {
 	const name = file.name ?? file.basename ?? file.displayName ?? ''

@@ -96,9 +96,10 @@ async function boot(): Promise<void> {
 }
 
 /**
- *
- * @param key
- * @param fallback
+ * Wraps `loadState` so a missing or malformed initial-state entry falls back
+ * to the supplied default instead of throwing during page boot.
+ * @param key The initial-state key registered server-side.
+ * @param fallback Value to return when the key is missing or invalid.
  */
 function safeLoad<T>(key: string, fallback: T): T {
 	try {
@@ -109,9 +110,11 @@ function safeLoad<T>(key: string, fallback: T): T {
 }
 
 /**
- *
- * @param target
- * @param text
+ * Replaces the target element's content with a single status paragraph.
+ * Used to surface boot-time errors (missing editor, missing file, …)
+ * without dragging in a Vue runtime for a single string.
+ * @param target Element whose content is replaced.
+ * @param text Localised message to display.
  */
 function renderMessage(target: HTMLElement, text: string): void {
 	target.innerHTML = ''
@@ -122,10 +125,12 @@ function renderMessage(target: HTMLElement, text: string): void {
 }
 
 /**
- *
- * @param file
- * @param bytes
- * @param ifMatch
+ * POSTs the editor's save bytes back to `EditorController::save`. The
+ * `If-Match` header carries the original ETag so concurrent edits in
+ * another tab fail loudly with a 412 instead of overwriting silently.
+ * @param file Metadata for the file being saved (id and display name).
+ * @param bytes Raw `.elpx` bytes returned by the editor.
+ * @param ifMatch ETag captured at load time, sent back as `If-Match`.
  */
 async function uploadToNextcloud(file: InitialFile, bytes: ArrayBuffer, ifMatch: string): Promise<void> {
 	const url = generateUrl('/apps/exelearning/editor/save')

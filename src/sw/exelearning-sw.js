@@ -66,8 +66,11 @@ self.addEventListener('message', (event) => {
 })
 
 /**
- *
- * @param data
+ * Stores a new session in the in-memory map. Files arrive as a list of
+ * `{ path, mime, bytes }`; the path is normalised here so request matching
+ * never has to deal with `..`/`.` segments or backslashes.
+ * @param {{ sessionId: string, files: Array<{ path: string, mime?: string, bytes: ArrayBuffer | null }>, indexEntry?: string, filename?: string }} data
+ *   `EXELEARNING_REGISTER_SESSION` message payload from the page.
  */
 function registerSession(data) {
 	if (!data.sessionId || typeof data.sessionId !== 'string') {
@@ -104,8 +107,11 @@ self.addEventListener('fetch', (event) => {
 })
 
 /**
- *
- * @param match
+ * Looks up the session and entry produced by {@link matchRuntimeUrl} and
+ * builds the `Response` for the iframe. Missing sessions return 410 (the
+ * package was unloaded), missing entries return 404.
+ * @param {{ sessionId: string, entry: string }} match
+ *   Parsed runtime URL from {@link matchRuntimeUrl}.
  */
 function handleRuntimeFetch(match) {
 	const session = sessions.get(match.sessionId)
@@ -135,8 +141,10 @@ function handleRuntimeFetch(match) {
 }
 
 /**
- *
- * @param pathname
+ * Splits a request pathname into `{ sessionId, entry }` if it falls under
+ * the runtime scope, or returns `null` so the SW lets the request through
+ * to the network unchanged.
+ * @param {string} pathname `URL.pathname` of the intercepted request.
  */
 function matchRuntimeUrl(pathname) {
 	const idx = pathname.indexOf(RUNTIME_TAIL)
@@ -156,8 +164,10 @@ function matchRuntimeUrl(pathname) {
 }
 
 /**
- *
- * @param value
+ * `decodeURIComponent` that returns the raw input on malformed escape
+ * sequences instead of throwing — the SW must never crash on adversarial
+ * URLs.
+ * @param {string} value Single URL path segment to decode.
  */
 function safeDecode(value) {
 	try {
@@ -169,8 +179,10 @@ function safeDecode(value) {
 }
 
 /**
- *
- * @param input
+ * SW-side mirror of `normalizeEntryPath` from src/elpx/paths.ts. Kept
+ * inline because the SW must not import from the bundled application
+ * code (it is loaded out-of-band by the browser, not by webpack).
+ * @param {unknown} input Untrusted entry value coming from a request URL.
  */
 function normalizeEntry(input) {
 	if (typeof input !== 'string' || input.length === 0 || input.indexOf('\0') >= 0) {

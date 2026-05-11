@@ -40,8 +40,10 @@ const MIME_BY_EXTENSION: Record<string, string> = {
 }
 
 /**
- *
- * @param entry
+ * Maps a normalized package entry path (e.g. `assets/style.css`) to the
+ * Content-Type the Service Worker should serve it with. Falls back to
+ * `application/octet-stream` for unknown extensions.
+ * @param entry Normalised entry path inside the `.elpx` package.
  */
 export function mimeForEntry(entry: string): string {
 	const dot = entry.lastIndexOf('.')
@@ -53,8 +55,9 @@ export function mimeForEntry(entry: string): string {
 }
 
 /**
- *
- * @param entry
+ * True when {@link mimeForEntry} resolves to an HTML or XHTML MIME — used by
+ * the iframe renderer to decide whether to rewire external links.
+ * @param entry Normalised entry path inside the `.elpx` package.
  */
 export function isHtmlEntry(entry: string): boolean {
 	const mime = mimeForEntry(entry)

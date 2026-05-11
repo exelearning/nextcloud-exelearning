@@ -49,7 +49,7 @@ const ZIP_LOCAL_SIGNATURE = 0x04034b50
  * Cheap sanity check on the file header before handing the buffer to fflate.
  * Empty .elpx files and accidental text uploads (e.g. `.html` renamed) fail
  * here with a clear error instead of hitting the inflate path.
- * @param buffer
+ * @param buffer Raw bytes of the suspected ZIP archive.
  */
 export function looksLikeZip(buffer: ArrayBuffer): boolean {
 	if (buffer.byteLength < 4) {
@@ -60,9 +60,12 @@ export function looksLikeZip(buffer: ArrayBuffer): boolean {
 }
 
 /**
- *
- * @param buffer
- * @param limits
+ * Decompresses an `.elpx` archive into a map of normalised entry paths to
+ * their bytes. Throws {@link ZipReadError} with a typed `code` for any
+ * limit violation (size, entry count, traversal) or corruption — the
+ * caller surfaces those as user-facing errors.
+ * @param buffer Raw `.elpx` bytes (must already be in memory).
+ * @param limits Optional override of {@link DEFAULT_LIMITS} for tests.
  */
 export async function readPackage(
 	buffer: ArrayBuffer,

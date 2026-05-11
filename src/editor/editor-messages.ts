@@ -41,8 +41,8 @@ export interface SaveFileResponse {
 }
 
 /**
- *
- * @param value
+ * Type guard for messages received from the editor iframe.
+ * @param value Raw `MessageEvent.data` payload before any deserialisation.
  */
 export function isEditorMessage(value: unknown): value is EditorMessage {
 	return (
@@ -54,8 +54,10 @@ export function isEditorMessage(value: unknown): value is EditorMessage {
 }
 
 /**
- *
- * @param value
+ * Coerces an editor save payload into a plain `ArrayBuffer`. The editor may
+ * return either an `ArrayBuffer` or a typed-array view; both are accepted
+ * and copied so the buffer is detached from the iframe's memory.
+ * @param value Bytes returned by the editor's `SAVE_FILE` reply.
  */
 export function normalizeBytes(value: unknown): ArrayBuffer {
 	if (value instanceof ArrayBuffer) {

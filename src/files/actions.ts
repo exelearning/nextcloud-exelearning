@@ -57,8 +57,9 @@ function downloadIconSvgInline(): string {
 }
 
 /**
- *
- * @param node
+ * Adapter that lets {@link isElpxFile} (which works on a structural shape)
+ * accept a `@nextcloud/files` `Node` directly.
+ * @param node Files-app node passed by the FileAction `enabled` callback.
  */
 function isElpxNode(node: Node): boolean {
 	return isElpxFile(node as unknown as NodeShape)

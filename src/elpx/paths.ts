@@ -15,7 +15,7 @@ const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
  * file URL, NUL byte, ...).
  *
  * This matches the rule used by the PHP-side {@see ZipEntryService}.
- * @param input
+ * @param input Raw entry path as it appears in the archive or in a request.
  */
 export function normalizeEntryPath(input: string): string | null {
 	if (input.length === 0 || input.includes('\0')) {
@@ -50,8 +50,8 @@ export function normalizeEntryPath(input: string): string | null {
  * Resolves a relative resource href against a base entry path (e.g. when the
  * iframe-loaded page navigates to `./html/page.html`). Returns null if the
  * resolution escapes the package root.
- * @param baseEntry
- * @param href
+ * @param baseEntry Entry path of the page that contains the link.
+ * @param href Relative href from inside the package HTML (`./foo`, `../bar`, …).
  */
 export function resolveRelativeEntry(baseEntry: string, href: string): string | null {
 	if (isExternalUrl(href)) {
@@ -65,8 +65,10 @@ export function resolveRelativeEntry(baseEntry: string, href: string): string | 
 }
 
 /**
- *
- * @param href
+ * True when `href` points at something that should leave the package
+ * sandbox: protocol-relative URLs (`//host/…`) and absolute URLs whose
+ * scheme is not `data:` or `blob:` (mailto:, tel:, http(s), ftp, …).
+ * @param href Raw href attribute as found in the package HTML.
  */
 export function isExternalUrl(href: string): boolean {
 	if (href.startsWith('//')) return true
@@ -86,9 +88,11 @@ export interface RuntimeUrl {
 /**
  * Builds an iframe-loadable URL for an entry inside the package. The Service
  * Worker scope must match {@link RUNTIME_PREFIX}.
- * @param base
- * @param sessionId
- * @param entry
+ * @param base Runtime base URL (typically the value returned by
+ * `generateUrl(RUNTIME_PREFIX)` so it works under both pretty and
+ * `index.php`-style Nextcloud URLs).
+ * @param sessionId Opaque session id registered with the Service Worker.
+ * @param entry Normalised entry path inside the package.
  */
 export function buildRuntimeUrl(base: string, sessionId: string, entry: string): string {
 	const normalized = normalizeEntryPath(entry)
@@ -105,8 +109,8 @@ export function buildRuntimeUrl(base: string, sessionId: string, entry: string):
 /**
  * Parses a runtime URL produced by {@link buildRuntimeUrl} back into its
  * session and entry components. The base path must match RUNTIME_PREFIX.
- * @param url
- * @param base
+ * @param url Full URL or pathname to parse.
+ * @param base Runtime base URL the SW is registered against.
  */
 export function parseRuntimeUrl(url: string, base: string): RuntimeUrl | null {
 	const pathname = url.startsWith('/') ? url : new URL(url, 'http://placeholder/').pathname

@@ -25,9 +25,10 @@ interface InitialFile {
 }
 
 /**
- *
- * @param key
- * @param fallback
+ * Wraps `loadState` so a missing or malformed initial-state entry falls
+ * back to the supplied default instead of throwing during page boot.
+ * @param key The initial-state key registered server-side.
+ * @param fallback Value to return when the key is missing or invalid.
  */
 function safeLoad<T>(key: string, fallback: T): T {
 	try {

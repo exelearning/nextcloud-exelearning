@@ -33,8 +33,10 @@ export interface IframeOptions {
 }
 
 /**
- *
- * @param options
+ * Builds the sandboxed iframe that renders a registered package session.
+ * The `src` is built from the runtime base + sessionId + index entry; the
+ * Service Worker fulfils requests under that scope from in-memory bytes.
+ * @param options Runtime base, sessionId, index entry and accessible title.
  */
 export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 	const iframe = document.createElement('iframe')
@@ -56,8 +58,10 @@ export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 }
 
 /**
- *
- * @param iframe
+ * Forces every external (`scheme:` or `//host`) link inside the iframe to
+ * open in a new tab with `noopener noreferrer`, so the Viewer modal never
+ * navigates away from Nextcloud.
+ * @param iframe Iframe whose document should be augmented.
  */
 function rewireExternalLinks(iframe: HTMLIFrameElement): void {
 	const doc = iframe.contentDocument

@@ -21,8 +21,11 @@ export interface LoadedElpx {
 }
 
 /**
- *
- * @param options
+ * Fetches the raw `.elpx` bytes for the current Nextcloud user via
+ * `PackageController`. One of `fileId` or `path` is required; everything
+ * else (etag, content-length, filename) is best-effort metadata extracted
+ * from the response headers.
+ * @param options Lookup options — fileId or path, optional AbortSignal.
  */
 export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	if (options.fileId === undefined && (options.path === undefined || options.path === '')) {
@@ -55,8 +58,9 @@ export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 }
 
 /**
- *
- * @param header
+ * Extracts the filename from a `Content-Disposition` header, preferring the
+ * RFC 5987 (`filename*=UTF-8''…`) form over the legacy `filename="…"`.
+ * @param header Raw `Content-Disposition` value, or `null` if absent.
  */
 function parseFilename(header: string | null): string | null {
 	if (!header) return null
@@ -70,9 +74,11 @@ function parseFilename(header: string | null): string | null {
 }
 
 /**
- *
- * @param path
- * @param fileId
+ * Last-resort filename used when the server omitted `Content-Disposition`.
+ * Tries the basename of `path` first, then a `package-<id>.elpx` synthesised
+ * from `fileId`, then a generic placeholder.
+ * @param path Original Nextcloud path requested by the caller, if any.
+ * @param fileId Numeric file id used for the `by-file-id` lookup, if any.
  */
 function deriveFilename(path?: string, fileId?: number): string {
 	if (path) {

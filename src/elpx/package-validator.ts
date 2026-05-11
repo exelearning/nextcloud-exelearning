@@ -23,8 +23,11 @@ export interface PackageValidation {
 }
 
 /**
- *
- * @param entries
+ * Walks the decompressed entry map and reports the shape of an eXeLearning
+ * project: which root index file (if any) is present, whether helper
+ * artefacts like `content.xml` / `screenshot.png` are there, and how many
+ * familiar directory hints (`html/`, `idevices/`, …) appear.
+ * @param entries Normalised entry path → bytes from `readPackage()`.
  */
 export function inspectPackage(entries: ReadonlyMap<string, Uint8Array>): PackageShape {
 	let indexEntry: string | null = null
@@ -52,8 +55,10 @@ export function inspectPackage(entries: ReadonlyMap<string, Uint8Array>): Packag
 }
 
 /**
- *
- * @param entries
+ * Wraps {@link inspectPackage} with a verdict: a missing root index file is
+ * the only hard failure (the viewer cannot show anything without it). All
+ * other shape signals are surfaced via {@link PackageShape}.
+ * @param entries Normalised entry path → bytes from `readPackage()`.
  */
 export function validatePackage(entries: ReadonlyMap<string, Uint8Array>): PackageValidation {
 	const shape = inspectPackage(entries)
