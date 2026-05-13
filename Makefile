@@ -24,17 +24,21 @@ else
 endif
 
 ifeq ($(SYSTEM_OS),windows)
-$(warning )
-$(warning ============================================================)
-$(warning  WARNING: Non-Bash shell detected (cmd or PowerShell))
-$(warning ============================================================)
-$(warning  This Makefile uses POSIX shell syntax and will not run)
-$(warning  correctly under cmd.exe or PowerShell. Please use Git Bash:)
-$(warning    https://git-scm.com/downloads)
-$(warning  Or invoke the bundled wrapper instead:)
-$(warning    .\make.bat <target>     (cmd.exe / PowerShell))
-$(warning ============================================================)
-$(warning )
+$(info )
+$(info ============================================================)
+$(info  ERROR: Non-Bash shell detected (cmd or PowerShell))
+$(info ============================================================)
+$(info  This Makefile uses POSIX shell syntax and cannot run)
+$(info  under cmd.exe or PowerShell. Use the bundled wrapper:)
+$(info )
+$(info    .\make.bat <target>     (cmd.exe / PowerShell))
+$(info )
+$(info  It re-execs `make` inside Git Bash, falling back to WSL.)
+$(info  Install Git for Windows if Git Bash is missing:)
+$(info    https://git-scm.com/downloads)
+$(info ============================================================)
+$(info )
+$(error Refusing to run under a non-Bash shell. Use `.\make.bat <target>` instead.)
 endif
 
 APP_NAME := exelearning
