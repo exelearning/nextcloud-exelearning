@@ -103,6 +103,7 @@ NC_ADMIN_PASS ?= admin
 	composer-install composer-test cs-check cs-fix php-version \
 	download-editor fetch-editor-source build-editor clean-editor \
 	package appstore \
+	check-docker \
 	up down restart logs shell occ-status status sync
 
 help:
@@ -301,8 +302,24 @@ appstore: package
 # Override host port with `make up DOCKER_PORT=9000`.
 APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
 
-up:
-	@command -v docker >/dev/null 2>&1 || { echo "docker is not installed"; exit 1; }
+# Verify both that the docker CLI exists and that its daemon is
+# reachable. `docker version` talks to the daemon, so it fails with a
+# non-zero exit when Docker Desktop / dockerd is installed but not
+# running — which is exactly the failure reported in issue #6 on
+# Windows ("error during connect: open //./pipe/dockerDesktopLinuxEngine").
+check-docker:
+	@command -v docker >/dev/null 2>&1 || { \
+		echo "ERROR: docker is not installed."; \
+		echo "       Install Docker Desktop: https://www.docker.com/products/docker-desktop/"; \
+		exit 1; \
+	}
+	@docker version >/dev/null 2>&1 || { \
+		echo "ERROR: docker is installed but the daemon is not reachable."; \
+		echo "       Start Docker Desktop (or the docker service) and try again."; \
+		exit 1; \
+	}
+
+up: check-docker
 	@# Reinstall when node_modules is missing or older than the lockfile.
 	@# Catches the case where a previous run installed against an older
 	@# package.json (e.g. before cross-env was added) and the partial
