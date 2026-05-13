@@ -250,7 +250,7 @@ fetch-editor-source:
 
 build-editor:
 	rm -rf "$(EDITOR_OUTPUT_DIR)"
-	$(MAKE) fetch-editor-source
+	"$(MAKE)" fetch-editor-source
 	cd "$(EDITOR_SOURCE_DIR)" && bun install
 	cd "$(EDITOR_SOURCE_DIR)" && OUTPUT_DIR="$(EDITOR_OUTPUT_DIR)" bun run build:static
 
@@ -322,7 +322,7 @@ up:
 	@# EXELEARNING_EDITOR_REF=vX.Y.Z) when a new upstream tag ships.
 	@if [ ! -f js/editor/index.html ]; then \
 		echo ">> downloading eXeLearning static editor"; \
-		$(MAKE) --no-print-directory download-editor; \
+		"$(MAKE)" --no-print-directory download-editor; \
 	else \
 		echo ">> eXeLearning editor present at js/editor/ (run 'make download-editor' to refresh)"; \
 	fi
@@ -419,8 +419,8 @@ down:
 	@echo "Container $(DOCKER_NAME) removed."
 
 restart:
-	@$(MAKE) down
-	@$(MAKE) up
+	@"$(MAKE)" down
+	@"$(MAKE)" up
 
 logs:
 	@docker logs -f $(DOCKER_NAME)
