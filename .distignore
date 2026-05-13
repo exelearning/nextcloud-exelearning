@@ -80,6 +80,8 @@ AGENTS.md
 CHANGELOG.md
 CONTRIBUTING.md
 Makefile
+make.bat
+make.cmd
 
 # --- JS source maps and license headers ---------------------------------
 # Not required at runtime; keeping them out reduces archive size.

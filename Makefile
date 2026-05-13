@@ -4,6 +4,39 @@
 # arrive from that project find the same names. The eXeLearning static
 # editor is optional: the viewer (preview) works without it.
 
+# --- Shell detection (Windows compatibility) ----------------------------
+# Targets shell out to bash idioms (`if`/`for`, `$$()`, `[ ... ]`, here
+# pipes), so running this Makefile under native Windows cmd.exe or
+# PowerShell will fail with confusing errors. Detect that situation
+# early and point users at Git Bash, which is the supported shell on
+# Windows. Inside Git Bash / MSYS / Cygwin / WSL MSYSTEM is set, so we
+# treat those as plain Unix.
+ifeq ($(OS),Windows_NT)
+    ifdef MSYSTEM
+        SYSTEM_OS := unix
+    else ifdef CYGWIN
+        SYSTEM_OS := unix
+    else
+        SYSTEM_OS := windows
+    endif
+else
+    SYSTEM_OS := unix
+endif
+
+ifeq ($(SYSTEM_OS),windows)
+$(warning )
+$(warning ============================================================)
+$(warning  WARNING: Non-Bash shell detected (cmd or PowerShell))
+$(warning ============================================================)
+$(warning  This Makefile uses POSIX shell syntax and will not run)
+$(warning  correctly under cmd.exe or PowerShell. Please use Git Bash:)
+$(warning    https://git-scm.com/downloads)
+$(warning  Or invoke the bundled wrapper instead:)
+$(warning    .\make.bat <target>     (cmd.exe / PowerShell))
+$(warning ============================================================)
+$(warning )
+endif
+
 APP_NAME := exelearning
 APP_VERSION := $(shell sed -n 's:.*<version>\(.*\)</version>.*:\1:p' appinfo/info.xml)
 BUILD_DIR := $(CURDIR)/build
