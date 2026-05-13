@@ -4,6 +4,43 @@
 # arrive from that project find the same names. The eXeLearning static
 # editor is optional: the viewer (preview) works without it.
 
+# --- Shell detection (Windows compatibility) ----------------------------
+# Targets shell out to bash idioms (`if`/`for`, `$$()`, `[ ... ]`, here
+# pipes), so running this Makefile under native Windows cmd.exe or
+# PowerShell will fail with confusing errors. Detect that situation
+# early and point users at Git Bash, which is the supported shell on
+# Windows. Inside Git Bash / MSYS / Cygwin / WSL MSYSTEM is set, so we
+# treat those as plain Unix.
+ifeq ($(OS),Windows_NT)
+    ifdef MSYSTEM
+        SYSTEM_OS := unix
+    else ifdef CYGWIN
+        SYSTEM_OS := unix
+    else
+        SYSTEM_OS := windows
+    endif
+else
+    SYSTEM_OS := unix
+endif
+
+ifeq ($(SYSTEM_OS),windows)
+$(info )
+$(info ============================================================)
+$(info  ERROR: Non-Bash shell detected (cmd or PowerShell))
+$(info ============================================================)
+$(info  This Makefile uses POSIX shell syntax and cannot run)
+$(info  under cmd.exe or PowerShell. Use the bundled wrapper:)
+$(info )
+$(info    .\make.bat <target>     (cmd.exe / PowerShell))
+$(info )
+$(info  It re-execs `make` inside Git Bash, falling back to WSL.)
+$(info  Install Git for Windows if Git Bash is missing:)
+$(info    https://git-scm.com/downloads)
+$(info ============================================================)
+$(info )
+$(error Refusing to run under a non-Bash shell. Use `.\make.bat <target>` instead.)
+endif
+
 APP_NAME := exelearning
 APP_VERSION := $(shell sed -n 's:.*<version>\(.*\)</version>.*:\1:p' appinfo/info.xml)
 BUILD_DIR := $(CURDIR)/build
@@ -66,6 +103,7 @@ NC_ADMIN_PASS ?= admin
 	composer-install composer-test cs-check cs-fix php-version \
 	download-editor fetch-editor-source build-editor clean-editor \
 	package appstore \
+	check-docker \
 	up down restart logs shell occ-status status sync
 
 help:
@@ -213,7 +251,7 @@ fetch-editor-source:
 
 build-editor:
 	rm -rf "$(EDITOR_OUTPUT_DIR)"
-	$(MAKE) fetch-editor-source
+	"$(MAKE)" fetch-editor-source
 	cd "$(EDITOR_SOURCE_DIR)" && bun install
 	cd "$(EDITOR_SOURCE_DIR)" && OUTPUT_DIR="$(EDITOR_OUTPUT_DIR)" bun run build:static
 
@@ -264,9 +302,29 @@ appstore: package
 # Override host port with `make up DOCKER_PORT=9000`.
 APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
 
-up:
-	@command -v docker >/dev/null 2>&1 || { echo "docker is not installed"; exit 1; }
-	@if [ ! -d node_modules ]; then \
+# Verify both that the docker CLI exists and that its daemon is
+# reachable. `docker version` talks to the daemon, so it fails with a
+# non-zero exit when Docker Desktop / dockerd is installed but not
+# running — which is exactly the failure reported in issue #6 on
+# Windows ("error during connect: open //./pipe/dockerDesktopLinuxEngine").
+check-docker:
+	@command -v docker >/dev/null 2>&1 || { \
+		echo "ERROR: docker is not installed."; \
+		echo "       Install Docker Desktop: https://www.docker.com/products/docker-desktop/"; \
+		exit 1; \
+	}
+	@docker version >/dev/null 2>&1 || { \
+		echo "ERROR: docker is installed but the daemon is not reachable."; \
+		echo "       Start Docker Desktop (or the docker service) and try again."; \
+		exit 1; \
+	}
+
+up: check-docker
+	@# Reinstall when node_modules is missing or older than the lockfile.
+	@# Catches the case where a previous run installed against an older
+	@# package.json (e.g. before cross-env was added) and the partial
+	@# tree on disk no longer matches what package.json declares.
+	@if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then \
 		echo ">> npm install"; npm install; \
 	fi
 	@echo ">> npm run build"
@@ -281,7 +339,7 @@ up:
 	@# EXELEARNING_EDITOR_REF=vX.Y.Z) when a new upstream tag ships.
 	@if [ ! -f js/editor/index.html ]; then \
 		echo ">> downloading eXeLearning static editor"; \
-		$(MAKE) --no-print-directory download-editor; \
+		"$(MAKE)" --no-print-directory download-editor; \
 	else \
 		echo ">> eXeLearning editor present at js/editor/ (run 'make download-editor' to refresh)"; \
 	fi
@@ -378,8 +436,8 @@ down:
 	@echo "Container $(DOCKER_NAME) removed."
 
 restart:
-	@$(MAKE) down
-	@$(MAKE) up
+	@"$(MAKE)" down
+	@"$(MAKE)" up
 
 logs:
 	@docker logs -f $(DOCKER_NAME)
