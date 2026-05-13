@@ -303,7 +303,11 @@ APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
 
 up:
 	@command -v docker >/dev/null 2>&1 || { echo "docker is not installed"; exit 1; }
-	@if [ ! -d node_modules ]; then \
+	@# Reinstall when node_modules is missing or older than the lockfile.
+	@# Catches the case where a previous run installed against an older
+	@# package.json (e.g. before cross-env was added) and the partial
+	@# tree on disk no longer matches what package.json declares.
+	@if [ ! -d node_modules ] || [ package-lock.json -nt node_modules ]; then \
 		echo ">> npm install"; npm install; \
 	fi
 	@echo ">> npm run build"
