@@ -52,5 +52,10 @@ return [
 			'url' => '/sw.js',
 			'verb' => 'GET',
 		],
+		[
+			'name' => 'template#blank',
+			'url' => '/template/blank',
+			'verb' => 'GET',
+		],
 	],
 ];
