@@ -8,13 +8,12 @@
 /**
  * Entry point loaded by Nextcloud as an init script (see
  * {@link \OCA\ExeLearning\AppInfo\Application::boot}). It runs before the
- * Viewer app probes for MIME-handler associations, so a `.elpx` click in the
- * Files app finds our handler immediately.
+ * Files app finishes booting, so a `.elpx` click finds our actions
+ * immediately.
  *
- * Two things happen here:
- *   1. Register the Viewer handler for the eXeLearning MIME types.
- *   2. Register Files actions ("Open with eXeLearning viewer", optionally
- *      "Edit with eXeLearning", and a plain Download).
+ * Clicking a `.elpx` jumps to `/apps/exelearning/view` via the default
+ * Files action (see src/files/actions.ts). The Viewer handler path is
+ * intentionally not used.
  */
 
 import { registerFileActions } from './files/actions'
@@ -29,17 +28,6 @@ if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
 	// eslint-disable-next-line @typescript-eslint/no-unused-vars
 	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
 }
-
-// The Viewer handler is intentionally not registered any more. The
-// previous "Iniciar la presentación" toolbar comes from
-// @nextcloud/viewer's own modal chrome and there is no public API on the
-// handler to suppress that button or add a custom "Edit" affordance.
-// Clicking a .elpx now goes straight to /apps/exelearning/editor via the
-// default Files action (see src/files/actions.ts).
-//
-// The ElpxViewer.vue component is still in the bundle; it can be reused
-// by the editor page as a read-only fallback when the static editor is
-// not installed.
 
 /**
  *

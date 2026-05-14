@@ -1,8 +1,15 @@
 name: CI
 
-# Frontend (Biome + ESLint + vue-tsc + Vitest) and backend
-# (Nextcloud coding standard + PHPUnit + appstore schema validation)
-# checks. Runs on every push to main, every pull request, and on demand.
+# Frontend (Biome + ESLint + vue-tsc + Vitest) and a sparse PHP × Nextcloud
+# matrix that boots a real Nextcloud server, installs the app and verifies
+# it enables. Runs on every push to main, every pull request, and on demand.
+#
+# Matrix is intentionally sparse (5 stable + 1 experimental cells, not the
+# full Cartesian product). All cells use sqlite — this app has no DB
+# migrations or schema of its own, so a real-DB sweep would only re-test
+# Nextcloud core's own DB layer. `SMillerDev/nextcloud-actions/setup-nextcloud`
+# also doesn't accept credentials for pgsql/mysql, so non-sqlite cells
+# would need service containers + a wrapper just to install Nextcloud.
 
 on:
   push:
@@ -35,7 +42,7 @@ jobs:
         run: npm ci
 
       # Biome lints .ts/.js under src/. Vue single-file components stay
-      # with ESLint (better Vue 2 support); see biome.json for scope.
+      # with ESLint (better Vue support); see biome.json for scope.
       - name: Biome lint
         run: npm run lint:biome
 
@@ -48,25 +55,57 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm test
 
-  backend:
-    name: Backend (Nextcloud coding standard + PHPUnit)
+  validate-info-xml:
+    name: Validate appinfo/info.xml against the appstore schema
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Read PHP version requirement from appinfo/info.xml
-        id: php
+      # `xmllint` ships in the libxml2-utils package, which the
+      # GitHub-hosted ubuntu-latest images no longer preinstall.
+      - name: Install xmllint
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+
+      - name: Validate info.xml
         run: |
           set -euo pipefail
-          PHP_MIN=$(sed -n 's:.*<php[^>]*min-version="\([0-9.]*\)".*:\1:p' \
-            appinfo/info.xml | head -n1)
-          echo "version=${PHP_MIN:-8.1}" >> "$GITHUB_OUTPUT"
+          # Download the schema outside the working tree so the repo stays
+          # clean (otherwise `appinfo/info.xsd` shows up as untracked).
+          curl -fsSL -o "${RUNNER_TEMP}/info.xsd" \
+            https://apps.nextcloud.com/schema/apps/info.xsd
+          xmllint --noout --schema "${RUNNER_TEMP}/info.xsd" appinfo/info.xml
 
-      - name: Set up PHP
+  backend:
+    name: ${{ matrix.nextcloud }} / PHP ${{ matrix.php }} / ${{ matrix.database }}
+    runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.experimental || false }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # NC 31 — first version of the supported range
+          - { php: '8.2', nextcloud: 'stable31', database: 'sqlite' }
+          - { php: '8.4', nextcloud: 'stable31', database: 'sqlite' }
+          # NC 32 — middle of the range
+          - { php: '8.3', nextcloud: 'stable32', database: 'sqlite' }
+          # NC 33 — current latest, the version that exposed the
+          # @nextcloud/files v3→v4 scope mismatch this matrix exists to
+          # prevent regressing on.
+          - { php: '8.2', nextcloud: 'stable33', database: 'sqlite' }
+          - { php: '8.4', nextcloud: 'stable33', database: 'sqlite' }
+          # PHP 8.5 preview — informational, allowed to fail.
+          - { php: '8.5', nextcloud: 'stable33', database: 'sqlite', experimental: true }
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up PHP ${{ matrix.php }}
         uses: shivammathur/setup-php@v2
         with:
-          php-version: ${{ steps.php.outputs.version }}
+          php-version: ${{ matrix.php }}
+          extensions: pdo_sqlite, pdo_mysql, pdo_pgsql, gd, zip, intl, mbstring, ctype, curl, dom, fileinfo, simplexml, xml, xmlreader, xmlwriter
           tools: composer:v2, cs2pr
           coverage: none
 
@@ -89,18 +128,52 @@ jobs:
       - name: PHPUnit
         run: vendor/bin/phpunit --configuration tests/phpunit.xml
 
-      # Catches schema regressions in info.xml before the Nextcloud
-      # appstore validator does. `xmllint` ships in the libxml2-utils
-      # package, which the GitHub-hosted ubuntu-latest images no longer
-      # preinstall.
-      - name: Install xmllint
-        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libxml2-utils
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
 
-      - name: Validate appinfo/info.xml against the appstore schema
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      # Boot the matched Nextcloud branch with the matched database. The
+      # action checks out nextcloud/server at `version` (stable31, etc.),
+      # configures the requested DB and runs `occ maintenance:install`.
+      - name: Set up Nextcloud server (${{ matrix.nextcloud }} / ${{ matrix.database }})
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud@main
+        with:
+          version: ${{ matrix.nextcloud }}
+          database-type: ${{ matrix.database }}
+          cron: false
+
+      # Symlink THIS repo (which already has the built js/) into the
+      # Nextcloud apps directory and `occ app:enable exelearning`.
+      - name: Install eXeLearning app into the running Nextcloud
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud-app@main
+        with:
+          app: exelearning
+          check-code: false
+
+      # Smoke: the app must enable cleanly under each Nextcloud major.
+      # `setup-nextcloud-app` only stages the app; we still need to call
+      # `occ app:enable` ourselves. A failure here catches missing OCP
+      # classes, broken DI, info.xml dependencies that no longer apply,
+      # and migrations that fail under the matrix DB. The matching
+      # browser-level regression (Files API v3↔v4 scope mismatch) is
+      # caught upstream of this step by `npm run build` against
+      # `@nextcloud/files@^4`.
+      - name: Smoke test — app enables cleanly
+        working-directory: ../server
         run: |
           set -euo pipefail
-          # Download the schema outside the working tree so the repo stays
-          # clean (otherwise `appinfo/info.xsd` shows up as untracked).
-          curl -fsSL -o "${RUNNER_TEMP}/info.xsd" \
-            https://apps.nextcloud.com/schema/apps/info.xsd
-          xmllint --noout --schema "${RUNNER_TEMP}/info.xsd" appinfo/info.xml
+          php occ app:enable exelearning
+          php occ app:list --output=json \
+            | jq -e '.enabled.exelearning != null'
+          # SwController serves the worker as a static asset; sanity-check
+          # that the file actually got staged into the app tree.
+          test -f apps/exelearning/src/sw/exelearning-sw.js \
+            || test -f custom_apps/exelearning/src/sw/exelearning-sw.js
