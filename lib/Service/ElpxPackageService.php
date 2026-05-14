@@ -61,9 +61,15 @@ class ElpxPackageService {
 		if (!$this->permissions->isReadable($node)) {
 			throw new NotPermittedException('No read permission');
 		}
-		if (!$this->permissions->isElpxFile($node)) {
-			throw new NotPermittedException('Not an eXeLearning package');
-		}
+		// We intentionally do NOT gate on `isElpxFile()` here. That check
+		// is still used by `ElpxPreviewProvider` (so plain ZIPs do not
+		// inherit our preview), but the viewer / editor flow should
+		// also accept files the user explicitly opened via the
+		// "Open as eXeLearning" kebab on a plain `.zip`. The downstream
+		// validator (`src/elpx/package-validator.ts`) still surfaces a
+		// clean error for archives that are not actually eXeLearning
+		// projects, and the user's auth + ownership are already
+		// guaranteed by `getById()` resolving to a node they can read.
 		if (!$this->permissions->isWithinSizeLimit($node)) {
 			throw new NotPermittedException('Package too large');
 		}
