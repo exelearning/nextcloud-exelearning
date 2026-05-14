@@ -25,8 +25,5 @@ module.exports = {
 		// paths, intentionally swallowed catch bindings). Banning it would
 		// force a less explicit alternative.
 		'no-void': 'off',
-		// Vue 2 mounts the root component via `new Vue({ el })` for its
-		// side effect; the returned instance is intentionally discarded.
-		'no-new': 'off',
 	},
 }

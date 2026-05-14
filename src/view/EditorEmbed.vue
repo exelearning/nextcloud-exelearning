@@ -12,7 +12,7 @@
 </template>
 
 <script lang="ts">
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import axios from '@nextcloud/axios'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
@@ -31,7 +31,7 @@ interface FileMeta {
 	writable: boolean
 }
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'EditorEmbed',
 	props: {
 		file: { type: Object as () => FileMeta, required: true },
@@ -65,7 +65,7 @@ export default Vue.extend({
 			this.errorMessage = error instanceof Error ? error.message : String(error)
 		}
 	},
-	beforeDestroy() {
+	beforeUnmount() {
 		this.frame?.destroy()
 		this.frame = null
 	},
@@ -108,7 +108,7 @@ export default Vue.extend({
 	width: 100%;
 	height: 100%;
 }
-.exelearning-editor-embed__slot ::v-deep iframe {
+.exelearning-editor-embed__slot :deep(iframe) {
 	width: 100%;
 	height: 100%;
 	border: 0;

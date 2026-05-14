@@ -1,5 +1,5 @@
 // Same publicPath fix as main.ts.
-import Vue from 'vue'
+import { createApp } from 'vue'
 import { loadState } from '@nextcloud/initial-state'
 
 import ElpxViewPage from './ElpxViewPage.vue'
@@ -50,12 +50,8 @@ function boot(): void {
 	const editorIframeUrl = safeLoad<string>('editorIframeUrl', '/apps/exelearning/editor/iframe')
 	const initialMode = safeLoad<'preview' | 'editor'>('initialMode', 'preview')
 
-	new Vue({
-		el: mount,
-		render: (h) => h(ElpxViewPage, {
-			props: { file, editorAvailable, editorIframeUrl, initialMode },
-		}),
-	})
+	createApp(ElpxViewPage, { file, editorAvailable, editorIframeUrl, initialMode })
+		.mount(mount)
 }
 
 boot()

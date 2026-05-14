@@ -66,7 +66,7 @@ protocol, the iframe boot HTML pattern). Remove everything Drive-specific.
 ## Documentation lookup
 
 Use Context7 MCP for current library documentation (Nextcloud app
-framework, `@nextcloud/*` packages, fflate, Vue 2, Vitest, PHPUnit, …).
+framework, `@nextcloud/*` packages, fflate, Vue 3, Vitest, PHPUnit, …).
 Prefer it over web search for library docs even when you think you know the
 answer — your training cutoff probably misses the latest APIs.
 

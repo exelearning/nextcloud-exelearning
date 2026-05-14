@@ -60,7 +60,7 @@
 </template>
 
 <script lang="ts">
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
 
@@ -78,7 +78,7 @@ interface InitialFile {
 
 type Mode = 'preview' | 'editor'
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'ElpxViewPage',
 	components: { ElpxViewer, EditorEmbed },
 	props: {
