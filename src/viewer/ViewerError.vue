@@ -14,10 +14,10 @@
 </template>
 
 <script lang="ts">
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'ViewerError',
 	props: {
 		title: { type: String, required: true },

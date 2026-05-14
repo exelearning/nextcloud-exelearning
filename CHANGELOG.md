@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Migrate frontend from Vue 2.7 to Vue 3.5 (see #13). All SFCs now use
+  `defineComponent`; `beforeDestroy` is `beforeUnmount`; `::v-deep` is
+  `:deep()`; the root in `view-page.ts` uses `createApp().mount()`. No
+  public surface changes; tests, lint and webpack build pass on Vue 3.
+
 ### Added
 
 - Initial Nextcloud app scaffold (`appinfo/info.xml`, routes, bootstrap).

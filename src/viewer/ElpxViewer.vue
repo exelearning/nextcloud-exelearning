@@ -14,7 +14,7 @@
 </template>
 
 <script lang="ts">
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
 
 import ViewerError from './ViewerError.vue'
@@ -39,7 +39,7 @@ interface Data {
 	iframe: HTMLIFrameElement | null
 }
 
-export default Vue.extend({
+export default defineComponent({
 	name: 'ElpxViewer',
 	components: { ViewerError },
 	props: {
@@ -66,7 +66,7 @@ export default Vue.extend({
 	mounted() {
 		void this.open()
 	},
-	beforeDestroy() {
+	beforeUnmount() {
 		this.teardown()
 	},
 	methods: {
