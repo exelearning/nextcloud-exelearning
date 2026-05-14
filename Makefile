@@ -417,13 +417,23 @@ up: check-docker
 		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\", \"application/x-exelearning\":\"exelearning\", \"application/x-exelearning-legacy\":\"exelearning-legacy\"}" \
 		 > /var/www/html/config/mimetypealiases.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypealiases.json'
+	@# Nextcloud's `maintenance:mimetype:update-js` only scans
+	@# `core/img/filetypes/` for icon SVGs (see the comment at the top
+	@# of `core/js/mimetypelist.js`). App-shipped filetype icons are
+	@# not auto-discovered, so for the dev stack we copy ours into
+	@# core/ before regenerating the JS list. Production installs need
+	@# the admin to do the equivalent — see README → "Custom MIME icons".
+	@echo ">> copying app filetype icons into core/img/filetypes"
+	@docker exec $(DOCKER_NAME) bash -c \
+		'cp /var/www/html/custom_apps/exelearning/img/filetypes/exelearning.svg \
+		    /var/www/html/custom_apps/exelearning/img/filetypes/exelearning-legacy.svg \
+		    /var/www/html/core/img/filetypes/ && \
+		 chown www-data:www-data /var/www/html/core/img/filetypes/exelearning*.svg'
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
-	@# `img/filetypes/exelearning.svg` and `img/filetypes/exelearning-legacy.svg`
-	@# are picked up automatically by `update-js` once the aliases above
-	@# point at those filenames. ElpxPreviewProvider still runs for files
-	@# that actually have a `screenshot.png` inside; for those, the
-	@# preview overrides the static MIME icon as in upstream Nextcloud.
+	@# ElpxPreviewProvider still runs for files that actually have a
+	@# `screenshot.png` inside; for those, the preview overrides the
+	@# static MIME icon as in upstream Nextcloud.
 	@"$(MAKE)" --no-print-directory seed-fixtures
 	@echo
 	@echo "================================================================"
