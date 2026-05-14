@@ -1,6 +1,6 @@
 {
   "name": "nextcloud-exelearning",
-  "version": "0.1.0",
+  "version": "0.0.0-alpha",
   "description": "Preview and edit eXeLearning .elpx packages in Nextcloud Files",
   "private": true,
   "license": "AGPL-3.0-or-later",
