@@ -103,6 +103,36 @@ const editAction: IFileAction = {
 	},
 }
 
+// Lets users open a non-.elp(x) zip with the eXeLearning viewer (e.g.
+// after `unzip` produced a folder they want to repack and previewed,
+// or when a `.elpx` was renamed to `.zip`). Hidden for files we already
+// claim by default and for things that aren't zips at all so the menu
+// doesn't get crowded.
+const openAsExeLearningAction: IFileAction = {
+	id: 'exelearning-open-as',
+	displayName: () => t(APP_ID, 'Open as eXeLearning'),
+	iconSvgInline: () => eyeIconSvgInline(),
+	enabled: ({ nodes }) => {
+		if (nodes.length !== 1) return false
+		const node = nodes[0] as Node
+		const shape = node as unknown as NodeShape
+		// Skip if our default action already handles it.
+		if (isElpxNode(node)) return false
+		const name = (shape.basename ?? shape.displayName ?? '').toLowerCase()
+		const mime = (shape.mime ?? '').toLowerCase()
+		return name.endsWith('.zip') || mime === 'application/zip'
+	},
+	async exec({ nodes }) {
+		const file = nodes[0]
+		const fileId = (file as unknown as NodeShape).fileid ?? file.fileid
+		const url = generateUrl('/apps/exelearning/view?fileId={fileId}', {
+			fileId: String(fileId ?? ''),
+		})
+		window.open(url, '_self')
+		return null
+	},
+}
+
 const downloadAction: IFileAction = {
 	id: 'exelearning-download',
 	displayName: () => t(APP_ID, 'Download .elpx'),
@@ -131,4 +161,5 @@ export function registerFileActions(): void {
 	registerFileAction(viewAction) // default — opens /apps/exelearning/view
 	registerFileAction(editAction) // kebab  — opens /apps/exelearning/editor
 	registerFileAction(downloadAction) // kebab  — native download
+	registerFileAction(openAsExeLearningAction) // kebab on plain .zip
 }

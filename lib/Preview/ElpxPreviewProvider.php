@@ -25,8 +25,13 @@ use Throwable;
  */
 class ElpxPreviewProvider implements IProviderV2 {
 	/**
-	 * Regex that matches every MIME alias an .elpx file may carry on disk.
-	 * The double backslash is needed because Nextcloud wraps this in `#…#`.
+	 * Regex that matches every MIME alias an `.elp(x)` file may carry on
+	 * disk. We intentionally cast a wide net here (`zip`, `octet-stream`)
+	 * so Nextcloud asks us about every candidate file; the actual
+	 * "is this really an eXeLearning archive" gate runs in
+	 * {@see isAvailable()} via {@see PermissionService::isElpxFile()},
+	 * which now requires either a `.elp(x)` extension or a vendor-
+	 * specific MIME (issue #21).
 	 */
 	public const MIME_REGEX = '/^application\/(vnd\.exelearning\.elpx|x-exelearning|zip|octet-stream)$/';
 

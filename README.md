@@ -218,9 +218,15 @@ admin install should also configure mapping:
 
 ```json
 {
-    "elpx": ["application/vnd.exelearning.elpx", "application/zip"]
+    "elpx": ["application/vnd.exelearning.elpx", "application/zip"],
+    "elp":  ["application/vnd.exelearning.elpx", "application/zip"]
 }
 ```
+
+Both extensions get the same vendor MIME so they share the eXeLearning
+icon (and the same viewer / editor flow). Legacy `.elp` content is
+detected by the editor and migrated to `.elpx` on first save — see
+issue #20.
 
 Then refresh Nextcloud's MIME caches:
 
@@ -231,26 +237,26 @@ sudo -E -u www-data php occ maintenance:mimetype:update-db --repair-filecache
 
 Do **not** edit Nextcloud core `mimetypemapping.dist.json` directly.
 
-### Optional: a static `.elpx` MIME icon
+### Static `.elp(x)` MIME icon (recommended)
 
 The Files list normally shows the preview provided by
 `ElpxPreviewProvider` (the package's `screenshot.png`, or the bundled
-fallback when there is none), so most installs do not need anything
-else. If you want `.elpx` files to display a custom icon **outside**
-of the preview path — sharing dialogs, breadcrumbs, contexts that
-bypass `core/preview` — the documented (admin-side) procedure is:
+fallback when there is none). For contexts that bypass `core/preview`
+— sharing dialogs, breadcrumbs, the new Vue Files app's icon column —
+configure the static MIME icon too:
 
-1. Add an alias to `config/mimetypealiases.json`:
+1. Add the alias to `config/mimetypealiases.json`:
 
    ```json
    {
        "application/vnd.exelearning.elpx": "exelearning",
-       "application/x-exelearning": "exelearning"
+       "application/x-exelearning":        "exelearning"
    }
    ```
 
 2. Copy this app's icon into Nextcloud core (the only directory
-   Nextcloud's `MimeIconProvider` scans):
+   `maintenance:mimetype:update-js` scans for SVGs — see the comment
+   at the top of `core/js/mimetypelist.js`):
 
    ```bash
    sudo install -o www-data -g www-data -m 0644 \
@@ -266,7 +272,9 @@ bypass `core/preview` — the documented (admin-side) procedure is:
    ```
 
 Step 2 is brittle because Nextcloud upgrades may replace `core/img/`;
-restore it after each upgrade or stage it via a theme override.
+restore the SVG after each upgrade or stage it via a theme override.
+The dev stack (`make up`) does this automatically — see the
+`registering .elp(x) MIME mapping + icon alias` step in the Makefile.
 
 ## Viewer integration
 
