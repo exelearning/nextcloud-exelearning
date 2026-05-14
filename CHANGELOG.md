@@ -9,6 +9,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Changed
 
+- Bump supported range to Nextcloud 31–33 and PHP 8.2–8.5 (was NC 29–31,
+  PHP 8.1–8.3). Drops 28/29/30 — all EOL upstream. See #12.
+- Build the Files-app integration against `@nextcloud/files@^4`. NC 33
+  ships the v4 globals at `window._nc_files_scope.v4_0` and silently
+  ignored actions registered with the v3 build.
+- `Makefile` now defaults `NC_VERSION=stable` (was `nextcloud:30`).
+  Override with `NC_VERSION=33 make up` to pin a major.
 - Migrate frontend from Vue 2.7 to Vue 3.5 (see #13). All SFCs now use
   `defineComponent`; `beforeDestroy` is `beforeUnmount`; `::v-deep` is
   `:deep()`; the root in `view-page.ts` uses `createApp().mount()`. No
@@ -16,6 +23,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- CI matrix (`.github/workflows/ci.yml`) covering NC 31/32/33 × PHP
+  8.2/8.3/8.4 with rotated databases (sqlite/mysql/pgsql), plus an
+  experimental PHP 8.5 cell. Each cell installs the app into a real
+  Nextcloud server and verifies the Service Worker route responds.
+- `make ci-matrix` reproduces the matrix locally with Docker.
+- README "Compatibility" table backed by the CI matrix and a CI badge.
 - Initial Nextcloud app scaffold (`appinfo/info.xml`, routes, bootstrap).
 - `@nextcloud/viewer` handler for `.elpx`, `.elp`, `application/zip` and
   `application/octet-stream` MIME types.

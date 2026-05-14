@@ -52,24 +52,21 @@ PACKAGE_VERSION ?= $(APP_VERSION)
 PACKAGE_NAME := $(APP_NAME)-$(PACKAGE_VERSION).tar.gz
 
 # --- PHP runtime selection ----------------------------------------------
-# appinfo/info.xml declares PHP 8.1–8.3 as the supported range. macOS
-# users frequently end up with PHP 8.4+ in their PATH (Homebrew default),
-# which makes Composer / PHPUnit / php-cs-fixer print compatibility
-# warnings and occasionally crash on syntax not yet supported on 8.1.
-# Pick the highest in-range PHP available, in this order:
+# appinfo/info.xml declares PHP 8.2–8.5 as the supported range. Pick the
+# highest in-range PHP available, in this order:
 #   1. an explicit `PHP=` override on the command line
-#   2. Homebrew's `php@8.3` keg
-#   3. distro-style versioned binaries (php8.3, php83)
-#   4. `php` in PATH, with a warning when it falls outside 8.1–8.3
+#   2. Homebrew's `php@8.4`, `php@8.3`, `php@8.2` kegs
+#   3. distro-style versioned binaries (php8.4, php84, …)
+#   4. `php` in PATH (warns when outside 8.2–8.5)
 PHP ?= $(shell \
 	for candidate in \
+		/opt/homebrew/opt/php@8.4/bin/php \
+		/usr/local/opt/php@8.4/bin/php \
 		/opt/homebrew/opt/php@8.3/bin/php \
 		/usr/local/opt/php@8.3/bin/php \
 		/opt/homebrew/opt/php@8.2/bin/php \
 		/usr/local/opt/php@8.2/bin/php \
-		/opt/homebrew/opt/php@8.1/bin/php \
-		/usr/local/opt/php@8.1/bin/php \
-		php8.3 php83 php8.2 php82 php8.1 php81 php; do \
+		php8.4 php84 php8.3 php83 php8.2 php82 php; do \
 		if command -v $$candidate >/dev/null 2>&1; then \
 			echo $$candidate; \
 			exit 0; \
@@ -95,7 +92,12 @@ EDITOR_EXTRACT_DIR := $(TMP_DIR)/exelearning-static
 # --- Docker / try-it-out variables ---------------------------------------
 DOCKER_NAME ?= nc-exelearning
 DOCKER_PORT ?= 8080
-DOCKER_IMAGE ?= nextcloud:30
+# Track upstream's `nextcloud:stable` tag by default so `make up` always
+# runs against the current Nextcloud major; override with NC_VERSION=33
+# (or 31, 32, 33-apache, …) to pin a specific image when reproducing a
+# CI cell locally.
+NC_VERSION ?= stable
+DOCKER_IMAGE ?= nextcloud:$(NC_VERSION)
 NC_ADMIN_USER ?= admin
 NC_ADMIN_PASS ?= admin
 
@@ -104,7 +106,7 @@ NC_ADMIN_PASS ?= admin
 	download-editor fetch-editor-source build-editor clean-editor \
 	package appstore \
 	check-docker \
-	up down restart logs shell occ-status status sync
+	up down restart logs shell occ-status status sync ci-matrix
 
 help:
 	@echo "Common targets:"
@@ -127,6 +129,7 @@ help:
 	@echo "  logs            - tail container logs"
 	@echo "  shell           - open a www-data shell inside the container"
 	@echo "  status          - show 'occ status' from the container"
+	@echo "  ci-matrix       - reproduce the CI matrix locally (NC × PHP sweep)"
 	@echo ""
 	@echo "  download-editor - download the prebuilt eXeLearning static editor"
 	@echo "  build-editor    - clone and build the eXeLearning static editor"
@@ -147,7 +150,7 @@ composer-install:
 	fi
 
 # Print which PHP binary the Makefile is using so you can confirm it
-# falls within the 8.1–8.3 range declared in appinfo/info.xml.
+# falls within the 8.2–8.5 range declared in appinfo/info.xml.
 php-version:
 	@echo "PHP binary : $(PHP)"
 	@$(PHP) -v | head -n1
@@ -447,3 +450,40 @@ shell:
 
 status:
 	@docker exec -u www-data $(DOCKER_NAME) php occ status
+
+# --- CI matrix reproduction (local) -------------------------------------
+# Iterate the supported Nextcloud × PHP combinations locally with Docker
+# so a CI failure can be reproduced without pushing to GitHub. Mirrors the
+# matrix in .github/workflows/ci.yml. Each iteration restarts the
+# container with a clean install and runs the smoke check (occ status +
+# /sw.js HEAD). Use `NC_VERSIONS=33 PHP_VERSIONS=8.4 make ci-matrix` to
+# narrow the sweep when iterating on a single cell.
+NC_VERSIONS  ?= 31 32 33
+PHP_VERSIONS ?= 8.2 8.3 8.4
+
+ci-matrix: check-docker
+	@set -euo pipefail; \
+	failed=""; \
+	for nc in $(NC_VERSIONS); do \
+	  for php in $(PHP_VERSIONS); do \
+	    echo; \
+	    echo "================================================================"; \
+	    echo " ci-matrix: Nextcloud $$nc / PHP $$php"; \
+	    echo "================================================================"; \
+	    if NC_VERSION=$$nc PHP_VERSION=$$php "$(MAKE)" --no-print-directory restart; then \
+	      echo "   smoke: occ status"; \
+	      docker exec -u www-data $(DOCKER_NAME) php occ status >/dev/null; \
+	      echo "   smoke: GET /apps/exelearning/sw.js"; \
+	      curl -fsS -D - "http://localhost:$(DOCKER_PORT)/index.php/apps/exelearning/sw.js" \
+	        | head -n 1 | grep -q '200'; \
+	      echo "   OK: nc=$$nc php=$$php"; \
+	    else \
+	      echo "   FAIL: nc=$$nc php=$$php"; \
+	      failed="$$failed nc=$$nc/php=$$php"; \
+	    fi; \
+	  done; \
+	done; \
+	if [ -n "$$failed" ]; then \
+	  echo; echo "ci-matrix failures:$$failed"; exit 1; \
+	fi; \
+	echo; echo "ci-matrix: all cells passed"

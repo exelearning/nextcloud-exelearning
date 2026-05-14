@@ -9,15 +9,16 @@
  *   - `exelearning-download` — kebab item that triggers a download via the
  *                            node's WebDAV `source` URL.
  *
- * NB: this app targets Nextcloud 30 which bundles `@nextcloud/files@3.x`.
- * That version exposes `FileAction` as a **class** (no `IFileAction`
- * interface) with callbacks that receive `Node[]` / `Node` directly.
- * Pinning matters: `@nextcloud/files@4.x` uses a different global scope
- * (`window._nc_files_scope.v4_0`) and our actions become invisible to
- * Files when the versions mismatch.
+ * Built against `@nextcloud/files@^4` (NC 33+ scope `v4_0`). NC 31-32 also
+ * accept v4-built actions during the upstream transition.
  */
 
-import { DefaultType, FileAction, registerFileAction, type Node } from '@nextcloud/files'
+import {
+	DefaultType,
+	type IFileAction,
+	type Node,
+	registerFileAction,
+} from '@nextcloud/files'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
 
@@ -67,13 +68,14 @@ function isElpxNode(node: Node): boolean {
 
 // Default action — clicking a .elpx in Files opens our view page, which
 // renders the package's internal HTML and exposes an Edit button.
-const viewAction = new FileAction({
+const viewAction: IFileAction = {
 	id: 'exelearning-view',
 	displayName: () => t(APP_ID, 'Open eXeLearning preview'),
 	iconSvgInline: () => eyeIconSvgInline(),
 	default: DefaultType.DEFAULT,
-	enabled: (files: Node[]) => files.length === 1 && isElpxNode(files[0]),
-	async exec(file: Node) {
+	enabled: ({ nodes }) => nodes.length === 1 && isElpxNode(nodes[0] as Node),
+	async exec({ nodes }) {
+		const file = nodes[0]
 		const fileId = (file as unknown as NodeShape).fileid ?? file.fileid
 		const url = generateUrl('/apps/exelearning/view?fileId={fileId}', {
 			fileId: String(fileId ?? ''),
@@ -81,16 +83,17 @@ const viewAction = new FileAction({
 		window.open(url, '_self')
 		return null
 	},
-})
+}
 
 // Kebab item — jump straight to the editor without going through the
 // preview.
-const editAction = new FileAction({
+const editAction: IFileAction = {
 	id: 'exelearning-edit',
 	displayName: () => t(APP_ID, 'Edit with eXeLearning'),
 	iconSvgInline: () => pencilIconSvgInline(),
-	enabled: (files: Node[]) => files.length === 1 && isElpxNode(files[0]),
-	async exec(file: Node) {
+	enabled: ({ nodes }) => nodes.length === 1 && isElpxNode(nodes[0] as Node),
+	async exec({ nodes }) {
+		const file = nodes[0]
 		const fileId = (file as unknown as NodeShape).fileid ?? file.fileid
 		const url = generateUrl('/apps/exelearning/view?fileId={fileId}&mode=editor', {
 			fileId: String(fileId ?? ''),
@@ -98,19 +101,19 @@ const editAction = new FileAction({
 		window.open(url, '_self')
 		return null
 	},
-})
+}
 
-const downloadAction = new FileAction({
+const downloadAction: IFileAction = {
 	id: 'exelearning-download',
 	displayName: () => t(APP_ID, 'Download .elpx'),
 	iconSvgInline: () => downloadIconSvgInline(),
-	enabled: (files: Node[]) => {
-		if (files.length !== 1) return false
-		const node = files[0] as unknown as NodeShape
+	enabled: ({ nodes }) => {
+		if (nodes.length !== 1) return false
+		const node = nodes[0] as unknown as NodeShape
 		return hasElpxExtension(node.basename ?? '')
 	},
-	async exec(file: Node) {
-		const node = file as unknown as NodeShape
+	async exec({ nodes }) {
+		const node = nodes[0] as unknown as NodeShape
 		const a = document.createElement('a')
 		a.href = node.source ?? '#'
 		a.download = node.basename ?? 'package.elpx'
@@ -119,7 +122,7 @@ const downloadAction = new FileAction({
 		a.remove()
 		return null
 	},
-})
+}
 
 /**
  *

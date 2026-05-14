@@ -1,5 +1,7 @@
 # nextcloud-exelearning
 
+[![CI](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml/badge.svg)](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml)
+
 Preview and edit [eXeLearning](https://exelearning.net/) `.elpx` packages
 directly inside Nextcloud Files.
 
@@ -32,14 +34,30 @@ Optional features:
   but binds the entry points (URL routing, authentication, file access) to
   Nextcloud.
 
-## Requirements
+## Compatibility
+
+Each cell below is exercised in CI on a real Nextcloud install with the
+listed PHP version and a rotated database. The matrix is defined in
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml); reproduce it
+locally with `make ci-matrix`.
+
+| Nextcloud           | PHP        | Database              | Status                              |
+| ------------------- | ---------- | --------------------- | ----------------------------------- |
+| 31 (best effort)    | 8.2, 8.4   | sqlite, pgsql         | Supported (verified in CI)          |
+| 32                  | 8.3        | mysql                 | Supported (verified in CI)          |
+| 33                  | 8.2, 8.4   | pgsql, sqlite         | Supported (verified in CI)          |
+| 33                  | 8.5        | sqlite                | Experimental (allow-failure in CI)  |
+
+Older Nextcloud versions (28, 29, 30) are EOL and not part of the matrix.
+NC 31 enters the supported range as best effort because upstream
+maintenance ends mid-2026; NC 32 and 33 are the reference targets.
 
 | Component       | Version                                |
 |-----------------|----------------------------------------|
-| Nextcloud       | 29, 30 or 31                           |
-| PHP             | 8.1 or 8.2 (8.3 supported, see info.xml) |
-| Node            | 20 LTS                                 |
-| npm             | 10                                     |
+| Nextcloud       | 31, 32 or 33                           |
+| PHP             | 8.2 – 8.5 (8.5 experimental)           |
+| Node            | 20, 22 or 24 LTS                       |
+| npm             | 10 or 11                               |
 | Bun (optional)  | latest stable, only for `build-editor` |
 
 Browsers must support Service Workers in the Nextcloud origin. The viewer
@@ -56,8 +74,10 @@ the container, configures `apps_paths` so Nextcloud can write to
 make up
 ```
 
-The first run pulls the `nextcloud:30` image and the SQLite install
-finishes in seconds; subsequent `make up` invocations skip the pull.
+The first run pulls the `nextcloud:stable` image (resolves to the current
+upstream major) and the SQLite install finishes in seconds; subsequent
+`make up` invocations skip the pull. Pin a specific major with
+`NC_VERSION=33 make up`.
 
 When the script prints "Nextcloud + eXeLearning is ready" open
 <http://localhost:8080> and log in as `admin` / `admin`. Upload an `.elpx`
@@ -97,9 +117,17 @@ npm run build && make sync
 
 ```bash
 make up DOCKER_PORT=9000           # serve on http://localhost:9000
-make up DOCKER_IMAGE=nextcloud:31  # pin a different image
+make up NC_VERSION=33              # pin a Nextcloud major (default: stable)
+make up DOCKER_IMAGE=nextcloud:33-apache  # full image override
 make up NC_ADMIN_USER=ernesto NC_ADMIN_PASS=changeme
 make up DOCKER_NAME=nc-test        # use a different container name
+```
+
+Reproduce the full CI matrix locally:
+
+```bash
+make ci-matrix                     # iterates NC 31/32/33 × PHP 8.2/8.3/8.4
+NC_VERSIONS=33 PHP_VERSIONS=8.4 make ci-matrix  # narrow to one cell
 ```
 
 Data lives only in the container; `make down` is destructive — add your
