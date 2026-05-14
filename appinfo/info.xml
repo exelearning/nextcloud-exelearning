@@ -20,9 +20,9 @@ Optional features:
 
 This app is Nextcloud-native and does not depend on Google Drive.
     ]]></description>
-    <version>0.1.0</version>
+    <version>0.0.0-alpha</version>
     <licence>agpl</licence>
-    <author mail="dev@exelearning.net">eXeLearning</author>
+    <author mail="info@exelearning.net">eXeLearning</author>
     <namespace>ExeLearning</namespace>
     <types>
         <filesystem/>

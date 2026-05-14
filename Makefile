@@ -280,6 +280,13 @@ package: clean build
 	@mkdir -p $(RELEASE_DIR)
 	@echo ">> staging $(APP_NAME) $(PACKAGE_VERSION) into $(RELEASE_DIR)"
 	@rsync -a --delete --exclude-from=.distignore ./ $(RELEASE_DIR)/
+	@# The repo's appinfo/info.xml carries the `0.0.0-alpha` sentinel so
+	@# git never tracks real version numbers; stamp the resolved
+	@# PACKAGE_VERSION into the staged copy so the Nextcloud appstore
+	@# reads the release version from the bundled info.xml.
+	@echo ">> stamping version $(PACKAGE_VERSION) into staged appinfo/info.xml"
+	@sed -i.bak -E 's|<version>[^<]*</version>|<version>$(PACKAGE_VERSION)</version>|' $(RELEASE_DIR)/appinfo/info.xml
+	@rm -f $(RELEASE_DIR)/appinfo/info.xml.bak
 	@echo ">> creating $(ARTIFACT_DIR)/$(PACKAGE_NAME)"
 	@tar -C $(BUILD_DIR) -czf $(ARTIFACT_DIR)/$(PACKAGE_NAME) $(APP_NAME)
 	@rm -rf $(RELEASE_DIR)
