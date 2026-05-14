@@ -219,13 +219,14 @@ admin install should also configure mapping:
 ```json
 {
     "elpx": ["application/vnd.exelearning.elpx", "application/zip"],
-    "elp":  ["application/x-exelearning-legacy", "application/zip"]
+    "elp":  ["application/vnd.exelearning.elpx", "application/zip"]
 }
 ```
 
-The legacy MIME (`application/x-exelearning-legacy`) is what lets the
-Files app render a different icon for pre-`.elpx` projects so users can
-spot at a glance which packages still need migrating.
+Both extensions get the same vendor MIME so they share the eXeLearning
+icon (and the same viewer / editor flow). Legacy `.elp` content is
+detected by the editor and migrated to `.elpx` on first save — see
+issue #20.
 
 Then refresh Nextcloud's MIME caches:
 
@@ -236,33 +237,31 @@ sudo -E -u www-data php occ maintenance:mimetype:update-db --repair-filecache
 
 Do **not** edit Nextcloud core `mimetypemapping.dist.json` directly.
 
-### Static `.elp(x)` MIME icons (recommended)
+### Static `.elp(x)` MIME icon (recommended)
 
 The Files list normally shows the preview provided by
 `ElpxPreviewProvider` (the package's `screenshot.png`, or the bundled
 fallback when there is none). For contexts that bypass `core/preview`
 — sharing dialogs, breadcrumbs, the new Vue Files app's icon column —
-configure the static MIME icons too:
+configure the static MIME icon too:
 
-1. Add the aliases to `config/mimetypealiases.json`:
+1. Add the alias to `config/mimetypealiases.json`:
 
    ```json
    {
        "application/vnd.exelearning.elpx": "exelearning",
-       "application/x-exelearning":        "exelearning",
-       "application/x-exelearning-legacy": "exelearning-legacy"
+       "application/x-exelearning":        "exelearning"
    }
    ```
 
-2. Copy both icons into Nextcloud core (the only directory
+2. Copy this app's icon into Nextcloud core (the only directory
    `maintenance:mimetype:update-js` scans for SVGs — see the comment
    at the top of `core/js/mimetypelist.js`):
 
    ```bash
    sudo install -o www-data -g www-data -m 0644 \
        /var/www/nextcloud/apps/exelearning/img/filetypes/exelearning.svg \
-       /var/www/nextcloud/apps/exelearning/img/filetypes/exelearning-legacy.svg \
-       /var/www/nextcloud/core/img/filetypes/
+       /var/www/nextcloud/core/img/filetypes/exelearning.svg
    ```
 
 3. Refresh the MIME caches again:
@@ -273,10 +272,9 @@ configure the static MIME icons too:
    ```
 
 Step 2 is brittle because Nextcloud upgrades may replace `core/img/`;
-restore both SVGs after each upgrade or stage them via a theme
-override. The dev stack (`make up`) does this automatically — see the
-`registering .elp(x) MIME mapping + icon aliases` step in the
-Makefile.
+restore the SVG after each upgrade or stage it via a theme override.
+The dev stack (`make up`) does this automatically — see the
+`registering .elp(x) MIME mapping + icon alias` step in the Makefile.
 
 ## Viewer integration
 

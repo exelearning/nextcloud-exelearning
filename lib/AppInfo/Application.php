@@ -14,10 +14,8 @@ use OCP\Util;
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'exelearning';
 
-	/** Modern eXeLearning package MIME (registered for `.elpx`). */
+	/** Modern eXeLearning package MIME, registered for both `.elp` and `.elpx`. */
 	public const PRIMARY_MIME_TYPE = 'application/vnd.exelearning.elpx';
-	/** Legacy eXeLearning project MIME (registered for `.elp`). */
-	public const LEGACY_MIME_TYPE = 'application/x-exelearning-legacy';
 
 	/**
 	 * MIMEs that unambiguously identify an eXeLearning archive on disk.
@@ -28,7 +26,6 @@ class Application extends App implements IBootstrap {
 	public const VENDOR_MIME_TYPES = [
 		self::PRIMARY_MIME_TYPE,
 		'application/x-exelearning',
-		self::LEGACY_MIME_TYPE,
 	];
 
 	/**
@@ -44,7 +41,6 @@ class Application extends App implements IBootstrap {
 	public const ALLOWED_MIME_TYPES = [
 		self::PRIMARY_MIME_TYPE,
 		'application/x-exelearning',
-		self::LEGACY_MIME_TYPE,
 		'application/zip',
 		'application/octet-stream',
 	];

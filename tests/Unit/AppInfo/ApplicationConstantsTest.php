@@ -23,11 +23,6 @@ final class ApplicationConstantsTest extends TestCase {
 		self::assertContains('application/octet-stream', Application::ALLOWED_MIME_TYPES);
 	}
 
-	public function testAllowedMimeTypesIncludesLegacyVendorMime(): void {
-		self::assertContains(Application::LEGACY_MIME_TYPE, Application::ALLOWED_MIME_TYPES);
-		self::assertSame('application/x-exelearning-legacy', Application::LEGACY_MIME_TYPE);
-	}
-
 	/**
 	 * VENDOR_MIME_TYPES is the narrow list used by
 	 * {@see \OCA\ExeLearning\Service\PermissionService::isElpxFile()} to
@@ -40,8 +35,7 @@ final class ApplicationConstantsTest extends TestCase {
 		self::assertNotContains('application/octet-stream', Application::VENDOR_MIME_TYPES);
 	}
 
-	public function testVendorMimeTypesCoversBothPackageGenerations(): void {
+	public function testVendorMimeTypesIncludesPrimaryMime(): void {
 		self::assertContains(Application::PRIMARY_MIME_TYPE, Application::VENDOR_MIME_TYPES);
-		self::assertContains(Application::LEGACY_MIME_TYPE, Application::VENDOR_MIME_TYPES);
 	}
 }

@@ -33,7 +33,7 @@ class ElpxPreviewProvider implements IProviderV2 {
 	 * which now requires either a `.elp(x)` extension or a vendor-
 	 * specific MIME (issue #21).
 	 */
-	public const MIME_REGEX = '/^application\/(vnd\.exelearning\.elpx|x-exelearning(-legacy)?|zip|octet-stream)$/';
+	public const MIME_REGEX = '/^application\/(vnd\.exelearning\.elpx|x-exelearning|zip|octet-stream)$/';
 
 	/** Bundled bitmap returned when the package has no screenshot.png. */
 	private const FALLBACK_IMAGE = __DIR__ . '/../../img/elpx-preview-fallback.png';

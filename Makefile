@@ -399,22 +399,22 @@ up: check-docker
 	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 writable --value=true  --type=boolean        >/dev/null
 	@echo ">> enabling exelearning"
 	@docker exec -u www-data $(DOCKER_NAME) php occ app:enable exelearning
-	@# `.elp(x)` → MIME mapping + icon aliases. These are the only
-	@# pieces a Nextcloud app cannot ship by itself: both files are
-	@# read from /var/www/html/config/. See README → "Custom MIME types"
-	@# for the manual admin steps required on production installs.
+	@# `.elp(x)` → MIME mapping + icon alias. These are the only pieces
+	@# a Nextcloud app cannot ship by itself: both files are read from
+	@# /var/www/html/config/. See README → "Custom MIME types" for the
+	@# manual admin steps required on production installs.
 	@#
-	@# `.elpx` files get the modern vendor MIME; `.elp` files get the
-	@# legacy MIME so the Files app can render the older logo for them
-	@# (issue #21). `application/zip` stays out of the alias file on
-	@# purpose — aliasing it would tag every plain ZIP with our icon.
-	@echo ">> registering .elp(x) MIME mapping + icon aliases"
+	@# Both `.elpx` and `.elp` get the same vendor MIME so they share
+	@# the same eXeLearning icon. `application/zip` stays out of the
+	@# alias file on purpose — aliasing it would tag every plain ZIP
+	@# with our icon (the original symptom of issue #21).
+	@echo ">> registering .elp(x) MIME mapping + icon alias"
 	@docker exec $(DOCKER_NAME) bash -c \
-		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"], \"elp\":[\"application/x-exelearning-legacy\",\"application/zip\"]}" \
+		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"], \"elp\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}" \
 		 > /var/www/html/config/mimetypemapping.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypemapping.json'
 	@docker exec $(DOCKER_NAME) bash -c \
-		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\", \"application/x-exelearning\":\"exelearning\", \"application/x-exelearning-legacy\":\"exelearning-legacy\"}" \
+		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\", \"application/x-exelearning\":\"exelearning\"}" \
 		 > /var/www/html/config/mimetypealiases.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypealiases.json'
 	@# Nextcloud's `maintenance:mimetype:update-js` only scans
@@ -423,12 +423,11 @@ up: check-docker
 	@# not auto-discovered, so for the dev stack we copy ours into
 	@# core/ before regenerating the JS list. Production installs need
 	@# the admin to do the equivalent — see README → "Custom MIME icons".
-	@echo ">> copying app filetype icons into core/img/filetypes"
+	@echo ">> copying eXeLearning filetype icon into core/img/filetypes"
 	@docker exec $(DOCKER_NAME) bash -c \
 		'cp /var/www/html/custom_apps/exelearning/img/filetypes/exelearning.svg \
-		    /var/www/html/custom_apps/exelearning/img/filetypes/exelearning-legacy.svg \
-		    /var/www/html/core/img/filetypes/ && \
-		 chown www-data:www-data /var/www/html/core/img/filetypes/exelearning*.svg'
+		    /var/www/html/core/img/filetypes/exelearning.svg && \
+		 chown www-data:www-data /var/www/html/core/img/filetypes/exelearning.svg'
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
 	@# ElpxPreviewProvider still runs for files that actually have a
