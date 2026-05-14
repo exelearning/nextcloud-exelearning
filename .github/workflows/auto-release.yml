@@ -1,0 +1,165 @@
+name: Auto-release on upstream editor bump
+
+# Watches `exelearning/exelearning` for new releases. When a new tag
+# appears and `.editor-version` in this repo doesn't already point at it,
+# this workflow:
+#
+#   1. downloads the matching prebuilt static editor,
+#   2. runs `make package PACKAGE_VERSION=<version>` to produce a
+#      Nextcloud appstore-ready `exelearning-<version>.tar.gz`,
+#   3. creates a GitHub Release tagged with the upstream editor tag and
+#      attaches the tarball,
+#   4. commits the new tag into `.editor-version` so the next cron run
+#      sees the repo as up to date.
+#
+# Mirrors wp-exelearning's `check-editor-releases.yml`. The Nextcloud
+# `release.yml` workflow stays around for manual rebuilds via
+# workflow_dispatch (or releases cut by a human through the GitHub UI).
+# Releases created here use the default `GITHUB_TOKEN`, which by design
+# does not trigger downstream `release: published` events, so this never
+# double-fires `release.yml`.
+
+on:
+  schedule:
+    # Daily at 08:00 UTC. Adjust if you prefer another time window.
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  check_and_release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Resolve latest upstream eXeLearning release
+        id: latest
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          TAG=$(gh api repos/exelearning/exelearning/releases/latest \
+            --jq '.tag_name' 2>/dev/null || echo "")
+          if [ -z "$TAG" ]; then
+            echo "::warning::Could not resolve a latest release for exelearning/exelearning."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          echo "Latest upstream tag: $TAG"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "found=true" >> "$GITHUB_OUTPUT"
+
+      - name: Compare against `.editor-version`
+        id: compare
+        if: steps.latest.outputs.found == 'true'
+        env:
+          LATEST: ${{ steps.latest.outputs.tag }}
+        run: |
+          set -euo pipefail
+          CURRENT=""
+          if [ -f .editor-version ]; then
+            CURRENT=$(tr -d '[:space:]' < .editor-version)
+          fi
+          echo "Currently built: ${CURRENT:-<none>}"
+          echo "Upstream latest: $LATEST"
+          if [ "$LATEST" = "$CURRENT" ]; then
+            echo "Already up to date."
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Read app metadata from appinfo/info.xml
+        id: meta
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          set -euo pipefail
+          PHP_MIN=$(sed -n 's:.*<php[^>]*min-version="\([0-9.]*\)".*:\1:p' appinfo/info.xml | head -n1)
+          echo "php_version=${PHP_MIN:-8.2}" >> "$GITHUB_OUTPUT"
+
+      - name: Compute package version
+        id: version
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          set -euo pipefail
+          VERSION="${TAG#v}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Package version: $VERSION"
+
+      - name: Set up Node.js
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Set up PHP
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ steps.meta.outputs.php_version }}
+          tools: composer:v2
+          coverage: none
+
+      - name: Install dependencies
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          npm ci
+          if [ -f composer.json ]; then
+            composer install --no-dev --prefer-dist --optimize-autoloader || true
+          fi
+
+      - name: Download eXeLearning static editor
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          EXELEARNING_EDITOR_REF: ${{ steps.latest.outputs.tag }}
+        run: make download-editor
+
+      - name: Build the Nextcloud distribution tarball
+        if: steps.compare.outputs.needs_update == 'true'
+        run: make package PACKAGE_VERSION=${{ steps.version.outputs.version }}
+
+      - name: Compute artefact path
+        id: artefact
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          PATH_REL="build/artifacts/exelearning-${VERSION}.tar.gz"
+          test -f "${PATH_REL}" || { echo "::error::Expected ${PATH_REL} but it was not produced."; exit 1; }
+          echo "path=${PATH_REL}" >> "$GITHUB_OUTPUT"
+          echo "Tarball size: $(du -h "${PATH_REL}" | cut -f1)"
+
+      - name: Create GitHub Release
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.latest.outputs.tag }}
+          name: ${{ steps.latest.outputs.tag }}
+          files: ${{ steps.artefact.outputs.path }}
+          fail_on_unmatched_files: true
+          body: |
+            Automated build bundling the eXeLearning static editor `${{ steps.latest.outputs.tag }}`.
+
+            App version: `${{ steps.version.outputs.version }}` (stamped into `appinfo/info.xml` at package time).
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update `.editor-version` marker
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          TAG: ${{ steps.latest.outputs.tag }}
+        run: |
+          set -euo pipefail
+          echo "${TAG}" > .editor-version
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add .editor-version
+          git commit -m "chore: bump bundled eXeLearning editor to ${TAG}"
+          git push
