@@ -68,6 +68,7 @@ exelearning                 export-ignore
 AGENTS.md                   export-ignore
 CHANGELOG.md                export-ignore
 CONTRIBUTING.md             export-ignore
+DEVELOPMENT.md              export-ignore
 Makefile                    export-ignore
 make.bat                    export-ignore
 make.cmd                    export-ignore
