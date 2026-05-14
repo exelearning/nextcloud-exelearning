@@ -106,7 +106,8 @@ NC_ADMIN_PASS ?= admin
 	download-editor fetch-editor-source build-editor clean-editor \
 	package appstore \
 	check-docker \
-	up down restart logs shell occ-status status sync ci-matrix
+	up down restart logs shell occ-status status sync ci-matrix \
+	seed-fixtures
 
 help:
 	@echo "Common targets:"
@@ -126,6 +127,7 @@ help:
 	@echo "  down            - remove the running container"
 	@echo "  restart         - down + up"
 	@echo "  sync            - re-copy app files into a running container"
+	@echo "  seed-fixtures   - re-upload tests/fixtures/*.elp(x) into admin's Files"
 	@echo "  logs            - tail container logs"
 	@echo "  shell           - open a www-data shell inside the container"
 	@echo "  status          - show 'occ status' from the container"
@@ -412,6 +414,7 @@ up: check-docker
 	@# core/preview?...&mimeFallback=true; when an .elpx package has no
 	@# screenshot.png, the provider returns img/elpx-preview-fallback.png.
 	@# No additional mimetypealiases.json hack is needed for that.
+	@"$(MAKE)" --no-print-directory seed-fixtures
 	@echo
 	@echo "================================================================"
 	@echo " Nextcloud + eXeLearning is ready."
@@ -421,6 +424,36 @@ up: check-docker
 	@echo
 	@echo " Upload a .elpx file in Files and click it. Stop with 'make down'."
 	@echo "================================================================"
+
+# Seed `.elp` / `.elpx` fixtures from tests/fixtures/ into the admin
+# user's Files. Runs as part of `make up` and is also callable on its
+# own to re-seed without rebooting the stack (`make seed-fixtures`).
+#
+# The fixtures live under tests/ (already excluded from the release
+# tarball by .distignore), so they never leak into the appstore build.
+# If the fixtures directory is empty or missing the target silently
+# becomes a no-op — handy on slim checkouts that skip the binary
+# samples.
+FIXTURES_DIR := $(CURDIR)/tests/fixtures
+FIXTURES_DEST_REL := exelearning-samples
+FIXTURES_DEST_ABS := /var/www/html/data/$(NC_ADMIN_USER)/files/$(FIXTURES_DEST_REL)
+
+seed-fixtures: check-docker
+	@docker ps --format '{{.Names}}' | grep -q "^$(DOCKER_NAME)$$" || { echo "$(DOCKER_NAME) not running. Use 'make up' first."; exit 1; }
+	@count=$$(find "$(FIXTURES_DIR)" -maxdepth 1 -type f \( -name '*.elp' -o -name '*.elpx' \) 2>/dev/null | wc -l | tr -d ' '); \
+	if [ "$$count" = "0" ]; then \
+		echo ">> no fixtures in $(FIXTURES_DIR), skipping"; \
+		exit 0; \
+	fi; \
+	echo ">> seeding $$count fixture(s) into $(NC_ADMIN_USER)/$(FIXTURES_DEST_REL)/"; \
+	docker exec $(DOCKER_NAME) mkdir -p "$(FIXTURES_DEST_ABS)"; \
+	for f in "$(FIXTURES_DIR)"/*.elp "$(FIXTURES_DIR)"/*.elpx; do \
+		[ -f "$$f" ] || continue; \
+		echo "   - $$(basename $$f)"; \
+		docker cp "$$f" "$(DOCKER_NAME):$(FIXTURES_DEST_ABS)/"; \
+	done; \
+	docker exec $(DOCKER_NAME) chown -R www-data:www-data "$(FIXTURES_DEST_ABS)"; \
+	docker exec -u www-data $(DOCKER_NAME) php occ files:scan --path="$(NC_ADMIN_USER)/files/$(FIXTURES_DEST_REL)" >/dev/null
 
 # Re-copy the app files into the running container (after editing PHP code
 # or rebuilding js/). Much faster than `make restart`.
