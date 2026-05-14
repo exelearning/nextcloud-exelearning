@@ -5,8 +5,11 @@ name: CI
 # it enables. Runs on every push to main, every pull request, and on demand.
 #
 # Matrix is intentionally sparse (5 stable + 1 experimental cells, not the
-# full Cartesian product) and rotates databases across PHP versions to keep
-# the wall time bounded — same approach as moodle-repository_omeka.
+# full Cartesian product). All cells use sqlite — this app has no DB
+# migrations or schema of its own, so a real-DB sweep would only re-test
+# Nextcloud core's own DB layer. `SMillerDev/nextcloud-actions/setup-nextcloud`
+# also doesn't accept credentials for pgsql/mysql, so non-sqlite cells
+# would need service containers + a wrapper just to install Nextcloud.
 
 on:
   push:
@@ -83,13 +86,13 @@ jobs:
         include:
           # NC 31 — first version of the supported range
           - { php: '8.2', nextcloud: 'stable31', database: 'sqlite' }
-          - { php: '8.4', nextcloud: 'stable31', database: 'pgsql'  }
+          - { php: '8.4', nextcloud: 'stable31', database: 'sqlite' }
           # NC 32 — middle of the range
-          - { php: '8.3', nextcloud: 'stable32', database: 'mysql'  }
+          - { php: '8.3', nextcloud: 'stable32', database: 'sqlite' }
           # NC 33 — current latest, the version that exposed the
           # @nextcloud/files v3→v4 scope mismatch this matrix exists to
           # prevent regressing on.
-          - { php: '8.2', nextcloud: 'stable33', database: 'pgsql'  }
+          - { php: '8.2', nextcloud: 'stable33', database: 'sqlite' }
           - { php: '8.4', nextcloud: 'stable33', database: 'sqlite' }
           # PHP 8.5 preview — informational, allowed to fail.
           - { php: '8.5', nextcloud: 'stable33', database: 'sqlite', experimental: true }
