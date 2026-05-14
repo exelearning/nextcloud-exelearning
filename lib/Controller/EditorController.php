@@ -142,12 +142,60 @@ class EditorController extends Controller {
 		}
 		$file->putContent($content);
 
+		// Migrate legacy `.elp` filenames to `.elpx` on first save (issue
+		// #20). Best-effort: if the rename fails (no permission, name
+		// collision we can't resolve, …) we keep the original extension
+		// rather than failing the save.
+		$file = $this->migrateLegacyExtensionIfNeeded($file, $user->getUID(), $fileId);
+
 		return new DataResponse([
 			'id' => $file->getId(),
 			'name' => $file->getName(),
 			'mtime' => $file->getMTime(),
 			'etag' => $file->getEtag(),
 		]);
+	}
+
+	/**
+	 * Renames a `.elp` file to `.elpx` after a successful save so the
+	 * Files-app shows the modern extension going forward. Picks
+	 * `<base>.elpx`, falling back to `<base> (2).elpx`, `<base> (3).elpx`,
+	 * … if a sibling already exists. Returns the (possibly renamed)
+	 * file, re-fetched by id since `Node::move` invalidates the cached
+	 * handle.
+	 */
+	private function migrateLegacyExtensionIfNeeded(
+		\OCP\Files\File $file,
+		string $userId,
+		int $fileId,
+	): \OCP\Files\File {
+		$name = $file->getName();
+		if (!str_ends_with(strtolower($name), '.elp') || str_ends_with(strtolower($name), '.elpx')) {
+			return $file;
+		}
+		$base = substr($name, 0, -4); // strip '.elp'
+		try {
+			$parent = $file->getParent();
+		} catch (NotFoundException|NotPermittedException) {
+			return $file;
+		}
+		$candidate = $base . '.elpx';
+		for ($i = 2; $i < 100 && $parent->nodeExists($candidate); $i++) {
+			$candidate = sprintf('%s (%d).elpx', $base, $i);
+		}
+		if ($parent->nodeExists($candidate)) {
+			return $file;
+		}
+		try {
+			$file->move($parent->getPath() . '/' . $candidate);
+		} catch (NotPermittedException|\OCP\Files\InvalidPathException) {
+			return $file;
+		}
+		try {
+			return $this->packageService->getForUserById($userId, $fileId);
+		} catch (NotFoundException|NotPermittedException) {
+			return $file;
+		}
 	}
 
 	/**

@@ -37,6 +37,7 @@ export default defineComponent({
 		file: { type: Object as () => FileMeta, required: true },
 		editorIframeUrl: { type: String, required: true },
 	},
+	emits: ['file-renamed'],
 	data() {
 		return {
 			state: 'loading' as State,
@@ -89,9 +90,14 @@ export default defineComponent({
 			})
 			// Refresh our cached etag from the server response so subsequent
 			// saves do not 412 against a stale tag.
-			const data = response.data as { etag?: string } | undefined
+			const data = response.data as { etag?: string; name?: string } | undefined
 			if (data && typeof data.etag === 'string') {
 				this.currentEtag = data.etag
+			}
+			// EditorController migrates `.elp` → `.elpx` on save; bubble the
+			// new basename so the parent can refresh its toolbar binding.
+			if (data && typeof data.name === 'string' && data.name !== this.file.name) {
+				this.$emit('file-renamed', data.name)
 			}
 		},
 	},

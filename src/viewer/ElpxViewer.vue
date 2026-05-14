@@ -5,6 +5,24 @@
 				<span class="icon-loading" aria-hidden="true" />
 				<p>{{ status || t('exelearning', 'Opening eXeLearning package…') }}</p>
 			</div>
+			<div v-else-if="state === 'legacy'" class="exelearning-viewer__legacy">
+				<h2>{{ t('exelearning', 'Older eXeLearning package') }}</h2>
+				<p>
+					{{ t('exelearning', 'This file was created with an older version of eXeLearning and cannot be previewed directly.') }}
+				</p>
+				<p>
+					{{ t('exelearning', 'Open it in the editor to migrate it — when you save it will be stored as a modern .elpx package.') }}
+				</p>
+				<button v-if="canMigrate"
+					type="button"
+					class="exelearning-viewer__legacy-action"
+					@click="$emit('migrate-in-editor')">
+					{{ t('exelearning', 'Open in eXeLearning editor') }}
+				</button>
+				<p v-else class="exelearning-viewer__legacy-readonly">
+					{{ t('exelearning', 'You do not have permission to migrate this file. Ask the owner to open and re-save it in eXeLearning.') }}
+				</p>
+			</div>
 			<ViewerError v-else-if="state === 'error'"
 				:title="errorTitle"
 				:message="errorMessage"
@@ -26,7 +44,7 @@ import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
 import { createPackageIframe } from '../elpx/iframe-renderer'
 
-type State = 'loading' | 'ready' | 'error'
+type State = 'loading' | 'ready' | 'legacy' | 'error'
 
 interface Data {
 	state: State
@@ -50,7 +68,12 @@ export default defineComponent({
 		mime: { type: String, default: '' },
 		// `fileid` is the canonical Nextcloud file id.
 		fileid: { type: [Number, String], default: undefined },
+		// Whether the current user can write to the file. Drives the
+		// "Open in editor" button on the legacy notice — if the file is
+		// read-only, migrating it would fail at save time anyway.
+		canMigrate: { type: Boolean, default: true },
 	},
+	emits: ['migrate-in-editor'],
 	data(): Data {
 		return {
 			state: 'loading',
@@ -83,7 +106,16 @@ export default defineComponent({
 
 				this.status = t('exelearning', 'Extracting package…')
 				const { entries } = await readPackage(loaded.bytes)
-				const validation = validatePackage(entries)
+				const sourceFilename = loaded.filename || this.filename || this.basename || ''
+				const validation = validatePackage(entries, sourceFilename)
+				if (validation.legacy) {
+					// Pre-`.elpx` project. Bail out of the viewer path and let
+					// the parent show the migration prompt — the editor is
+					// the only thing that knows how to upgrade these.
+					this.state = 'legacy'
+					this.status = ''
+					return
+				}
 				if (!validation.valid || validation.shape.indexEntry === null) {
 					throw new Error(validation.error ?? 'The package is missing index.html.')
 				}
@@ -191,6 +223,39 @@ export default defineComponent({
 .exelearning-viewer__loading {
 	margin: auto;
 	text-align: center;
+}
+.exelearning-viewer__legacy {
+	margin: auto;
+	max-width: 32rem;
+	padding: 2rem;
+	text-align: center;
+	color: var(--color-text-light, #222);
+}
+.exelearning-viewer__legacy h2 {
+	margin: 0 0 0.75rem;
+	font-size: 1.25rem;
+}
+.exelearning-viewer__legacy p {
+	margin: 0 0 1rem;
+	line-height: 1.4;
+}
+.exelearning-viewer__legacy-action {
+	margin-top: 0.5rem;
+	padding: 0.5rem 1.1rem;
+	border: 1px solid var(--color-primary-element, #0a629a);
+	background: var(--color-primary-element, #0a629a);
+	color: var(--color-primary-element-text, #fff);
+	border-radius: 999px;
+	cursor: pointer;
+	font: inherit;
+}
+.exelearning-viewer__legacy-action:hover {
+	filter: brightness(1.05);
+}
+.exelearning-viewer__legacy-readonly {
+	margin-top: 0.5rem;
+	color: var(--color-text-maxcontrast, #777);
+	font-size: 0.95rem;
 }
 .exelearning-viewer__loading .icon-loading {
 	display: inline-block;
