@@ -37,16 +37,17 @@ Optional features:
 ## Compatibility
 
 Each cell below is exercised in CI on a real Nextcloud install with the
-listed PHP version and a rotated database. The matrix is defined in
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml); reproduce it
-locally with `make ci-matrix`.
+listed PHP version (sqlite throughout — this app has no DB schema of
+its own, so a multi-DB sweep would only re-test Nextcloud core). The
+matrix is defined in [`.github/workflows/ci.yml`](.github/workflows/ci.yml);
+reproduce it locally with `make ci-matrix`.
 
-| Nextcloud           | PHP        | Database              | Status                              |
-| ------------------- | ---------- | --------------------- | ----------------------------------- |
-| 31 (best effort)    | 8.2, 8.4   | sqlite, pgsql         | Supported (verified in CI)          |
-| 32                  | 8.3        | mysql                 | Supported (verified in CI)          |
-| 33                  | 8.2, 8.4   | pgsql, sqlite         | Supported (verified in CI)          |
-| 33                  | 8.5        | sqlite                | Experimental (allow-failure in CI)  |
+| Nextcloud           | PHP        | Status                              |
+| ------------------- | ---------- | ----------------------------------- |
+| 31 (best effort)    | 8.2, 8.4   | Supported (verified in CI)          |
+| 32                  | 8.3        | Supported (verified in CI)          |
+| 33                  | 8.2, 8.4   | Supported (verified in CI)          |
+| 33                  | 8.5        | Experimental (allow-failure in CI)  |
 
 Older Nextcloud versions (28, 29, 30) are EOL and not part of the matrix.
 NC 31 enters the supported range as best effort because upstream
