@@ -1,7 +1,9 @@
 # Agents conventions for `nextcloud-exelearning`
 
 This document is for coding agents (and humans) maintaining this Nextcloud
-app. Read it before generating code.
+app. Read it before generating code. For the user-facing overview see
+[`README.md`](README.md); for developer setup, testing, architecture,
+security model and troubleshooting see [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 ## What this project is
 
@@ -126,6 +128,7 @@ nextcloud-exelearning/
 ├── tsconfig.json
 ├── Makefile
 ├── README.md
+├── DEVELOPMENT.md
 ├── AGENTS.md
 └── CHANGELOG.md
 ```
