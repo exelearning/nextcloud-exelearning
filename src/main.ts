@@ -17,6 +17,7 @@
  */
 
 import { registerFileActions } from './files/actions'
+import { registerNewMenuEntry } from './files/new-menu'
 
 declare let __webpack_public_path__: string
 declare global {
@@ -41,6 +42,14 @@ function safeBoot(): void {
 		// the host page.
 		// eslint-disable-next-line no-console
 		console.warn('[exelearning] file action registration failed:', error)
+	}
+	try {
+		registerNewMenuEntry()
+	} catch (error) {
+		// Same defensive guard — the New menu registry isn't available on
+		// public share pages and similar embeds.
+		// eslint-disable-next-line no-console
+		console.warn('[exelearning] new-menu registration failed:', error)
 	}
 }
 
