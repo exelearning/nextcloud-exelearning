@@ -83,7 +83,17 @@ async function boot(): Promise<void> {
 			if (message.type !== 'SAVE_FILE') return
 			try {
 				const saved = await frame.requestSave()
-				await uploadToNextcloud(file, saved.bytes, file.etag)
+				const result = await uploadToNextcloud(file, saved.bytes, file.etag)
+				// EditorController migrates `.elp` → `.elpx` on first save;
+				// reflect the new name locally so the next save sends the
+				// updated `file.name` and the document title stops lying.
+				if (result.name && result.name !== file.name) {
+					file.name = result.name
+					document.title = result.name
+				}
+				if (result.etag) {
+					file.etag = result.etag
+				}
 			} catch (error) {
 				// eslint-disable-next-line no-console
 				console.error('[exelearning] Save failed:', error)
@@ -132,16 +142,28 @@ function renderMessage(target: HTMLElement, text: string): void {
  * @param bytes Raw `.elpx` bytes returned by the editor.
  * @param ifMatch ETag captured at load time, sent back as `If-Match`.
  */
-async function uploadToNextcloud(file: InitialFile, bytes: ArrayBuffer, ifMatch: string): Promise<void> {
+interface SaveResult {
+	name?: string
+	etag?: string
+}
+
+/**
+ * @param file Metadata for the file being saved (id and display name).
+ * @param bytes Raw `.elpx` bytes returned by the editor.
+ * @param ifMatch ETag captured at load time, sent back as `If-Match`.
+ */
+async function uploadToNextcloud(file: InitialFile, bytes: ArrayBuffer, ifMatch: string): Promise<SaveResult> {
 	const url = generateUrl('/apps/exelearning/editor/save')
 	const form = new FormData()
 	form.append('fileId', String(file.id))
 	form.append('package', new Blob([bytes], { type: 'application/vnd.exelearning.elpx' }), file.name)
-	await axios.post(url, form, {
+	const response = await axios.post(url, form, {
 		headers: {
 			'If-Match': ifMatch,
 		},
 	})
+	const data = response.data as SaveResult | undefined
+	return data ?? {}
 }
 
 void boot()

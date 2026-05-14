@@ -6,8 +6,8 @@
 				:title="t('exelearning', 'Back to Files')">
 				<span aria-hidden="true">←</span>
 			</a>
-			<span class="exelearning-view-page__filename" :title="file ? file.name : ''">
-				{{ file ? file.name : t('exelearning', 'Loading…') }}
+			<span class="exelearning-view-page__filename" :title="displayName">
+				{{ displayName || t('exelearning', 'Loading…') }}
 			</span>
 			<span v-if="saveStatus" class="exelearning-view-page__status">{{ saveStatus }}</span>
 			<button v-if="canShowEditButton"
@@ -45,12 +45,15 @@
 				:key="'preview-' + file.id"
 				:fileid="file.id"
 				:filename="file.path || file.name"
-				:basename="file.name" />
+				:basename="file.name"
+				:can-migrate="canEdit"
+				@migrate-in-editor="switchToEditor" />
 			<EditorEmbed v-else-if="file && mode === 'editor'"
 				ref="editor"
 				:key="'editor-' + file.id"
 				:file="file"
-				:editor-iframe-url="editorIframeUrl" />
+				:editor-iframe-url="editorIframeUrl"
+				@file-renamed="onFileRenamed" />
 			<div v-else class="exelearning-view-page__missing">
 				<p>{{ t('exelearning', 'No file selected.') }}</p>
 				<a :href="filesUrl">{{ t('exelearning', 'Back to Files') }}</a>
@@ -92,6 +95,11 @@ export default defineComponent({
 			mode: this.initialMode as Mode,
 			saving: false,
 			saveStatus: '',
+			// Mirror of `file.name` we are allowed to mutate locally — Vue's
+			// `vue/no-mutating-props` rule disallows touching props directly,
+			// and `EditorController::save` may have renamed `.elp` → `.elpx`
+			// underneath us.
+			currentName: this.file?.name ?? '',
 		}
 	},
 	computed: {
@@ -107,6 +115,9 @@ export default defineComponent({
 		canShowSaveButton(): boolean {
 			return this.mode === 'editor' && Boolean(this.file && this.file.writable)
 		},
+		displayName(): string {
+			return this.currentName || this.file?.name || ''
+		},
 	},
 	methods: {
 		t,
@@ -120,6 +131,23 @@ export default defineComponent({
 				url.searchParams.set('mode', 'editor')
 				window.history.replaceState(null, '', url.toString())
 			}
+		},
+		onFileRenamed(newName: string): void {
+			// Server migrated `.elp` → `.elpx` on save. Update our local
+			// mirror so the toolbar reflects the new name; fileId is
+			// preserved by Nextcloud across the rename so the URL stays
+			// valid without any further work.
+			if (!newName || newName === this.currentName) {
+				return
+			}
+			this.currentName = newName
+			const message = t('exelearning', 'Saved as {name}', { name: newName })
+			this.saveStatus = message
+			window.setTimeout(() => {
+				if (this.saveStatus === message) {
+					this.saveStatus = ''
+				}
+			}, 4000)
 		},
 		async save(): Promise<void> {
 			const embed = this.$refs.editor as InstanceType<typeof EditorEmbed> | undefined
