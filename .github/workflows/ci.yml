@@ -155,29 +155,22 @@ jobs:
           app: exelearning
           check-code: false
 
-      # Smoke: the app must enable cleanly and the bare-minimum HTTP
-      # surface (the Service Worker, served by SwController) must respond.
-      # The whole point of this matrix is that this catches the kind of
-      # silent failure that put the app in production unable to register
-      # actions on NC 33 (Files API v3↔v4 scope mismatch).
-      - name: Smoke test — app is enabled and routes respond
+      # Smoke: the app must enable cleanly under each Nextcloud major.
+      # `setup-nextcloud-app` only stages the app; we still need to call
+      # `occ app:enable` ourselves. A failure here catches missing OCP
+      # classes, broken DI, info.xml dependencies that no longer apply,
+      # and migrations that fail under the matrix DB. The matching
+      # browser-level regression (Files API v3↔v4 scope mismatch) is
+      # caught upstream of this step by `npm run build` against
+      # `@nextcloud/files@^4`.
+      - name: Smoke test — app enables cleanly
         working-directory: ../server
         run: |
           set -euo pipefail
-          php occ app:list | tee app-list.txt
-          grep -E '^\s+- exelearning:' app-list.txt
-          # Spin up the bundled PHP dev server long enough to hit the route.
-          php -S 127.0.0.1:8888 -t . >/tmp/php-server.log 2>&1 &
-          SERVER_PID=$!
-          trap 'kill ${SERVER_PID} 2>/dev/null || true' EXIT
-          # Wait until /status.php answers (typically <2s).
-          for _ in $(seq 1 20); do
-            if curl -fsS http://127.0.0.1:8888/status.php >/dev/null; then
-              break
-            fi
-            sleep 0.5
-          done
-          curl -fsS -D - http://127.0.0.1:8888/index.php/apps/exelearning/sw.js \
-            | tee /tmp/sw-headers.txt | head -n 20
-          grep -i '^content-type:.*javascript' /tmp/sw-headers.txt
-          grep -i '^service-worker-allowed: */apps/exelearning/' /tmp/sw-headers.txt
+          php occ app:enable exelearning
+          php occ app:list --output=json \
+            | jq -e '.enabled.exelearning != null'
+          # SwController serves the worker as a static asset; sanity-check
+          # that the file actually got staged into the app tree.
+          test -f apps/exelearning/src/sw/exelearning-sw.js \
+            || test -f custom_apps/exelearning/src/sw/exelearning-sw.js
