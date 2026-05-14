@@ -32,8 +32,12 @@ class PermissionService {
 				return true;
 			}
 		}
+		// Only accept MIME-based matches for genuinely vendor-specific
+		// types. `application/zip` and `application/octet-stream` would
+		// drag every plain ZIP / unknown-binary in the user's Files into
+		// our preview provider, which is the bug behind issue #21.
 		$mime = strtolower((string)$node->getMimeType());
-		return in_array($mime, Application::ALLOWED_MIME_TYPES, true);
+		return in_array($mime, Application::VENDOR_MIME_TYPES, true);
 	}
 
 	public function isReadable(Node $node): bool {

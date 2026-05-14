@@ -14,9 +14,37 @@ use OCP\Util;
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'exelearning';
 
-	public const ALLOWED_MIME_TYPES = [
-		'application/vnd.exelearning.elpx',
+	/** Modern eXeLearning package MIME (registered for `.elpx`). */
+	public const PRIMARY_MIME_TYPE = 'application/vnd.exelearning.elpx';
+	/** Legacy eXeLearning project MIME (registered for `.elp`). */
+	public const LEGACY_MIME_TYPE = 'application/x-exelearning-legacy';
+
+	/**
+	 * MIMEs that unambiguously identify an eXeLearning archive on disk.
+	 * Used by {@see \OCA\ExeLearning\Service\PermissionService::isElpxFile()}
+	 * to decide whether to claim a file by MIME alone — extensions are
+	 * still checked separately.
+	 */
+	public const VENDOR_MIME_TYPES = [
+		self::PRIMARY_MIME_TYPE,
 		'application/x-exelearning',
+		self::LEGACY_MIME_TYPE,
+	];
+
+	/**
+	 * Broader list of MIMEs an `.elp(x)` file may carry on disk before the
+	 * admin has registered the custom mapping (Nextcloud falls back to
+	 * `application/zip` or `application/octet-stream` in that case). Kept
+	 * for routing decisions where we already know the request is for an
+	 * eXeLearning resource — do **not** use this for "is this an
+	 * eXeLearning file" checks; that path needs `VENDOR_MIME_TYPES`
+	 * combined with an extension check, otherwise every plain ZIP in
+	 * the user's Files would be misclassified.
+	 */
+	public const ALLOWED_MIME_TYPES = [
+		self::PRIMARY_MIME_TYPE,
+		'application/x-exelearning',
+		self::LEGACY_MIME_TYPE,
 		'application/zip',
 		'application/octet-stream',
 	];

@@ -22,4 +22,26 @@ final class ApplicationConstantsTest extends TestCase {
 		self::assertContains('application/zip', Application::ALLOWED_MIME_TYPES);
 		self::assertContains('application/octet-stream', Application::ALLOWED_MIME_TYPES);
 	}
+
+	public function testAllowedMimeTypesIncludesLegacyVendorMime(): void {
+		self::assertContains(Application::LEGACY_MIME_TYPE, Application::ALLOWED_MIME_TYPES);
+		self::assertSame('application/x-exelearning-legacy', Application::LEGACY_MIME_TYPE);
+	}
+
+	/**
+	 * VENDOR_MIME_TYPES is the narrow list used by
+	 * {@see \OCA\ExeLearning\Service\PermissionService::isElpxFile()} to
+	 * decide whether to claim a file by MIME alone. Issue #21 hinged on
+	 * `application/zip` leaking into that path; pin it out here so a
+	 * future edit cannot regress.
+	 */
+	public function testVendorMimeTypesDoesNotIncludeGenericArchiveMimes(): void {
+		self::assertNotContains('application/zip', Application::VENDOR_MIME_TYPES);
+		self::assertNotContains('application/octet-stream', Application::VENDOR_MIME_TYPES);
+	}
+
+	public function testVendorMimeTypesCoversBothPackageGenerations(): void {
+		self::assertContains(Application::PRIMARY_MIME_TYPE, Application::VENDOR_MIME_TYPES);
+		self::assertContains(Application::LEGACY_MIME_TYPE, Application::VENDOR_MIME_TYPES);
+	}
 }

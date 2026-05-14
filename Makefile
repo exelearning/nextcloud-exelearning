@@ -399,21 +399,31 @@ up: check-docker
 	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 writable --value=true  --type=boolean        >/dev/null
 	@echo ">> enabling exelearning"
 	@docker exec -u www-data $(DOCKER_NAME) php occ app:enable exelearning
-	@# `.elpx` extension → MIME mapping. This is the only piece a
-	@# Nextcloud app cannot ship by itself: the file is read from
-	@# /var/www/html/config/. See README → "Custom MIME types" for the
-	@# manual admin steps required on production installs.
-	@echo ">> registering .elpx MIME mapping"
+	@# `.elp(x)` → MIME mapping + icon aliases. These are the only
+	@# pieces a Nextcloud app cannot ship by itself: both files are
+	@# read from /var/www/html/config/. See README → "Custom MIME types"
+	@# for the manual admin steps required on production installs.
+	@#
+	@# `.elpx` files get the modern vendor MIME; `.elp` files get the
+	@# legacy MIME so the Files app can render the older logo for them
+	@# (issue #21). `application/zip` stays out of the alias file on
+	@# purpose — aliasing it would tag every plain ZIP with our icon.
+	@echo ">> registering .elp(x) MIME mapping + icon aliases"
 	@docker exec $(DOCKER_NAME) bash -c \
-		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}" \
+		'echo "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"], \"elp\":[\"application/x-exelearning-legacy\",\"application/zip\"]}" \
 		 > /var/www/html/config/mimetypemapping.json && \
 		 chown www-data:www-data /var/www/html/config/mimetypemapping.json'
+	@docker exec $(DOCKER_NAME) bash -c \
+		'echo "{\"application/vnd.exelearning.elpx\":\"exelearning\", \"application/x-exelearning\":\"exelearning\", \"application/x-exelearning-legacy\":\"exelearning-legacy\"}" \
+		 > /var/www/html/config/mimetypealiases.json && \
+		 chown www-data:www-data /var/www/html/config/mimetypealiases.json'
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-js >/dev/null
 	@docker exec -u www-data $(DOCKER_NAME) php occ maintenance:mimetype:update-db --repair-filecache >/dev/null
-	@# Files-list icons are served by ElpxPreviewProvider via
-	@# core/preview?...&mimeFallback=true; when an .elpx package has no
-	@# screenshot.png, the provider returns img/elpx-preview-fallback.png.
-	@# No additional mimetypealiases.json hack is needed for that.
+	@# `img/filetypes/exelearning.svg` and `img/filetypes/exelearning-legacy.svg`
+	@# are picked up automatically by `update-js` once the aliases above
+	@# point at those filenames. ElpxPreviewProvider still runs for files
+	@# that actually have a `screenshot.png` inside; for those, the
+	@# preview overrides the static MIME icon as in upstream Nextcloud.
 	@"$(MAKE)" --no-print-directory seed-fixtures
 	@echo
 	@echo "================================================================"
