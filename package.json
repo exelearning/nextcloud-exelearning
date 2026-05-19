@@ -21,7 +21,7 @@
     "@nextcloud/initial-state": "^2.2.0",
     "@nextcloud/l10n": "^3.4.0",
     "@nextcloud/router": "^3.0.1",
-    "fflate": "^0.8.2",
+    "fflate": "^0.8.3",
     "vue": "^3.5.0"
   },
   "devDependencies": {
