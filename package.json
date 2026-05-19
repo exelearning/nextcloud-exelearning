@@ -46,7 +46,7 @@
     "typescript": "^5.4.5",
     "vitest": "^4.1.6",
     "vue-loader": "^17.4.0",
-    "vue-tsc": "^2.0.16",
+    "vue-tsc": "^3.3.0",
     "webpack": "^5.88.2",
     "webpack-cli": "^6.0.1"
   },
