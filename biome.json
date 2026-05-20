@@ -1,56 +1,57 @@
 {
-  "$schema": "https://biomejs.dev/schemas/1.9.4/schema.json",
-  "vcs": {
-    "enabled": true,
-    "clientKind": "git",
-    "useIgnoreFile": true
-  },
-  "files": {
-    "include": ["src/**/*.ts", "src/**/*.js"],
-    "ignore": [
-      "**/node_modules/**",
-      "**/vendor/**",
-      "build/**",
-      "dist/**",
-      "coverage/**",
-      "js/**",
-      "exelearning/**",
-      "**/*.vue"
-    ]
-  },
-  "formatter": {
-    "enabled": false
-  },
-  "linter": {
-    "enabled": true,
-    "rules": {
-      "recommended": true,
-      "style": {
-        "noParameterAssign": "off",
-        "useImportType": "warn",
-        "useTemplate": "warn"
-      },
-      "suspicious": {
-        "noExplicitAny": "warn"
-      },
-      "complexity": {
-        "noForEach": "off",
-        "noUselessSwitchCase": "off"
-      },
-      "correctness": {
-        "noUnusedImports": "warn",
-        "noUnusedVariables": "warn"
-      }
-    }
-  },
-  "javascript": {
-    "formatter": {
-      "enabled": false
-    }
-  },
-  "json": {
-    "formatter": {
-      "enabled": false
-    }
-  }
+	"$schema": "https://biomejs.dev/schemas/2.4.15/schema.json",
+	"vcs": {
+		"enabled": true,
+		"clientKind": "git",
+		"useIgnoreFile": true
+	},
+	"files": {
+		"includes": [
+			"**/src/**/*.ts",
+			"**/src/**/*.js",
+			"!**/node_modules/**",
+			"!**/vendor/**",
+			"!**/build/**",
+			"!**/dist/**",
+			"!**/coverage/**",
+			"!**/js/**",
+			"!**/exelearning/**",
+			"!**/*.vue"
+		]
+	},
+	"formatter": {
+		"enabled": false
+	},
+	"linter": {
+		"enabled": true,
+		"rules": {
+			"recommended": true,
+			"style": {
+				"noParameterAssign": "off",
+				"useImportType": "warn",
+				"useTemplate": "warn"
+			},
+			"suspicious": {
+				"noExplicitAny": "warn"
+			},
+			"complexity": {
+				"noForEach": "off",
+				"noUselessSwitchCase": "off"
+			},
+			"correctness": {
+				"noUnusedImports": "warn",
+				"noUnusedVariables": "warn"
+			}
+		}
+	},
+	"javascript": {
+		"formatter": {
+			"enabled": false
+		}
+	},
+	"json": {
+		"formatter": {
+			"enabled": false
+		}
+	}
 }
