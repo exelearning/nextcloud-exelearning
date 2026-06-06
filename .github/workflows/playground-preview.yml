@@ -123,21 +123,19 @@ jobs:
             const marker = '<!-- playground-preview -->';
             const url = process.env.PREVIEW_URL;
             const tag = process.env.PREVIEW_TAG;
+            const button = 'https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg';
             const body = [
               marker,
-              '### ▶️ Preview this PR in the Nextcloud Playground',
+              '### Preview this PR in the Nextcloud Playground',
               '',
-              `[**Open this PR in the Nextcloud Playground**](${url})`,
+              `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${button}" alt="Open this PR in the Nextcloud Playground" width="224"></a>`,
               '',
               "A fresh Nextcloud boots in your browser with this branch's " +
-                '`exelearning` app installed and enabled (log in as `admin` / `admin`, ' +
-                'then upload an `.elpx` in Files).',
+                '`exelearning` app installed and enabled (log in as `admin` / `admin`). ' +
+                'Two sample `.elpx` are seeded under `exelearning-samples/` in Files — ' +
+                'click one to open the viewer.',
               '',
               `Built artifact: \`exelearning.zip\` on the \`${tag}\` prerelease.`,
-              '',
-              '> The viewer relies on a scoped Service Worker; some viewer features ' +
-                "may be limited inside the playground's own Service Worker. Core " +
-                'install, Files and the app UI work.',
             ].join('\n');
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
