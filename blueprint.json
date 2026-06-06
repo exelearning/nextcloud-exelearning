@@ -1,0 +1,49 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/main/assets/blueprints/blueprint-schema.json",
+  "meta": {
+    "title": "nextcloud-exelearning Playground",
+    "author": "eXeLearning",
+    "description": "A fresh Nextcloud in the browser with the eXeLearning app installed, ready to preview and edit .elpx packages in Files."
+  },
+  "landingPage": "/index.php/apps/files/",
+  "siteOptions": {
+    "title": "eXeLearning on Nextcloud",
+    "locale": "en",
+    "timezone": "UTC"
+  },
+  "admin": {
+    "username": "admin",
+    "password": "admin",
+    "email": "admin@example.com"
+  },
+  "steps": [
+    {
+      "step": "installApp",
+      "appId": "exelearning",
+      "url": "https://zip-proxy.erseco.workers.dev/?repo=exelearning/nextcloud-exelearning&release=playground&asset=exelearning.zip"
+    },
+    {
+      "step": "writeFile",
+      "path": "config/mimetypemapping.json",
+      "content": "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"],\"elp\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}"
+    },
+    {
+      "step": "writeFile",
+      "path": "config/mimetypealiases.json",
+      "content": "{\"application/vnd.exelearning.elpx\":\"exelearning\",\"application/x-exelearning\":\"exelearning\"}"
+    },
+    { "step": "runOcc", "args": ["maintenance:mimetype:update-js"] },
+    { "step": "runOcc", "args": ["maintenance:mimetype:update-db", "--repair-filecache"] },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/exelearning-samples/un-contenido-de-ejemplo-para-probar-estilos-y-catalogacion.elpx",
+      "url": "https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/tests/fixtures/un-contenido-de-ejemplo-para-probar-estilos-y-catalogacion.elpx"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/exelearning-samples/propiedades.elpx",
+      "url": "https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/tests/fixtures/propiedades.elpx"
+    },
+    { "step": "runOcc", "args": ["files:scan", "admin"] }
+  ]
+}
