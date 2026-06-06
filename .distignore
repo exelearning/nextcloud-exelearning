@@ -63,11 +63,15 @@ coverage
 *.log
 
 # --- Build / release outputs (recreated by `make package`) --------------
+# Anchor the archive excludes to the repo root with a leading slash: the
+# bundled eXeLearning editor ships its themes/content as
+# `js/editor/bundles/*.zip` (needed for the editor's Save/export), and an
+# unanchored `*.zip` would strip them from the package, breaking Save.
 build
 dist
 release
-*.tar.gz
-*.zip
+/*.tar.gz
+/*.zip
 
 # --- eXeLearning editor source clone ------------------------------------
 # The built editor (downloaded or compiled) lives under js/editor/ and is
