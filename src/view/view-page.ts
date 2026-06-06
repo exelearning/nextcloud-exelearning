@@ -1,6 +1,7 @@
 // Same publicPath fix as main.ts.
 import { createApp } from 'vue'
 import { loadState } from '@nextcloud/initial-state'
+import { generateUrl } from '@nextcloud/router'
 
 import ElpxViewPage from './ElpxViewPage.vue'
 
@@ -47,7 +48,13 @@ function boot(): void {
 
 	const file = safeLoad<InitialFile | null>('file', null)
 	const editorAvailable = safeLoad<boolean>('editorAvailable', false)
-	const editorIframeUrl = safeLoad<string>('editorIframeUrl', '/apps/exelearning/editor/iframe')
+	// Build the editor iframe URL client-side so it carries the correct webroot.
+	// The server-rendered value (via initial state) is computed with an empty
+	// webroot when Nextcloud is served under a sub-path (e.g. the browser
+	// Playground scopes everything under /playground/<scope>/…); using it as the
+	// iframe src verbatim would escape that scope and 404. generateUrl() resolves
+	// against the live OC.webroot, which is correct in both cases.
+	const editorIframeUrl = generateUrl('/apps/exelearning/editor/iframe')
 	const initialMode = safeLoad<'preview' | 'editor'>('initialMode', 'preview')
 
 	createApp(ElpxViewPage, { file, editorAvailable, editorIframeUrl, initialMode })
