@@ -6,6 +6,7 @@
  */
 
 export const RUNTIME_PREFIX = '/apps/exelearning/runtime'
+export const ASSET_PREFIX = '/apps/exelearning/asset'
 
 const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 
@@ -101,6 +102,30 @@ export function buildRuntimeUrl(base: string, sessionId: string, entry: string):
 	}
 	const cleanBase = base.replace(/\/+$/, '')
 	return `${cleanBase}/${encodeURIComponent(sessionId)}/${normalized
+		.split('/')
+		.map(encodeURIComponent)
+		.join('/')}`
+}
+
+/**
+ * Builds an iframe-loadable URL for an entry served by the **server-side**
+ * AssetController. Used as a fallback when the runtime Service Worker can't be
+ * registered (e.g. Nextcloud embedded in another origin, like the Playground,
+ * where the browser fetches the SW script straight from the network and 404s).
+ *
+ * `fileId` is the Nextcloud file id; the server re-checks the user can read it
+ * and extracts the requested entry from the stored package on demand.
+ * @param base Asset base URL (typically `generateUrl(ASSET_PREFIX)`).
+ * @param fileId Nextcloud file id of the `.elpx` package.
+ * @param entry Normalised entry path inside the package.
+ */
+export function buildAssetUrl(base: string, fileId: number, entry: string): string {
+	const normalized = normalizeEntryPath(entry)
+	if (normalized === null) {
+		throw new Error(`Refusing to build asset URL for unsafe entry: ${entry}`)
+	}
+	const cleanBase = base.replace(/\/+$/, '')
+	return `${cleanBase}/${encodeURIComponent(String(fileId))}/${normalized
 		.split('/')
 		.map(encodeURIComponent)
 		.join('/')}`
