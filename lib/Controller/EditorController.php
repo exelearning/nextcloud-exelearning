@@ -228,12 +228,17 @@ class EditorController extends Controller {
 		}
 
 		$editorBaseHref = rtrim($this->urlGenerator->linkTo(Application::APP_ID, ''), '/') . '/js/editor/';
-		$parentOrigin = $this->request->getServerProtocol() . '://' . $this->request->getServerHost();
 
-		$config = json_encode([
-			'basePath' => rtrim($editorBaseHref, '/'),
-			'parentOrigin' => $parentOrigin,
-			'trustedOrigins' => [$parentOrigin],
+		// `basePath`, `parentOrigin` and `trustedOrigins` are derived client-side
+		// from the live document base + window origin rather than baked in here.
+		// When Nextcloud is served under a scoped sub-path (e.g. the browser
+		// Playground rewrites `<base href>` to the scoped URL), a server-computed
+		// basePath would carry an empty webroot and the editor's ResourceFetcher
+		// would load its theme/content bundles from an unscoped path that 404s on
+		// save. Deriving from `document.baseURI` (which equals the scoped
+		// `<base href>` at runtime) keeps it correct in both a normal install and
+		// under a scoped path.
+		$staticConfig = json_encode([
 			'hideUI' => (object)[
 				'fileMenu' => true,
 				'saveButton' => true,
@@ -244,8 +249,14 @@ class EditorController extends Controller {
 			],
 		], JSON_UNESCAPED_SLASHES);
 
-		$headInject = '<base href="' . htmlspecialchars($editorBaseHref, ENT_QUOTES) . '">'
-			. '<script>window.__EXE_EMBEDDING_CONFIG__ = ' . $config . ';</script>';
+		$configScript = '<script>(function(){'
+			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
+			. 'var origin=window.location.origin;'
+			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
+			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin]});'
+			. '})();</script>';
+
+		$headInject = '<base href="' . htmlspecialchars($editorBaseHref, ENT_QUOTES) . '">' . $configScript;
 		if (preg_match('/<head[^>]*>/i', $html, $m, PREG_OFFSET_CAPTURE)) {
 			$pos = $m[0][1] + strlen($m[0][0]);
 			$html = substr($html, 0, $pos) . $headInject . substr($html, $pos);
