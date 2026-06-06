@@ -50,6 +50,9 @@ RELEASE_DIR := $(BUILD_DIR)/$(APP_NAME)
 # from appinfo/info.xml, e.g. `make package PACKAGE_VERSION=0.2.0-rc1`.
 PACKAGE_VERSION ?= $(APP_VERSION)
 PACKAGE_NAME := $(APP_NAME)-$(PACKAGE_VERSION).tar.gz
+# Same staged tree as PACKAGE_NAME but as a ZIP — the format the Nextcloud
+# Playground `installApp` blueprint step extracts in the browser.
+PACKAGE_ZIP := $(APP_NAME)-$(PACKAGE_VERSION).zip
 
 # --- PHP runtime selection ----------------------------------------------
 # appinfo/info.xml declares PHP 8.2–8.5 as the supported range. Pick the
@@ -104,7 +107,7 @@ NC_ADMIN_PASS ?= admin
 .PHONY: help install build dev watch-js lint typecheck test clean \
 	composer-install composer-test cs-check cs-fix php-version \
 	download-editor fetch-editor-source build-editor clean-editor \
-	package appstore \
+	package package-zip appstore \
 	check-docker \
 	up down restart logs shell occ-status status sync ci-matrix \
 	seed-fixtures
@@ -295,6 +298,37 @@ package: clean build
 	@echo
 	@echo "================================================================"
 	@echo " Built $(ARTIFACT_DIR)/$(PACKAGE_NAME)"
+	@echo "   - app id : $(APP_NAME)"
+	@echo "   - version: $(PACKAGE_VERSION)"
+	@echo "================================================================"
+
+# Produce build/artifacts/$(APP_NAME)-$(PACKAGE_VERSION).zip with
+# `$(APP_NAME)/` as the single top-level directory. Same staged tree as
+# `package` (filtered through .distignore, version stamped) but zipped —
+# this is what the Nextcloud Playground downloads and extracts in the
+# browser via the blueprint `installApp` step. Run `make download-editor`
+# first if you want the embedded eXeLearning editor bundled in.
+package-zip: clean build
+	@if [ ! -f .distignore ]; then \
+		echo "Error: .distignore is missing — cannot build a distribution package."; \
+		exit 1; \
+	fi
+	@command -v zip >/dev/null 2>&1 || { echo "Error: 'zip' is required for package-zip."; exit 1; }
+	@mkdir -p $(ARTIFACT_DIR)
+	@rm -rf $(RELEASE_DIR)
+	@mkdir -p $(RELEASE_DIR)
+	@echo ">> staging $(APP_NAME) $(PACKAGE_VERSION) into $(RELEASE_DIR)"
+	@rsync -a --delete --exclude-from=.distignore ./ $(RELEASE_DIR)/
+	@echo ">> stamping version $(PACKAGE_VERSION) into staged appinfo/info.xml"
+	@sed -i.bak -E 's|<version>[^<]*</version>|<version>$(PACKAGE_VERSION)</version>|' $(RELEASE_DIR)/appinfo/info.xml
+	@rm -f $(RELEASE_DIR)/appinfo/info.xml.bak
+	@echo ">> creating $(ARTIFACT_DIR)/$(PACKAGE_ZIP)"
+	@rm -f $(ARTIFACT_DIR)/$(PACKAGE_ZIP)
+	@cd $(BUILD_DIR) && zip -qr -X $(ARTIFACT_DIR)/$(PACKAGE_ZIP) $(APP_NAME)
+	@rm -rf $(RELEASE_DIR)
+	@echo
+	@echo "================================================================"
+	@echo " Built $(ARTIFACT_DIR)/$(PACKAGE_ZIP)"
 	@echo "   - app id : $(APP_NAME)"
 	@echo "   - version: $(PACKAGE_VERSION)"
 	@echo "================================================================"

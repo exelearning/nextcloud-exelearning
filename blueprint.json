@@ -1,0 +1,26 @@
+{
+  "$schema": "https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/main/assets/blueprints/blueprint-schema.json",
+  "meta": {
+    "title": "nextcloud-exelearning Playground",
+    "author": "eXeLearning",
+    "description": "A fresh Nextcloud in the browser with the eXeLearning app installed, ready to preview and edit .elpx packages in Files."
+  },
+  "landingPage": "/index.php/apps/files/",
+  "siteOptions": {
+    "title": "eXeLearning on Nextcloud",
+    "locale": "en",
+    "timezone": "UTC"
+  },
+  "admin": {
+    "username": "admin",
+    "password": "admin",
+    "email": "admin@example.com"
+  },
+  "steps": [
+    {
+      "step": "installApp",
+      "appId": "exelearning",
+      "url": "https://github.com/exelearning/nextcloud-exelearning/releases/download/playground/exelearning.zip"
+    }
+  ]
+}

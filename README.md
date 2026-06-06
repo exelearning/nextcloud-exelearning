@@ -1,9 +1,29 @@
 # nextcloud-exelearning
 
 [![CI](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml/badge.svg)](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml)
+[![Open in Nextcloud Playground](https://img.shields.io/badge/Nextcloud%20Playground-Open-0082c9?logo=nextcloud&logoColor=white)](https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/blueprint.json)
 
 Preview and edit [eXeLearning](https://exelearning.net/) `.elpx` packages
 directly inside Nextcloud Files.
+
+## Quick test (no install)
+
+The fastest way to try this app is the **Nextcloud Playground** — a full
+Nextcloud running in your browser via WebAssembly, no server required. Click
+the badge at the top of this README and you'll get a fresh Nextcloud with:
+
+* The `exelearning` app installed and enabled.
+* The Files app open, logged in as `admin` / `admin`.
+
+Upload an `.elpx` package in Files and click it to open the viewer. Nothing is
+installed locally; everything runs in the browser and is discarded when you
+close the tab.
+
+The instance is provisioned from [`blueprint.json`](blueprint.json), which
+installs the app with the playground's `installApp` step from a built
+`exelearning.zip` artifact. Every pull request gets its own one-click
+playground link (posted as a PR comment) built from that branch — see
+[`.github/workflows/playground-preview.yml`](.github/workflows/playground-preview.yml).
 
 ## What this app does
 
