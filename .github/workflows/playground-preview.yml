@@ -106,6 +106,9 @@ jobs:
           set -euo pipefail
           asset="https://zip-proxy.erseco.workers.dev/?repo=${{ github.repository }}&release=${{ steps.id.outputs.tag }}&asset=exelearning.zip"
           jq --arg url "$asset" '(.steps[] | select(.step == "installApp")).url = $url' blueprint.json > blueprint.pr.json
+          # Sample fixtures are referenced from raw main; point them at this PR's
+          # commit so the preview reflects fixtures added/changed on the branch.
+          sed -i "s#/nextcloud-exelearning/main/tests/fixtures#/nextcloud-exelearning/${{ github.event.pull_request.head.sha }}/tests/fixtures#g" blueprint.pr.json
           b64=$(base64 -w0 blueprint.pr.json | tr '+/' '-_' | tr -d '=')
           echo "url=${PLAYGROUND_URL}?blueprint=${b64}" >> "$GITHUB_OUTPUT"
 

@@ -33,6 +33,17 @@
       "content": "{\"application/vnd.exelearning.elpx\":\"exelearning\",\"application/x-exelearning\":\"exelearning\"}"
     },
     { "step": "runOcc", "args": ["maintenance:mimetype:update-js"] },
-    { "step": "runOcc", "args": ["maintenance:mimetype:update-db", "--repair-filecache"] }
+    { "step": "runOcc", "args": ["maintenance:mimetype:update-db", "--repair-filecache"] },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/exelearning-samples/un-contenido-de-ejemplo-para-probar-estilos-y-catalogacion.elpx",
+      "url": "https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/tests/fixtures/un-contenido-de-ejemplo-para-probar-estilos-y-catalogacion.elpx"
+    },
+    {
+      "step": "writeFile",
+      "path": "data/admin/files/exelearning-samples/propiedades.elpx",
+      "url": "https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/tests/fixtures/propiedades.elpx"
+    },
+    { "step": "runOcc", "args": ["files:scan", "admin"] }
   ]
 }
