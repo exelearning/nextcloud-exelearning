@@ -96,12 +96,15 @@ jobs:
       # Inline the blueprint (pointed at this PR's asset) as URL-safe base64 in
       # ?blueprint= so we don't have to host a per-PR blueprint file. URLSearchParams
       # turns '+' into a space, so '+/' must become '-_' and padding is dropped.
+      # The asset is fetched through the shared CORS proxy because GitHub release
+      # downloads are served from Azure Blob without Access-Control-Allow-Origin,
+      # which a cross-origin browser fetch from the playground would reject.
       - name: Build PR playground link
         if: github.event_name == 'pull_request'
         id: link
         run: |
           set -euo pipefail
-          asset="https://github.com/${{ github.repository }}/releases/download/${{ steps.id.outputs.tag }}/exelearning.zip"
+          asset="https://zip-proxy.erseco.workers.dev/?repo=${{ github.repository }}&release=${{ steps.id.outputs.tag }}&asset=exelearning.zip"
           jq --arg url "$asset" '(.steps[] | select(.step == "installApp")).url = $url' blueprint.json > blueprint.pr.json
           b64=$(base64 -w0 blueprint.pr.json | tr '+/' '-_' | tr -d '=')
           echo "url=${PLAYGROUND_URL}?blueprint=${b64}" >> "$GITHUB_OUTPUT"
