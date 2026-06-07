@@ -27,15 +27,6 @@ if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
 	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
 }
 
-/**
- *
- */
-function appWebRoot(): string {
-	// Falls back to the canonical /apps path so unit tests and stripped-down
-	// pages without OC.appswebroots still produce a sensible URL.
-	return window.OC?.appswebroots?.exelearning ?? '/apps/exelearning'
-}
-
 interface InitialFile {
 	id: number
 	name: string
@@ -64,11 +55,12 @@ async function boot(): Promise<void> {
 		return
 	}
 
-	// Defaults to the route URL; initial state can still override.
-	const editorIframeUrl = safeLoad<string>(
-		'editorIframeUrl',
-		`${appWebRoot()}/editor/iframe`,
-	)
+	// Build the iframe URL client-side so it carries the live webroot. The
+	// server-rendered initial-state value is computed with an empty webroot when
+	// Nextcloud runs under a sub-path (e.g. the browser Playground), so using it
+	// as the iframe src would escape the scope and 404. generateUrl() is correct
+	// in both a normal install and under a scoped path.
+	const editorIframeUrl = generateUrl('/apps/exelearning/editor/iframe')
 
 	const frame = new EditorFrame(root, { editorIframeUrl })
 

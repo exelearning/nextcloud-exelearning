@@ -1,7 +1,8 @@
 # nextcloud-exelearning
 
 [![CI](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml/badge.svg)](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml)
-[![Open in Nextcloud Playground](https://img.shields.io/badge/Nextcloud%20Playground-Open-0082c9?logo=nextcloud&logoColor=white)](https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/blueprint.json)
+
+<a href="https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/blueprint.json" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg" alt="Open in Nextcloud Playground" width="224"></a>
 
 Preview and edit [eXeLearning](https://exelearning.net/) `.elpx` packages
 directly inside Nextcloud Files.

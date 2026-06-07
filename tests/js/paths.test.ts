@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+	buildAssetUrl,
 	buildRuntimeUrl,
 	isExternalUrl,
 	normalizeEntryPath,
@@ -95,5 +96,25 @@ describe('buildRuntimeUrl / parseRuntimeUrl', () => {
 	it('tolerates a trailing slash on the base', () => {
 		const url = buildRuntimeUrl(base + '/', 'sess', 'a/b')
 		expect(parseRuntimeUrl(url, base)).toEqual({ sessionId: 'sess', entry: 'a/b' })
+	})
+})
+
+describe('buildAssetUrl', () => {
+	const base = '/apps/exelearning/asset'
+
+	it('builds a server-side asset URL from a file id and entry', () => {
+		expect(buildAssetUrl(base, 42, 'html/page.html')).toBe(
+			'/apps/exelearning/asset/42/html/page.html',
+		)
+	})
+
+	it('encodes special characters per segment', () => {
+		expect(buildAssetUrl(base, 7, 'content/Página 1.html')).toBe(
+			'/apps/exelearning/asset/7/content/P%C3%A1gina%201.html',
+		)
+	})
+
+	it('refuses unsafe entries', () => {
+		expect(() => buildAssetUrl(base, 1, '../etc/passwd')).toThrow()
 	})
 })

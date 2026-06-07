@@ -34,6 +34,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
+import { generateUrl } from '@nextcloud/router'
 
 import ViewerError from './ViewerError.vue'
 
@@ -42,7 +43,8 @@ import { readPackage, ZipReadError } from '../elpx/zip-reader'
 import { validatePackage } from '../elpx/package-validator'
 import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
-import { createPackageIframe } from '../elpx/iframe-renderer'
+import { createPackageIframe, buildSandboxedIframe } from '../elpx/iframe-renderer'
+import { ASSET_PREFIX, buildAssetUrl } from '../elpx/paths'
 
 type State = 'loading' | 'ready' | 'legacy' | 'error'
 
@@ -121,20 +123,38 @@ export default defineComponent({
 				}
 
 				this.status = t('exelearning', 'Preparing viewer…')
+				const indexEntry = validation.shape.indexEntry
 				const session = ViewerSession.create({
 					entries,
-					indexEntry: validation.shape.indexEntry,
+					indexEntry,
 					filename: loaded.filename || this.filename || this.basename || 'package.elpx',
 				})
 
-				const worker = await ensureRuntimeWorker()
-				await registerSession(worker, session)
+				try {
+					const worker = await ensureRuntimeWorker()
+					await registerSession(worker, session)
 
-				this.session = session
-				this.worker = worker
-				this.state = 'ready'
-				this.status = ''
-				this.$nextTick(() => this.attachIframe(worker, session))
+					this.session = session
+					this.worker = worker
+					this.state = 'ready'
+					this.status = ''
+					this.$nextTick(() => this.attachIframe(worker, session))
+				} catch (swError) {
+					// The runtime Service Worker can't be registered — e.g. when
+					// Nextcloud is embedded in another origin that already owns a
+					// controlling Service Worker (the browser fetches the SW
+					// script straight from the network, bypassing it, so the
+					// virtual /apps/exelearning/sw.js route 404s). Fall back to the
+					// server-side AssetController, which streams each entry from the
+					// stored package. Needs the canonical file id.
+					if (fileId === undefined || !Number.isFinite(fileId)) {
+						throw swError
+					}
+					console.warn('[exelearning] Service Worker unavailable; using server-side asset fallback.', swError)
+					this.state = 'ready'
+					this.status = ''
+					this.$nextTick(() => this.attachServerIframe(fileId, indexEntry))
+				}
 			} catch (error) {
 				this.handleError(error)
 			}
@@ -149,6 +169,17 @@ export default defineComponent({
 				indexEntry: session.indexEntry,
 				title: session.filename,
 			})
+			slot.appendChild(iframe)
+			this.iframe = iframe
+		},
+		attachServerIframe(fileId: number, indexEntry: string): void {
+			const slot = this.$refs.frameSlot as HTMLElement | undefined
+			if (!slot) return
+			slot.innerHTML = ''
+			const iframe = buildSandboxedIframe(
+				buildAssetUrl(generateUrl(ASSET_PREFIX), fileId, indexEntry),
+				this.basename || this.filename || 'package.elpx',
+			)
 			slot.appendChild(iframe)
 			this.iframe = iframe
 		},

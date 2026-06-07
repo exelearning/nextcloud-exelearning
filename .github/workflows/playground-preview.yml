@@ -65,10 +65,24 @@ jobs:
             echo "version=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Pulls the prebuilt static editor from the latest exelearning/exelearning
-      # release (e.g. exelearning-static-vX.Y.Z.zip) into js/editor/ — no bun
-      # build. `make package-zip` then bundles it. `clean` keeps js/editor/.
-      - name: Download the eXeLearning static editor (latest release)
+      # Resolve the latest *stable* eXeLearning editor tag once, so the
+      # download and the version reported in the PR comment stay in sync.
+      - name: Resolve eXeLearning editor version
+        id: editor
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          REF=$(gh api repos/exelearning/exelearning/releases/latest --jq '.tag_name')
+          echo "ref=$REF" >> "$GITHUB_OUTPUT"
+          echo "eXeLearning editor: $REF"
+
+      # Pulls the prebuilt static editor from that release (e.g.
+      # exelearning-static-vX.Y.Z.zip) into js/editor/ — no bun build.
+      # `make package-zip` then bundles it. `clean` keeps js/editor/.
+      - name: Download the eXeLearning static editor
+        env:
+          EXELEARNING_EDITOR_REF: ${{ steps.editor.outputs.ref }}
         run: make download-editor
 
       - name: Build the playground ZIP
@@ -117,27 +131,25 @@ jobs:
         uses: actions/github-script@v7
         env:
           PREVIEW_URL: ${{ steps.link.outputs.url }}
-          PREVIEW_TAG: ${{ steps.id.outputs.tag }}
+          PREVIEW_EDITOR: ${{ steps.editor.outputs.ref }}
         with:
           script: |
             const marker = '<!-- playground-preview -->';
             const url = process.env.PREVIEW_URL;
-            const tag = process.env.PREVIEW_TAG;
+            const editor = process.env.PREVIEW_EDITOR;
+            const button = 'https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg';
             const body = [
               marker,
-              '### ▶️ Preview this PR in the Nextcloud Playground',
+              '### Preview this PR in the Nextcloud Playground',
               '',
-              `[**Open this PR in the Nextcloud Playground**](${url})`,
+              `<a href="${url}" target="_blank" rel="noopener noreferrer"><img src="${button}" alt="Open this PR in the Nextcloud Playground" width="224"></a>`,
               '',
               "A fresh Nextcloud boots in your browser with this branch's " +
-                '`exelearning` app installed and enabled (log in as `admin` / `admin`, ' +
-                'then upload an `.elpx` in Files).',
+                '`exelearning` app installed and enabled (log in as `admin` / `admin`). ' +
+                'Two sample `.elpx` are seeded under `exelearning-samples/` in Files — ' +
+                'click one to open the viewer.',
               '',
-              `Built artifact: \`exelearning.zip\` on the \`${tag}\` prerelease.`,
-              '',
-              '> The viewer relies on a scoped Service Worker; some viewer features ' +
-                "may be limited inside the playground's own Service Worker. Core " +
-                'install, Files and the app UI work.',
+              `Bundled eXeLearning editor: \`${editor}\` (latest stable release).`,
             ].join('\n');
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;

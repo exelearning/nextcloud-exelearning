@@ -228,12 +228,17 @@ class EditorController extends Controller {
 		}
 
 		$editorBaseHref = rtrim($this->urlGenerator->linkTo(Application::APP_ID, ''), '/') . '/js/editor/';
-		$parentOrigin = $this->request->getServerProtocol() . '://' . $this->request->getServerHost();
 
-		$config = json_encode([
-			'basePath' => rtrim($editorBaseHref, '/'),
-			'parentOrigin' => $parentOrigin,
-			'trustedOrigins' => [$parentOrigin],
+		// `basePath`, `parentOrigin` and `trustedOrigins` are derived client-side
+		// from the live document base + window origin rather than baked in here.
+		// When Nextcloud is served under a scoped sub-path (e.g. the browser
+		// Playground rewrites `<base href>` to the scoped URL), a server-computed
+		// basePath would carry an empty webroot and the editor's ResourceFetcher
+		// would load its theme/content bundles from an unscoped path that 404s on
+		// save. Deriving from `document.baseURI` (which equals the scoped
+		// `<base href>` at runtime) keeps it correct in both a normal install and
+		// under a scoped path.
+		$staticConfig = json_encode([
 			'hideUI' => (object)[
 				'fileMenu' => true,
 				'saveButton' => true,
@@ -244,8 +249,18 @@ class EditorController extends Controller {
 			],
 		], JSON_UNESCAPED_SLASHES);
 
-		$headInject = '<base href="' . htmlspecialchars($editorBaseHref, ENT_QUOTES) . '">'
-			. '<script>window.__EXE_EMBEDDING_CONFIG__ = ' . $config . ';</script>';
+		$configScript = '<script>(function(){'
+			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
+			. 'var origin=window.location.origin;'
+			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
+			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin]});'
+			. '})();</script>';
+
+		// The resilience shim must be installed before any editor script
+		// runs (it wraps fetch / jQuery.ajax / serviceWorker.register), so it
+		// goes right after <base> and before the embedding config.
+		$resilienceScript = '<script>' . $this->resilienceScript() . '</script>';
+		$headInject = '<base href="' . htmlspecialchars($editorBaseHref, ENT_QUOTES) . '">' . $resilienceScript . $configScript;
 		if (preg_match('/<head[^>]*>/i', $html, $m, PREG_OFFSET_CAPTURE)) {
 			$pos = $m[0][1] + strlen($m[0][0]);
 			$html = substr($html, 0, $pos) . $headInject . substr($html, $pos);
@@ -275,6 +290,105 @@ class EditorController extends Controller {
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
 		$response->addHeader('Cache-Control', 'private, no-cache');
 		return $response;
+	}
+
+	/**
+	 * Resilience shim injected into the editor <head> before any editor
+	 * script runs. The static eXeLearning editor's ResourceFetcher rejects
+	 * on missing CSS / iDevice resources; under the php-wasm Playground
+	 * those `files/perm/...` paths 404 (even though they ship in the bundle)
+	 * and the unhandled rejection aborts the Yjs theme bind, leaving the
+	 * page blank. mod_exelearning, wp-exelearning and omeka-s-exelearning
+	 * all ship the same workaround:
+	 *
+	 *  - swallow 404s on .css / idevices URLs (fetch + jQuery ajax) and
+	 *    return an empty stylesheet so the editor keeps booting;
+	 *  - neutralize preview-sw.js service-worker registration with a full
+	 *    ServiceWorkerRegistration-like stub (a bare `{scope:''}` makes the
+	 *    v4 editor throw on `reg.addEventListener` and aborts the hidden
+	 *    export iframe used for Web/SCORM/ePub export).
+	 */
+	private function resilienceScript(): string {
+		return <<<'JS'
+(function () {
+    if ("serviceWorker" in navigator) {
+        try {
+            navigator.serviceWorker.register = function () {
+                return Promise.resolve({
+                    scope: "", installing: null, waiting: null, active: null,
+                    addEventListener: function () {}, removeEventListener: function () {},
+                    update: function () { return Promise.resolve(); },
+                    unregister: function () { return Promise.resolve(true); }
+                });
+            };
+        } catch (e) { void e; }
+    }
+
+    var originalFetch = window.fetch;
+    if (originalFetch) {
+        window.fetch = function (input, init) {
+            var url = typeof input === "string" ? input : (input && input.url) || "";
+            return originalFetch.apply(this, arguments).then(function (response) {
+                if (!response.ok && (url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1)) {
+                    console.warn("[Nextcloud] Fetch 404 fallback:", url);
+                    return new Response("/* empty fallback */", { status: 200, headers: { "Content-Type": "text/css" } });
+                }
+                return response;
+            }).catch(function (error) {
+                if (url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1) {
+                    console.warn("[Nextcloud] Fetch error fallback:", url);
+                    return new Response("/* empty fallback */", { status: 200, headers: { "Content-Type": "text/css" } });
+                }
+                throw error;
+            });
+        };
+    }
+
+    var patchJQuery = function ($) {
+        if (!$ || !$.ajaxTransport) return;
+        $.ajaxTransport("+*", function (options) {
+            var url = options.url || "";
+            if (!(url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1)) return;
+            return {
+                send: function (headers, completeCallback) {
+                    var xhr = new XMLHttpRequest();
+                    xhr.open(options.type || "GET", url, true);
+                    xhr.onload = function () {
+                        if (xhr.status >= 200 && xhr.status < 300) {
+                            completeCallback(xhr.status, xhr.statusText, { text: xhr.responseText });
+                        } else {
+                            console.warn("[Nextcloud] jQuery 404 fallback:", url);
+                            completeCallback(200, "OK", { text: "/* empty fallback */" });
+                        }
+                    };
+                    xhr.onerror = function () {
+                        console.warn("[Nextcloud] jQuery error fallback:", url);
+                        completeCallback(200, "OK", { text: "/* empty fallback */" });
+                    };
+                    xhr.send();
+                },
+                abort: function () {}
+            };
+        });
+    };
+    if (window.jQuery) {
+        patchJQuery(window.jQuery);
+    } else {
+        try {
+            Object.defineProperty(window, "jQuery", {
+                configurable: true,
+                set: function (val) {
+                    Object.defineProperty(window, "jQuery", {
+                        configurable: true, writable: true, enumerable: true, value: val
+                    });
+                    patchJQuery(val);
+                },
+                get: function () { return undefined; }
+            });
+        } catch (e) { void e; }
+    }
+})();
+JS;
 	}
 
 	private function bridgeScript(): string {

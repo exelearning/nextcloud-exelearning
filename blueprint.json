@@ -17,6 +17,8 @@
     "email": "admin@example.com"
   },
   "steps": [
+    { "step": "disableApp", "app": "firstrunwizard" },
+    { "step": "setConfig", "app": "core", "key": "whatsNewEnabled", "value": "no" },
     {
       "step": "installApp",
       "appId": "exelearning",

@@ -33,19 +33,20 @@ export interface IframeOptions {
 }
 
 /**
- * Builds the sandboxed iframe that renders a registered package session.
- * The `src` is built from the runtime base + sessionId + index entry; the
- * Service Worker fulfils requests under that scope from in-memory bytes.
- * @param options Runtime base, sessionId, index entry and accessible title.
+ * Builds a sandboxed iframe pointed at an already-resolved `src`. Shared by the
+ * Service Worker path ({@link createPackageIframe}) and the server-side asset
+ * fallback so both get identical sandbox flags and external-link rewiring.
+ * @param src Fully-resolved URL the iframe should load.
+ * @param title Accessible title for the iframe.
  */
-export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
+export function buildSandboxedIframe(src: string, title: string): HTMLIFrameElement {
 	const iframe = document.createElement('iframe')
 	iframe.className = 'exelearning-viewer__iframe'
-	iframe.title = options.title
+	iframe.title = title
 	iframe.setAttribute('sandbox', SANDBOX_FLAGS.join(' '))
 	iframe.setAttribute('allow', IFRAME_ALLOW)
 	iframe.setAttribute('referrerpolicy', 'no-referrer')
-	iframe.src = buildRuntimeUrl(options.runtimeBase, options.sessionId, options.indexEntry)
+	iframe.src = src
 	iframe.addEventListener('load', () => {
 		try {
 			rewireExternalLinks(iframe)
@@ -55,6 +56,19 @@ export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 		}
 	})
 	return iframe
+}
+
+/**
+ * Builds the sandboxed iframe that renders a registered package session.
+ * The `src` is built from the runtime base + sessionId + index entry; the
+ * Service Worker fulfils requests under that scope from in-memory bytes.
+ * @param options Runtime base, sessionId, index entry and accessible title.
+ */
+export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
+	return buildSandboxedIframe(
+		buildRuntimeUrl(options.runtimeBase, options.sessionId, options.indexEntry),
+		options.title,
+	)
 }
 
 /**
