@@ -4,6 +4,8 @@
 
 <a href="https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/blueprint.json" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg" alt="Open in Nextcloud Playground" width="224"></a>
 
+> ℹ️ The eXeLearning editor is bundled into the app, so it works out of the box when the playground boots; the first load may take a few extra seconds while the app is installed. Viewer, preview and editing work normally.
+
 Preview and edit [eXeLearning](https://exelearning.net/) `.elpx` packages
 directly inside Nextcloud Files.
 
