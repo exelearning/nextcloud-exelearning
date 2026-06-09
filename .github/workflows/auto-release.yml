@@ -158,8 +158,16 @@ jobs:
         run: |
           set -euo pipefail
           echo "${TAG}" > .editor-version
+          # Keep the playground blueprint's editor overlay URL in sync with the
+          # bundled editor version (blueprint.json's `unzip` step pulls the
+          # upstream editor release; production still bakes it from this marker).
+          sed -i -E \
+            -e "s#(release=)v[0-9][0-9A-Za-z.-]*#\1${TAG}#g" \
+            -e "s#(releases/download/)v[0-9][0-9A-Za-z.-]*#\1${TAG}#g" \
+            -e "s#(exelearning-static-)v[0-9][0-9A-Za-z.-]*(\.zip)#\1${TAG}\2#g" \
+            blueprint.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .editor-version
+          git add .editor-version blueprint.json
           git commit -m "chore: bump bundled eXeLearning editor to ${TAG}"
           git push

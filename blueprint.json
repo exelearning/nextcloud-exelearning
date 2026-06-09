@@ -25,6 +25,12 @@
       "url": "https://zip-proxy.erseco.workers.dev/?repo=exelearning/nextcloud-exelearning&release=playground&asset=exelearning.zip"
     },
     {
+      "step": "unzip",
+      "comment": "Overlay the eXeLearning static editor from the upstream release instead of baking it into the app zip (the playground build ships without js/editor/). Same shared artifact the Moodle/WP playgrounds use, fetched through the github-proxy (CORS) and extracted into the installed app's js/editor/. The asset wraps everything in a 'static/' folder, which the unzip step strips. Pinned to .editor-version for deterministic previews; auto-release.yml keeps this URL in sync. Production (release.yml/auto-release.yml) still bakes the editor in.",
+      "url": "https://github-proxy.exelearning.dev/?repo=exelearning/exelearning&release=v4.0.1&asset=exelearning-static-v4.0.1.zip",
+      "destination": "apps/exelearning/js/editor"
+    },
+    {
       "step": "writeFile",
       "path": "config/mimetypemapping.json",
       "content": "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"],\"elp\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}"
