@@ -1,9 +1,11 @@
 name: Playground preview
 
-# Builds the app — plus the prebuilt eXeLearning static editor, *downloaded*
-# from the editor's latest release rather than compiled here — into a ZIP the
-# Nextcloud Playground installs in the browser via the blueprint `installApp`
-# step.
+# Builds the app (WITHOUT the editor) into a ZIP the Nextcloud Playground
+# installs in the browser via the blueprint `installApp` step. The eXeLearning
+# static editor is NOT baked into this zip — the blueprint overlays it at boot
+# with an `unzip` step that pulls the shared upstream editor release (the same
+# artifact the Moodle/WP playgrounds use), keeping this preview zip lean.
+# Production releases (release.yml / auto-release.yml) still bake the editor in.
 #
 #   - push to main  -> refresh the rolling `playground` prerelease asset
 #                      (exelearning.zip) that blueprint.json points at, so the
@@ -65,25 +67,17 @@ jobs:
             echo "version=pr-${{ github.event.pull_request.number }}" >> "$GITHUB_OUTPUT"
           fi
 
-      # Resolve the latest *stable* eXeLearning editor tag once, so the
-      # download and the version reported in the PR comment stay in sync.
+      # The editor is overlaid by the blueprint at boot (not baked into this
+      # zip), pinned to .editor-version and kept in sync with the upstream tag by
+      # auto-release.yml. Read it here so the PR comment reports the version the
+      # preview actually loads.
       - name: Resolve eXeLearning editor version
         id: editor
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-          REF=$(gh api repos/exelearning/exelearning/releases/latest --jq '.tag_name')
+          REF=$(tr -d '[:space:]' < .editor-version)
           echo "ref=$REF" >> "$GITHUB_OUTPUT"
-          echo "eXeLearning editor: $REF"
-
-      # Pulls the prebuilt static editor from that release (e.g.
-      # exelearning-static-vX.Y.Z.zip) into js/editor/ — no bun build.
-      # `make package-zip` then bundles it. `clean` keeps js/editor/.
-      - name: Download the eXeLearning static editor
-        env:
-          EXELEARNING_EDITOR_REF: ${{ steps.editor.outputs.ref }}
-        run: make download-editor
+          echo "eXeLearning editor (overlaid at boot): $REF"
 
       - name: Build the playground ZIP
         run: |
@@ -149,7 +143,7 @@ jobs:
                 'Two sample `.elpx` are seeded under `exelearning-samples/` in Files — ' +
                 'click one to open the viewer.',
               '',
-              `Bundled eXeLearning editor: \`${editor}\` (latest stable release).`,
+              `eXeLearning editor: \`${editor}\` (overlaid at boot from the upstream release).`,
             ].join('\n');
             const { owner, repo } = context.repo;
             const issue_number = context.payload.pull_request.number;
