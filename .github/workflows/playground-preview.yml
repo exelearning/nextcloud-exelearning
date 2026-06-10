@@ -112,7 +112,7 @@ jobs:
         id: link
         run: |
           set -euo pipefail
-          asset="https://zip-proxy.erseco.workers.dev/?repo=${{ github.repository }}&release=${{ steps.id.outputs.tag }}&asset=exelearning.zip"
+          asset="https://github-proxy.exelearning.dev/?repo=${{ github.repository }}&release=${{ steps.id.outputs.tag }}&asset=exelearning.zip"
           jq --arg url "$asset" '(.steps[] | select(.step == "installApp")).url = $url' blueprint.json > blueprint.pr.json
           # Sample fixtures are referenced from raw main; point them at this PR's
           # commit so the preview reflects fixtures added/changed on the branch.

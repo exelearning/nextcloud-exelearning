@@ -22,7 +22,7 @@
     {
       "step": "installApp",
       "appId": "exelearning",
-      "url": "https://zip-proxy.erseco.workers.dev/?repo=exelearning/nextcloud-exelearning&release=playground&asset=exelearning.zip"
+      "url": "https://github-proxy.exelearning.dev/?repo=exelearning/nextcloud-exelearning&release=playground&asset=exelearning.zip"
     },
     {
       "step": "unzip",
