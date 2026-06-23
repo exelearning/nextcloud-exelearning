@@ -43,7 +43,7 @@
     "sass-loader": "^16.0.2",
     "style-loader": "^4.0.0",
     "ts-loader": "^9.6.0",
-    "typescript": "^5.4.5",
+    "typescript": "^6.0.3",
     "vitest": "^4.1.9",
     "vue-loader": "^17.4.0",
     "vue-tsc": "^3.3.5",
@@ -53,6 +53,9 @@
   "browserslist": [
     "extends @nextcloud/browserslist-config"
   ],
+  "overrides": {
+    "typescript": "$typescript"
+  },
   "engines": {
     "node": "^20.0.0 || ^22.0.0 || ^24.0.0",
     "npm": "^10.0.0 || ^11.0.0"
