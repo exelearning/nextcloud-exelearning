@@ -23,6 +23,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- Viewer now makes the eXeLearning teacher-layer selector available by loading
+  the package index with `?exe-teacher=1`. eXeLearning exports hide teacher-only
+  content by default (see exelearning/exelearning#1972); since the Nextcloud
+  Viewer is a personal file viewer — the person opening the package is
+  effectively its author/teacher — the selector is always offered. It stays OFF
+  by default; the viewer reveals it, and the package's own JS persists the
+  choice and propagates the param across in-package navigation.
 - CI matrix (`.github/workflows/ci.yml`) covering NC 31/32/33 × PHP
   8.2/8.3/8.4 with rotated databases (sqlite/mysql/pgsql), plus an
   experimental PHP 8.5 cell. Each cell installs the app into a real
