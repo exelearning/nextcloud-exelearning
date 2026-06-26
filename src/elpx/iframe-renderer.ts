@@ -25,6 +25,31 @@ const IFRAME_ALLOW = [
 	'clipboard-write',
 ].join('; ')
 
+/**
+ * URL parameter that eXeLearning packages read to expose the in-package
+ * "teacher layer" selector (see exelearning/exelearning#1972). Without it,
+ * exported packages hide teacher-only content and offer no way to reveal it.
+ *
+ * The Nextcloud Viewer is a personal file viewer — the person opening the
+ * package is effectively its author/teacher — so we always make the selector
+ * available. The selector itself stays OFF by default; the viewer activates
+ * it and the package's own JS persists the choice and propagates the param
+ * across in-package navigation links.
+ */
+const TEACHER_MODE_PARAM = 'exe-teacher=1'
+
+/**
+ * Appends {@link TEACHER_MODE_PARAM} to the top-level package index URL,
+ * preserving any existing query string and avoiding a double append.
+ * @param src Already-resolved index URL the iframe will load.
+ */
+function withTeacherMode(src: string): string {
+	if (src.includes(TEACHER_MODE_PARAM)) {
+		return src
+	}
+	return src + (src.includes('?') ? '&' : '?') + TEACHER_MODE_PARAM
+}
+
 export interface IframeOptions {
 	runtimeBase: string
 	sessionId: string
@@ -46,7 +71,13 @@ export function buildSandboxedIframe(src: string, title: string): HTMLIFrameElem
 	iframe.setAttribute('sandbox', SANDBOX_FLAGS.join(' '))
 	iframe.setAttribute('allow', IFRAME_ALLOW)
 	iframe.setAttribute('referrerpolicy', 'no-referrer')
-	iframe.src = src
+	// `src` is always the package *index* entry — both the Service Worker path
+	// ({@link createPackageIframe}) and the server-side asset fallback funnel
+	// the top-level page here, never a subresource. Adding the teacher-mode
+	// param only to this top-level document is enough: the package's own JS
+	// propagates it across in-package navigation, and the SW/AssetController
+	// match requests on the pathname only, so the extra query is harmless.
+	iframe.src = withTeacherMode(src)
 	iframe.addEventListener('load', () => {
 		try {
 			rewireExternalLinks(iframe)
