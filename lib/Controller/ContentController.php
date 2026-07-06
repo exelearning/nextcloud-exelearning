@@ -57,16 +57,19 @@ class ContentController extends Controller {
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function serve(string $token, string $path = 'index.html'): DataDisplayResponse {
-		$fileId = $this->tokens->verify($token);
-		if ($fileId === null) {
+		$capability = $this->tokens->verify($token);
+		if ($capability === null) {
 			return $this->notFound();
 		}
+		[$fileId, $userId] = $capability;
 		$entry = $this->zipEntries->normalizeEntry($path);
 		if ($entry === null) {
 			return $this->notFound();
 		}
 		try {
-			$file = $this->packageService->getByIdForCapability($fileId);
+			// Resolve via the token's user so the user's storage is mounted and
+			// the read permission is re-checked (the token proves a past grant).
+			$file = $this->packageService->getForUserById($userId, $fileId);
 		} catch (NotFoundException|NotPermittedException) {
 			return $this->notFound();
 		}

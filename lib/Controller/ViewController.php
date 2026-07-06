@@ -87,7 +87,7 @@ class ViewController extends Controller {
 			// this null and the viewer keeps its /runtime SW path.
 			$this->initialState->provideInitialState(
 				'contentToken',
-				$secureIframe ? $this->contentTokens->mint((int)$file->getId()) : null,
+				$secureIframe ? $this->contentTokens->mint((int)$file->getId(), $user->getUID()) : null,
 			);
 		}
 		$this->initialState->provideInitialState('secureIframe', $secureIframe);
