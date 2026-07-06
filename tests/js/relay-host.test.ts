@@ -32,6 +32,13 @@ describe('relay-host', () => {
 		expect(init).toHaveBeenCalledWith({ mode: 'open' })
 	})
 
+	it('passes a custom strict mode + whitelist through to init', () => {
+		const init = vi.fn().mockReturnValue({})
+		w.exeEmbedRelay = { init }
+		startRelay({ mode: 'strict', whitelist: ['player.vimeo.com'] })
+		expect(init).toHaveBeenCalledWith({ mode: 'strict', whitelist: ['player.vimeo.com'] })
+	})
+
 	it('clearOverlays / reflowOverlays drive the relay instance', () => {
 		const instance = { clear: vi.fn(), reflow: vi.fn() }
 		w.exeEmbedRelay = { init: () => instance }

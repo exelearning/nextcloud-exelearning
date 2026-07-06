@@ -91,6 +91,14 @@ class ViewController extends Controller {
 			);
 		}
 		$this->initialState->provideInitialState('secureIframe', $secureIframe);
+		// External-media relay config for the trusted parent (see relay-host.ts):
+		// 'strict' mode overlays only the maintained provider hosts.
+		$this->initialState->provideInitialState(
+			'embedRelay',
+			$secureIframe
+				? ['mode' => $this->sandbox->embedMode(), 'whitelist' => $this->sandbox->providerWhitelist()]
+				: null,
+		);
 		$this->initialState->provideInitialState(
 			'editorAvailable',
 			is_file(__DIR__ . '/../../js/editor/index.html'),

@@ -21,8 +21,13 @@ interface RelayInstance {
 	reflow?: () => void
 }
 
+export interface EmbedRelayConfig {
+	mode?: string
+	whitelist?: string[]
+}
+
 interface EmbedRelayApi {
-	init: (config: { mode?: string, whitelist?: string[] }) => RelayInstance
+	init: (config: EmbedRelayConfig) => RelayInstance
 }
 
 interface MediaHostApi {
@@ -43,15 +48,17 @@ let relayInstance: RelayInstance | null = null
 
 /**
  * Start the embed relay once (idempotent). Call after the first content iframe
- * mounts. `open` mode overlays any cross-origin https player the shim reports.
+ * mounts. 'strict' mode overlays only whitelisted providers; 'open' overlays any
+ * cross-origin https player the shim reports.
+ * @param config Relay mode + provider whitelist (defaults to open mode).
  */
-export function startRelay(): void {
+export function startRelay(config: EmbedRelayConfig = { mode: 'open' }): void {
 	if (relayInstance) {
 		return
 	}
 	const api = globals().exeEmbedRelay
 	if (api) {
-		relayInstance = api.init({ mode: 'open' })
+		relayInstance = api.init(config)
 	}
 }
 

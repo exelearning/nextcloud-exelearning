@@ -12,8 +12,11 @@ use PHPUnit\Framework\TestCase;
  * (opaque-origin) iframe policy used to render published .elpx content.
  */
 final class IframeSandboxTest extends TestCase {
-	private function service(?string $legacyEnv = null): IframeSandbox {
-		return new IframeSandbox(static fn (string $name): ?string => $legacyEnv);
+	/**
+	 * @param array<string,string> $env Environment values keyed by variable name.
+	 */
+	private function service(array $env = []): IframeSandbox {
+		return new IframeSandbox(static fn (string $name): ?string => $env[$name] ?? null);
 	}
 
 	public function testDefaultsToSecureMode(): void {
@@ -21,10 +24,21 @@ final class IframeSandboxTest extends TestCase {
 	}
 
 	public function testLegacyModeOnlyViaEscapeHatch(): void {
-		self::assertSame(IframeSandbox::MODE_LEGACY, $this->service('1')->resolveMode());
-		self::assertSame(IframeSandbox::MODE_LEGACY, $this->service('true')->resolveMode());
-		self::assertSame(IframeSandbox::MODE_SECURE, $this->service('0')->resolveMode());
-		self::assertSame(IframeSandbox::MODE_SECURE, $this->service('')->resolveMode());
+		$hatch = 'EXELEARNING_UNSAFE_LEGACY_IFRAME';
+		self::assertSame(IframeSandbox::MODE_LEGACY, $this->service([$hatch => '1'])->resolveMode());
+		self::assertSame(IframeSandbox::MODE_LEGACY, $this->service([$hatch => 'true'])->resolveMode());
+		self::assertSame(IframeSandbox::MODE_SECURE, $this->service([$hatch => '0'])->resolveMode());
+		self::assertSame(IframeSandbox::MODE_SECURE, $this->service([$hatch => ''])->resolveMode());
+	}
+
+	public function testEmbedModeDefaultsToStrict(): void {
+		self::assertSame(IframeSandbox::EMBED_STRICT, $this->service()->embedMode());
+	}
+
+	public function testEmbedModeOpensOnlyViaEnv(): void {
+		$env = 'EXELEARNING_EMBED_OPEN';
+		self::assertSame(IframeSandbox::EMBED_OPEN, $this->service([$env => '1'])->embedMode());
+		self::assertSame(IframeSandbox::EMBED_STRICT, $this->service([$env => 'off'])->embedMode());
 	}
 
 	public function testSecureSandboxTokensNeverAllowSameOrigin(): void {

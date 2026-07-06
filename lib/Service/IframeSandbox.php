@@ -26,6 +26,10 @@ class IframeSandbox {
 	private const LEGACY_TOKENS = 'allow-same-origin allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox';
 
 	private const LEGACY_ENV = 'EXELEARNING_UNSAFE_LEGACY_IFRAME';
+	private const EMBED_OPEN_ENV = 'EXELEARNING_EMBED_OPEN';
+
+	public const EMBED_STRICT = 'strict';
+	public const EMBED_OPEN = 'open';
 
 	/** Hosts whose embedded players the relay may overlay (see exe_embed_relay.js). */
 	private const PROVIDER_WHITELIST = [
@@ -62,6 +66,17 @@ class IframeSandbox {
 		$raw = ($this->envReader)(self::LEGACY_ENV);
 		$on = $raw !== null && in_array(strtolower(trim($raw)), ['1', 'true', 'yes', 'on'], true);
 		return $on ? self::MODE_LEGACY : self::MODE_SECURE;
+	}
+
+	/**
+	 * External-media relay mode. 'strict' (default, fail-safe) overlays only the
+	 * maintained provider hosts; 'open' (opt-in via EXELEARNING_EMBED_OPEN)
+	 * overlays any cross-origin https player the shim reports.
+	 */
+	public function embedMode(): string {
+		$raw = ($this->envReader)(self::EMBED_OPEN_ENV);
+		$on = $raw !== null && in_array(strtolower(trim($raw)), ['1', 'true', 'yes', 'on'], true);
+		return $on ? self::EMBED_OPEN : self::EMBED_STRICT;
 	}
 
 	/**

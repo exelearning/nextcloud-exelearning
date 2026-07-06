@@ -46,7 +46,7 @@ import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
 import { createContentIframe, createPackageIframe, buildSandboxedIframe } from '../elpx/iframe-renderer'
 import { ASSET_PREFIX, buildAssetUrl, CONTENT_PREFIX } from '../elpx/paths'
-import { attachMedia, clearOverlays, pingEmbeds, reflowOverlays, startRelay } from '../embed/relay-host'
+import { attachMedia, clearOverlays, type EmbedRelayConfig, pingEmbeds, reflowOverlays, startRelay } from '../embed/relay-host'
 
 /**
  * Reads a server-provided initial-state value, falling back on any error so the
@@ -229,11 +229,12 @@ export default defineComponent({
 				indexEntry,
 				title,
 			})
+			const relayConfig = safeLoad<EmbedRelayConfig>('embedRelay', { mode: 'open' })
 			iframe.addEventListener('load', () => {
 				// The trusted parent overlays real players over the placeholders
 				// the opaque iframe's shim reports (Channel A) and hosts the
 				// interactive-video bridge (Channel B).
-				startRelay()
+				startRelay(relayConfig)
 				pingEmbeds(iframe)
 				attachMedia(iframe)
 			})
