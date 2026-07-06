@@ -50,7 +50,7 @@ class IframeSandbox {
 
 	/**
 	 * @param (callable(string):?string)|null $envReader Injectable environment
-	 *        reader (tests pass a stub); defaults to getenv().
+	 *                                                   reader (tests pass a stub); defaults to getenv().
 	 */
 	public function __construct(?callable $envReader = null) {
 		$this->envReader = $envReader ?? static function (string $name): ?string {

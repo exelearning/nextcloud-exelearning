@@ -67,7 +67,7 @@ class ContentController extends Controller {
 		}
 		try {
 			$file = $this->packageService->getByIdForCapability($fileId);
-		} catch (NotFoundException | NotPermittedException) {
+		} catch (NotFoundException|NotPermittedException) {
 			return $this->notFound();
 		}
 		$bytes = $this->zipEntries->readEntry($file, $entry);

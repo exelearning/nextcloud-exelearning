@@ -21,8 +21,8 @@ class ContentTokenService {
 
 	/**
 	 * @param string $secret The Nextcloud instance secret (wired from IConfig in
-	 *        Application.php); kept as a plain string so this service stays free of
-	 *        OCP dependencies and unit-testable without a server.
+	 *                       Application.php); kept as a plain string so this service stays free of
+	 *                       OCP dependencies and unit-testable without a server.
 	 * @param (callable():int)|null $clock Injectable unix-time source (tests stub it).
 	 */
 	public function __construct(
