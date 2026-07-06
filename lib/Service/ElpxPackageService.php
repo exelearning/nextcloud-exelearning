@@ -52,6 +52,28 @@ class ElpxPackageService {
 	}
 
 	/**
+	 * Resolve a file by id WITHOUT a user session, for the cookieless opaque
+	 * content route. The {@see \OCA\ExeLearning\Service\ContentTokenService}
+	 * capability token — minted at view-open where the user's read permission
+	 * WAS checked — is the authorization; here we only re-assert the node still
+	 * exists, is a regular file, and is within the size limit.
+	 *
+	 * @throws NotFoundException when the file id no longer resolves to a file
+	 * @throws NotPermittedException when it is not a regular file / too large
+	 */
+	public function getByIdForCapability(int $fileId): File {
+		$nodes = $this->rootFolder->getById($fileId);
+		$node = $nodes[0] ?? null;
+		if (!$node instanceof File) {
+			throw new NotFoundException('File not found');
+		}
+		if (!$this->permissions->isWithinSizeLimit($node)) {
+			throw new NotPermittedException('Package too large');
+		}
+		return $node;
+	}
+
+	/**
 	 * @throws NotPermittedException
 	 */
 	private function assertAllowed(Node $node): void {

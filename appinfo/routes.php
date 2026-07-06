@@ -22,6 +22,13 @@ return [
 			'requirements' => ['path' => '.+'],
 		],
 		[
+			'name' => 'content#serve',
+			'url' => '/content/{token}/{path}',
+			'verb' => 'GET',
+			'requirements' => ['token' => '[A-Za-z0-9._~-]+', 'path' => '.+'],
+			'defaults' => ['path' => 'index.html'],
+		],
+		[
 			'name' => 'thumbnail#byFileId',
 			'url' => '/thumbnail/by-file-id/{fileId}',
 			'verb' => 'GET',

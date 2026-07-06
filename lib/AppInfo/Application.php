@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\AppInfo;
 
 use OCA\ExeLearning\Preview\ElpxPreviewProvider;
+use OCA\ExeLearning\Service\ContentTokenService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IConfig;
 use OCP\Util;
+use Psr\Container\ContainerInterface;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'exelearning';
@@ -57,6 +60,13 @@ class Application extends App implements IBootstrap {
 		// the legacy `IPreview::registerProviderV2()` call in boot() only
 		// covered some of those code paths.
 		$context->registerPreviewProvider(ElpxPreviewProvider::class, ElpxPreviewProvider::MIME_REGEX);
+
+		// The capability-token service needs the instance secret as a plain
+		// string (it is kept OCP-free for unit testing), so it cannot be
+		// auto-wired — provide a factory that reads it from IConfig.
+		$context->registerService(ContentTokenService::class, static function (ContainerInterface $c): ContentTokenService {
+			return new ContentTokenService((string)$c->get(IConfig::class)->getSystemValue('secret', ''));
+		});
 	}
 
 	public function boot(IBootContext $context): void {
