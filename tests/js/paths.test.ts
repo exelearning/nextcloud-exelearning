@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
 	buildAssetUrl,
+	buildContentUrl,
 	buildRuntimeUrl,
 	isExternalUrl,
 	normalizeEntryPath,
@@ -116,5 +117,25 @@ describe('buildAssetUrl', () => {
 
 	it('refuses unsafe entries', () => {
 		expect(() => buildAssetUrl(base, 1, '../etc/passwd')).toThrow()
+	})
+})
+
+describe('buildContentUrl', () => {
+	const base = '/apps/exelearning/content'
+
+	it('builds an opaque content URL from a capability token and entry', () => {
+		expect(buildContentUrl(base, 'cap-token', 'html/page.html')).toBe(
+			'/apps/exelearning/content/cap-token/html/page.html',
+		)
+	})
+
+	it('encodes the token and each entry segment', () => {
+		expect(buildContentUrl(base, 'a.b_c-d', 'content/Página 1.html')).toBe(
+			'/apps/exelearning/content/a.b_c-d/content/P%C3%A1gina%201.html',
+		)
+	})
+
+	it('refuses unsafe entries', () => {
+		expect(() => buildContentUrl(base, 'tok', '../etc/passwd')).toThrow()
 	})
 })
