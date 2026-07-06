@@ -18,6 +18,10 @@ module.exports = {
 		'js/',
 		'node_modules/',
 		'vendor/',
+		// Centrally-maintained, byte-synced eXe-core embed/media bridge mirrors
+		// (see scripts/check-embed-sync.mjs). They keep upstream's code style and
+		// module wrapper, so our lint rules do not apply to them.
+		'src/embed/exe_*.js',
 	],
 	rules: {
 		// `void promise` is the canonical TypeScript way of marking a

@@ -16,7 +16,8 @@
 			"!**/coverage/**",
 			"!**/js/**",
 			"!**/exelearning/**",
-			"!**/*.vue"
+			"!**/*.vue",
+			"!**/src/embed/exe_*.js"
 		]
 	},
 	"formatter": {

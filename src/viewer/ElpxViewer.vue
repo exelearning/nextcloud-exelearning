@@ -34,6 +34,7 @@
 <script lang="ts">
 import { defineComponent } from 'vue'
 import { translate as t } from '@nextcloud/l10n'
+import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 import ViewerError from './ViewerError.vue'
@@ -43,8 +44,24 @@ import { readPackage, ZipReadError } from '../elpx/zip-reader'
 import { validatePackage } from '../elpx/package-validator'
 import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
-import { createPackageIframe, buildSandboxedIframe } from '../elpx/iframe-renderer'
-import { ASSET_PREFIX, buildAssetUrl } from '../elpx/paths'
+import { createContentIframe, createPackageIframe, buildSandboxedIframe } from '../elpx/iframe-renderer'
+import { ASSET_PREFIX, buildAssetUrl, CONTENT_PREFIX } from '../elpx/paths'
+import { attachMedia, clearOverlays, pingEmbeds, reflowOverlays, startRelay } from '../embed/relay-host'
+
+/**
+ * Reads a server-provided initial-state value, falling back on any error so the
+ * viewer still boots (e.g. in the @nextcloud/viewer modal, where the /view
+ * ViewController never ran and these keys are absent → legacy path).
+ * @param key The initial-state key registered server-side.
+ * @param fallback Value to return when the key is missing or invalid.
+ */
+function safeLoad<T>(key: string, fallback: T): T {
+	try {
+		return (loadState('exelearning', key, fallback) as T) ?? fallback
+	} catch {
+		return fallback
+	}
+}
 
 type State = 'loading' | 'ready' | 'legacy' | 'error'
 
@@ -57,6 +74,7 @@ interface Data {
 	session: ViewerSession | null
 	worker: RuntimeWorker | null
 	iframe: HTMLIFrameElement | null
+	relayActive: boolean
 }
 
 export default defineComponent({
@@ -86,6 +104,7 @@ export default defineComponent({
 			session: null,
 			worker: null,
 			iframe: null,
+			relayActive: false,
 		}
 	},
 	mounted() {
@@ -122,12 +141,29 @@ export default defineComponent({
 					throw new Error(validation.error ?? 'The package is missing index.html.')
 				}
 
-				this.status = t('exelearning', 'Preparing viewer…')
 				const indexEntry = validation.shape.indexEntry
+				const title = loaded.filename || this.filename || this.basename || 'package.elpx'
+
+				// Secure (default): serve the package into an opaque-origin iframe
+				// over the cookieless /content/{token} route. No Service Worker and
+				// no in-memory session — the server streams entries from the stored
+				// file, and external media is relayed to this trusted page.
+				const contentToken = safeLoad<string | null>('contentToken', null)
+				const secureIframe = safeLoad<boolean>('secureIframe', false)
+				if (secureIframe && contentToken && fileId !== undefined && Number.isFinite(fileId)) {
+					this.state = 'ready'
+					this.status = ''
+					this.$nextTick(() => this.attachContentIframe(contentToken, indexEntry, title))
+					return
+				}
+
+				// Legacy escape hatch (EXELEARNING_UNSAFE_LEGACY_IFRAME): same-origin
+				// Service-Worker path with a server-side asset fallback.
+				this.status = t('exelearning', 'Preparing viewer…')
 				const session = ViewerSession.create({
 					entries,
 					indexEntry,
-					filename: loaded.filename || this.filename || this.basename || 'package.elpx',
+					filename: title,
 				})
 
 				try {
@@ -183,7 +219,38 @@ export default defineComponent({
 			slot.appendChild(iframe)
 			this.iframe = iframe
 		},
+		attachContentIframe(token: string, indexEntry: string, title: string): void {
+			const slot = this.$refs.frameSlot as HTMLElement | undefined
+			if (!slot) return
+			slot.innerHTML = ''
+			const iframe = createContentIframe({
+				contentBase: generateUrl(CONTENT_PREFIX),
+				token,
+				indexEntry,
+				title,
+			})
+			iframe.addEventListener('load', () => {
+				// The trusted parent overlays real players over the placeholders
+				// the opaque iframe's shim reports (Channel A) and hosts the
+				// interactive-video bridge (Channel B).
+				startRelay()
+				pingEmbeds(iframe)
+				attachMedia(iframe)
+			})
+			slot.appendChild(iframe)
+			this.iframe = iframe
+			this.relayActive = true
+			window.addEventListener('resize', this.onResize)
+		},
+		onResize(): void {
+			reflowOverlays()
+		},
 		teardown(): void {
+			if (this.relayActive) {
+				clearOverlays()
+				window.removeEventListener('resize', this.onResize)
+				this.relayActive = false
+			}
 			this.iframe?.remove()
 			this.iframe = null
 			if (this.worker && this.session) {

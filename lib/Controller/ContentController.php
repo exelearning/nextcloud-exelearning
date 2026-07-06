@@ -93,9 +93,13 @@ class ContentController extends Controller {
 		return $response;
 	}
 
-	/** Inline shim source, or null when the mirror asset is not present. */
+	/**
+	 * Inline shim source, or null when the mirror asset is not present. Read
+	 * from src/embed/ at runtime, the same way {@see SwController} reads
+	 * src/sw/exelearning-sw.js — the app ships its src/ tree.
+	 */
 	private function shimSource(): ?string {
-		$path = __DIR__ . '/../../js/embed/exe_embed_shim.js';
+		$path = __DIR__ . '/../../src/embed/exe_embed_shim.js';
 		if (!is_file($path)) {
 			return null;
 		}
