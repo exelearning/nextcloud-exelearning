@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\AppInfo;
 
 use OCA\ExeLearning\Preview\ElpxPreviewProvider;
 use OCA\ExeLearning\Service\ContentTokenService;
+use OCA\ExeLearning\Service\IframeSandbox;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -67,6 +68,65 @@ class Application extends App implements IBootstrap {
 		$context->registerService(ContentTokenService::class, static function (ContainerInterface $c): ContentTokenService {
 			return new ContentTokenService((string)$c->get(IConfig::class)->getSystemValue('secret', ''));
 		});
+
+		// IframeSandbox is OCP-free (so it stays unit-testable) and by default
+		// reads its dev-only escape hatches straight from the process env. We
+		// override the default wiring with a reader that ALSO consults a
+		// Nextcloud app-config value — the ONLY way to flip the hatch inside the
+		// php-wasm Playground, which cannot set process env vars. See
+		// {@see self::iframeSandboxEnvReader()} for the (unit-tested) precedence
+		// rules. IConfig lives here in the factory, never inside IframeSandbox.
+		$context->registerService(IframeSandbox::class, static function (ContainerInterface $c): IframeSandbox {
+			$config = $c->get(IConfig::class);
+			return new IframeSandbox(self::iframeSandboxEnvReader(
+				getenv(...),
+				static fn (string $key): string => $config->getAppValue(self::APP_ID, $key, ''),
+			));
+		});
+	}
+
+	/**
+	 * Build the environment reader {@see IframeSandbox} uses to resolve its
+	 * dev-only escape hatches (`EXELEARNING_UNSAFE_LEGACY_IFRAME`,
+	 * `EXELEARNING_EMBED_OPEN`).
+	 *
+	 * Precedence:
+	 *   1. The process environment wins — the real-host mechanism (a systemd
+	 *      `Environment=`, an Apache `SetEnv`, the wp-exelearning mu-plugin
+	 *      `putenv`, or Moodle `$CFG` phpconstants). An explicitly-empty env
+	 *      var still wins and therefore disables the hatch.
+	 *   2. Otherwise fall back to a Nextcloud app-config value under this app
+	 *      (`EXELEARNING_UNSAFE_LEGACY_IFRAME` -> `unsafe_legacy_iframe`,
+	 *      `EXELEARNING_EMBED_OPEN` -> `embed_open`). This exists ONLY because
+	 *      the php-wasm Nextcloud Playground cannot set process env vars, yet
+	 *      the browser-only demo still needs to flip the hatch so the
+	 *      same-origin viewer — the one a Service Worker can actually serve —
+	 *      renders. The blueprint sets it with a `setConfig`/`config:app:set`
+	 *      step.
+	 *
+	 * DEV-ONLY: enabling the legacy hatch re-introduces `allow-same-origin` and
+	 * drops the opaque-origin isolation that protects against the published
+	 * package's untrusted scripts. NEVER set it on a real deployment.
+	 *
+	 * The reader is a pure function of the two injected lookups so it stays
+	 * unit-testable without a Nextcloud server; it is the only seam that knows
+	 * app-config exists, keeping IframeSandbox itself OCP-free.
+	 *
+	 * @param callable(string):(string|false) $getenv Process-env lookup (getenv()).
+	 * @param callable(string):string $getAppValue App-config lookup, already
+	 *                                             bound to this app id; '' means unset.
+	 * @return callable(string):?string
+	 */
+	public static function iframeSandboxEnvReader(callable $getenv, callable $getAppValue): callable {
+		return static function (string $name) use ($getenv, $getAppValue): ?string {
+			$env = $getenv($name);
+			if ($env !== false) {
+				return (string)$env;
+			}
+			$key = str_starts_with($name, 'EXELEARNING_') ? substr($name, 12) : $name;
+			$value = $getAppValue(strtolower($key));
+			return $value === '' ? null : $value;
+		};
 	}
 
 	public function boot(IBootContext $context): void {
