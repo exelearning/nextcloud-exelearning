@@ -1,16 +1,83 @@
 version: 2
+
+# Dependabot is constrained to versions that are actually installable and supported by this
+# app's Nextcloud target (appinfo/info.xml: NC 31-33). Only semver-MAJOR bumps are held back
+# below; patch and minor updates for every package still flow normally.
+#
+# Two reasons a major is held:
+#   1. Build tooling whose major is pinned as a *peer* by the shared @nextcloud/* build
+#      configs. Bumping past the peer aborts `npm ci` with ERESOLVE and fails all CI jobs.
+#   2. @nextcloud/* runtime libs + vue, whose next major tracks Nextcloud 34+ and would
+#      break the stable31/stable32/stable33 build & `occ app:enable` smoke test.
+#
+# When @nextcloud/eslint-config / @nextcloud/webpack-vue-config publish a new major (which
+# widens their peers), lift the matching tooling ignores below.
+
 updates:
   - package-ecosystem: "npm"
     directory: "/"
     schedule:
       interval: "weekly"
+    ignore:
+      # Tooling capped by @nextcloud/eslint-config@8 peers (closed #65/#66, re-rolls of #51/#42)
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@babel/core"
+        update-types: ["version-update:semver-major"]
+      # Tooling capped by @nextcloud/webpack-vue-config@7 peers (closed #69/#63)
+      - dependency-name: "webpack-cli"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "sass-loader"
+        update-types: ["version-update:semver-major"]
+      # Nextcloud runtime libs + Vue: hold at the NC 31-33 major line
+      - dependency-name: "@nextcloud/axios"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nextcloud/files"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nextcloud/initial-state"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nextcloud/l10n"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@nextcloud/router"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "vue"
+        update-types: ["version-update:semver-major"]
+    groups:
+      nextcloud:
+        patterns:
+          - "@nextcloud/*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-tooling:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@nextcloud/*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "composer"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      composer:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
