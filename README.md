@@ -185,6 +185,14 @@ Developer documentation lives in [`DEVELOPMENT.md`](DEVELOPMENT.md):
 Coding agents should also read [`AGENTS.md`](AGENTS.md) for the rules and
 conventions that apply when generating code.
 
+## Issues and Support
+
+Issue tracking for this app is centralized in the main
+[`exelearning/exelearning`](https://github.com/exelearning/exelearning) repository.
+Please [open new issues there](https://github.com/exelearning/exelearning/issues/new),
+and browse [existing `nextcloud`-labeled issues](https://github.com/exelearning/exelearning/issues?q=is%3Aissue+label%3Anextcloud)
+before reporting a bug or requesting a feature.
+
 ## License
 
 AGPL-3.0-or-later. See [`LICENSE`](LICENSE).
