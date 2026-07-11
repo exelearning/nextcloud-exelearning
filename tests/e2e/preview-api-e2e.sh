@@ -33,10 +33,25 @@ fail() { echo "E2E FAIL: $*" >&2; exit 1; }
 # inside a command substitution (the caller checks for an empty result).
 scrape_token() { grep -o 'data-requesttoken="[^"]*"' | head -1 | sed 's/^[^"]*"//;s/"$//' || true; }
 
-# Log $user in through the real login form (GET for the token + SameSite
+# Fetch a fresh requesttoken for an authenticated session from the canonical
+# /csrftoken JSON endpoint (what OC.requestToken refreshes from — no HTML
+# scraping, and it requires a live session so it doubles as a login check).
+# Echoes the token, or dumps a diagnostic and returns non-zero (login failed) so
+# the caller reports it instead of dying opaquely. A guest/unauthenticated hit
+# returns a login-page redirect body rather than JSON, so jq yields empty.
+post_login_token() {
+	local jar="$1" resp rt
+	resp="$(curl -sL -c "$jar" -b "$jar" "$BASE/csrftoken")"
+	rt="$(printf '%s' "$resp" | jq -r '.token // empty' 2>/dev/null || true)"
+	if [ -n "$rt" ]; then printf '%s' "$rt"; return 0; fi
+	echo "diagnostic: /csrftoken returned no token (login likely failed). First 200 bytes:" >&2
+	printf '%s' "$resp" | head -c 200 >&2; echo >&2
+	return 1
+}
+
+# Log $user in through the real login form (GET for the login token + SameSite
 # cookies, POST the credentials) and echo a fresh post-login requesttoken.
-# -L follows Nextcloud's post-login redirect; pages are captured to files so a
-# missing token can be diagnosed instead of failing opaquely.
+# -L follows Nextcloud's post-login redirect and keeps cookie-jar continuity.
 login() {
 	local user="$1" pass="$2" jar="$3" page rt
 	page="$TMP/exe-e2e-page-$user.html"
@@ -52,8 +67,7 @@ login() {
 		--data-urlencode "password=$pass" \
 		--data-urlencode "requesttoken=$rt" \
 		"$BASE/login"
-	curl -sL -c "$jar" -b "$jar" "$BASE/apps/files/" -o "$page"
-	scrape_token < "$page"
+	post_login_token "$jar" || fail "no post-login requesttoken for $user (login did not establish a session)"
 }
 
 MGMT="$BASE/apps/exelearning/api/preview-session"
