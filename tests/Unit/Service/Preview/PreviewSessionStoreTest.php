@@ -427,6 +427,43 @@ final class PreviewSessionStoreTest extends TestCase {
 		self::assertTrue($store->exists($fresh));
 	}
 
+	public function testMissingAccessedMarkerFallsBackToCreatedAtForTtl(): void {
+		// A lost `.accessed` marker (crash between touch and fsync, manual fs
+		// surgery, backup restore) must NOT make a session immortal: the age
+		// clock falls back to meta.json createdAt so the session still expires.
+		$store = $this->store(new PreviewSessionLimits(ttlSeconds: 100));
+		$this->now = 1000;
+		$id = $store->create('alice');
+		$this->publish($store, $id, 0, 1, [['path' => 'index.html', 'bytes' => str_repeat('x', 128)]], [], []);
+		unlink($this->root . '/' . $id . '/.accessed');
+
+		// Within TTL of createdAt (1000): not yet expired.
+		$this->now = 1050;
+		self::assertSame(0, $store->sweepExpired());
+		self::assertTrue($store->exists($id));
+
+		// Past TTL of createdAt: swept, and the directory is physically gone — so
+		// its bytes no longer contribute to the recomputed global byte budget.
+		$this->now = 1200;
+		self::assertSame(1, $store->sweepExpired());
+		self::assertFalse($store->exists($id));
+		self::assertDirectoryDoesNotExist($this->root . '/' . $id);
+	}
+
+	public function testCorruptSessionDirectoryIsReclaimed(): void {
+		// A directory that looks like a session id but has neither `.accessed`
+		// nor a readable meta.json can never be owned or served — it must be
+		// reclaimed rather than lingering forever.
+		$store = $this->store(new PreviewSessionLimits(ttlSeconds: 100));
+		$this->now = 1000;
+		$corruptId = '3f2a1b4c-5d6e-4f70-8a90-b1c2d3e4f506';
+		mkdir($this->root . '/' . $corruptId, 0770, true);
+
+		self::assertTrue($store->isExpired($corruptId));
+		self::assertSame(1, $store->sweepExpired());
+		self::assertDirectoryDoesNotExist($this->root . '/' . $corruptId);
+	}
+
 	// -- Helpers -------------------------------------------------------------
 
 	/**

@@ -146,10 +146,22 @@ final class PreviewSessionStore {
 		$marker = $this->sessionDir($previewId) . '/.accessed';
 		clearstatcache(true, $marker);
 		$accessed = @filemtime($marker);
-		if ($accessed === false) {
-			return false;
+		if ($accessed !== false) {
+			return (($this->clock)() - $accessed) > $this->limits->ttlSeconds;
 		}
-		return (($this->clock)() - $accessed) > $this->limits->ttlSeconds;
+		// A missing/unreadable `.accessed` marker must NOT make a session
+		// immortal — that would keep it counting against the global byte budget
+		// forever and never let sweepExpired reclaim it. Fall back to meta.json
+		// createdAt as the age clock; if meta.json is missing/corrupt too, the
+		// directory is unusable (it can neither be owned nor served), so treat it
+		// as expired and let sweepExpired reclaim it. globalBytes() is recomputed
+		// from the surviving session directories on every call, so removing the
+		// directory automatically reconciles the accounting.
+		$createdAt = $this->createdAt($previewId);
+		if ($createdAt === null) {
+			return true;
+		}
+		return (($this->clock)() - $createdAt) > $this->limits->ttlSeconds;
 	}
 
 	/**
@@ -493,6 +505,15 @@ final class PreviewSessionStore {
 		}
 		$decoded = json_decode($raw, true);
 		return is_array($decoded) ? $decoded : null;
+	}
+
+	/** The session creation unix time from meta.json, or null when missing/corrupt. */
+	private function createdAt(string $previewId): ?int {
+		$meta = $this->readMeta($previewId);
+		if ($meta === null || !isset($meta['createdAt']) || !is_numeric($meta['createdAt'])) {
+			return null;
+		}
+		return (int)$meta['createdAt'];
 	}
 
 	/**
