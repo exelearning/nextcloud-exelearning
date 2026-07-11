@@ -240,14 +240,17 @@ jobs:
           export OC_PASS='Preview-e2e-other-2!'
           php occ user:add --password-from-env previewe2e2
 
+          # The built-in server's document root is the Nextcloud tree, so the
+          # top-level status.php is served directly (routed app URLs go through
+          # /index.php/... instead).
           php -S 127.0.0.1:8080 >"${RUNNER_TEMP}/nc-server.log" 2>&1 &
           echo $! > "${RUNNER_TEMP}/nc-server.pid"
           ready=
           for _ in $(seq 1 30); do
-            if curl -sf "http://127.0.0.1:8080/index.php/status.php" >/dev/null; then ready=1; break; fi
+            if curl -sf "http://127.0.0.1:8080/status.php" | grep -q '"installed":true'; then ready=1; break; fi
             sleep 1
           done
-          [ "$ready" = "1" ] || { echo "Nextcloud did not come up"; cat "${RUNNER_TEMP}/nc-server.log"; exit 1; }
+          [ "$ready" = "1" ] || { echo "Nextcloud did not come up"; curl -s "http://127.0.0.1:8080/status.php" || true; cat "${RUNNER_TEMP}/nc-server.log"; exit 1; }
 
           EXE_E2E_BASE="http://127.0.0.1:8080/index.php" \
           EXE_E2E_USER1=previewe2e1 EXE_E2E_PASS1='Preview-e2e-owner-1!' \
