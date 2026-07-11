@@ -27,11 +27,15 @@ namespace OCA\ExeLearning\Service\Preview;
  *
  *  - **Atomic revisions.** A revision is published by (1) writing its new
  *    content-addressed blobs, (2) writing `revisions/{N+1}.json` via temp+rename,
- *    (3) swapping the `current` pointer via temp+rename. A concurrent GET reads
- *    `current` once and then an immutable revision manifest, so it always
- *    observes revision N or N+1 — never a mixture. Blobs and revision manifests
- *    are append-only for the session lifetime (never mutated or deleted until
- *    the session is removed), so a GET can never race a delete of what it reads.
+ *    (3) swapping the `current` pointer via temp+rename, then (4) pruning the
+ *    now-superseded revision. A concurrent GET reads `current` once and then an
+ *    immutable revision manifest, so it always observes revision N or N+1 —
+ *    never a mixture. Only a single active revision is retained (pruned AFTER the
+ *    swap, under the same exclusive publish flock), which bounds physical disk to
+ *    the active revision; the alternative — retaining every revision — is an
+ *    authenticated disk-fill DoS, because the byte budget only ever counts the
+ *    active revision. A GET still pinned to the just-superseded revision may 404
+ *    and re-sync, the contract's designed recovery.
  *  - **Asset immutability.** Assets are created with an atomic link() keyed by
  *    sha1(assetKey); re-uploading an existing key never replaces bytes (it is
  *    reported `alreadyStored`). The server never hashes asset *bytes*.
@@ -361,6 +365,17 @@ final class PreviewSessionStore {
 				'documentBytes' => $documentBytes,
 			], JSON_UNESCAPED_SLASHES));
 			$this->writeFileAtomic($dir . '/current', (string)$next);
+
+			// Prune superseded revisions AFTER the pointer swap so that (a) new
+			// readers already resolve `next` and (b) physical disk is bounded by the
+			// active revision — without this, each published revision's unique
+			// document blobs accumulate forever (an authenticated disk-fill DoS),
+			// since the budget only ever counts the ACTIVE revision. Assets are
+			// shared/immutable across revisions and are never pruned here. This runs
+			// under the same exclusive flock as the publish (single writer). A rare
+			// GET still pinned to the just-superseded revision may 404 and re-sync —
+			// the contract's designed recovery.
+			$this->pruneSupersededRevisions($previewId, $next);
 			$this->touch($previewId);
 
 			return ['status' => 200, 'revision' => $next];
@@ -490,6 +505,50 @@ final class PreviewSessionStore {
 			'documents' => $decoded['documents'] ?? [],
 			'documentBytes' => $decoded['documentBytes'] ?? 0,
 		];
+	}
+
+	/**
+	 * Drop every revision except $active: delete superseded revision manifests
+	 * and any content-addressed document blob no longer referenced by the active
+	 * revision. Bounds physical document disk to a single revision (the
+	 * ephemeral-preview intent). Assets live in a separate directory and are
+	 * intentionally untouched — they are shared and immutable across revisions.
+	 * Best-effort: a failed unlink is harmless (the next publish or the TTL sweep
+	 * reclaims it) and never fails the publish.
+	 */
+	private function pruneSupersededRevisions(string $previewId, int $active): void {
+		$dir = $this->sessionDir($previewId);
+
+		// Document blob hashes still referenced by the active revision.
+		$referenced = [];
+		$revision = $this->readRevision($previewId, $active);
+		if ($revision !== null) {
+			foreach ($revision['documents'] as $entry) {
+				if (isset($entry['hash'])) {
+					$referenced[$entry['hash']] = true;
+				}
+			}
+		}
+
+		$documentsDir = $dir . '/documents';
+		if (is_dir($documentsDir)) {
+			foreach (scandir($documentsDir) ?: [] as $blob) {
+				// Only touch content-addressed blobs (sha1 hex); leave any
+				// in-flight staging temp alone.
+				if (preg_match('/^[0-9a-f]{40}$/', $blob) === 1 && !isset($referenced[$blob])) {
+					@unlink($documentsDir . '/' . $blob);
+				}
+			}
+		}
+
+		$revisionsDir = $dir . '/revisions';
+		if (is_dir($revisionsDir)) {
+			foreach (scandir($revisionsDir) ?: [] as $manifest) {
+				if (preg_match('/^(\d+)\.json$/', $manifest, $m) === 1 && (int)$m[1] !== $active) {
+					@unlink($revisionsDir . '/' . $manifest);
+				}
+			}
+		}
 	}
 
 	/** Refresh the idle-TTL / LRU clock for a session. */

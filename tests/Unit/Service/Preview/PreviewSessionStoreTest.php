@@ -270,6 +270,57 @@ final class PreviewSessionStoreTest extends TestCase {
 		self::assertSame(413, $result['status']);
 	}
 
+	public function testSupersededRevisionsArePrunedToBoundDisk(): void {
+		$store = $this->store();
+		$id = $store->create('alice');
+		// An asset that must survive every revision (shared/immutable across them).
+		$key = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeffff0000@9c41d2e8a1b03f57';
+		$store->storeAssets($id, [$this->asset($key, str_repeat('A', 4096))]);
+
+		// Publish several revisions, each replacing index.html with UNIQUE content
+		// (unique hash => a new blob every time; content-addressing cannot mask the
+		// leak). Without pruning, physical disk grows with revision count even though
+		// the active-revision budget stays flat — the disk-fill DoS.
+		$docSize = 50000;
+		$revisions = 6;
+		for ($rev = 1; $rev <= $revisions; $rev++) {
+			$unique = str_repeat('x', $docSize) . '-rev-' . $rev;
+			$this->publish($store, $id, $rev - 1, $rev, [
+				['path' => 'index.html', 'bytes' => $unique],
+			], ['content/photo.png' => $key], []);
+		}
+
+		$sessionDir = $this->root . '/' . $id;
+
+		// (a) Only the active revision's manifest and its single document blob remain.
+		$manifests = array_values(array_filter(
+			scandir($sessionDir . '/revisions') ?: [],
+			static fn (string $f): bool => preg_match('/^\d+\.json$/', $f) === 1,
+		));
+		self::assertSame([$revisions . '.json'], $manifests, 'superseded revision manifests must be pruned');
+
+		$blobs = array_values(array_filter(
+			scandir($sessionDir . '/documents') ?: [],
+			static fn (string $f): bool => preg_match('/^[0-9a-f]{40}$/', $f) === 1,
+		));
+		self::assertCount(1, $blobs, 'superseded document blobs must be pruned');
+
+		// The active revision still serves correctly after pruning.
+		$doc = $store->resolve($id, 'index.html', $this->noFixed());
+		self::assertNotNull($doc);
+		self::assertSame($docSize + strlen('-rev-' . $revisions), strlen($doc['bytes']));
+
+		// (b) The asset persists across every revision.
+		$assetFile = $store->resolve($id, 'content/photo.png', $this->noFixed());
+		self::assertNotNull($assetFile);
+		self::assertSame(str_repeat('A', 4096), file_get_contents($assetFile['filePath']));
+
+		// (c) On-disk bytes stay bounded (~one document + one asset), not revisions x docSize.
+		$onDisk = $this->diskBytes($sessionDir);
+		self::assertLessThan($store->limits()->maxBytesPerSession, $onDisk);
+		self::assertLessThan($docSize * 3, $onDisk, 'retained disk must not grow with revision count');
+	}
+
 	public function testIncrementalDeltaAndDeletes(): void {
 		$store = $this->store();
 		$id = $store->create('alice');
@@ -378,5 +429,18 @@ final class PreviewSessionStoreTest extends TestCase {
 			$this->removeTree($dir . '/' . $item);
 		}
 		@rmdir($dir);
+	}
+
+	/** Total physical bytes stored under a directory tree. */
+	private function diskBytes(string $dir): int {
+		$total = 0;
+		foreach (scandir($dir) ?: [] as $item) {
+			if ($item === '.' || $item === '..') {
+				continue;
+			}
+			$path = $dir . '/' . $item;
+			$total += is_dir($path) ? $this->diskBytes($path) : (int)filesize($path);
+		}
+		return $total;
 	}
 }
