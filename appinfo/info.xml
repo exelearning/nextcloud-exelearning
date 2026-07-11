@@ -37,4 +37,8 @@ This app is Nextcloud-native and does not depend on Google Drive.
         <php min-version="8.2" max-version="8.5"/>
         <nextcloud min-version="31" max-version="33"/>
     </dependencies>
+
+    <background-jobs>
+        <job>OCA\ExeLearning\BackgroundJob\PreviewCleanupJob</job>
+    </background-jobs>
 </info>

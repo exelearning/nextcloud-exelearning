@@ -7,6 +7,9 @@ namespace OCA\ExeLearning\AppInfo;
 use OCA\ExeLearning\Preview\ElpxPreviewProvider;
 use OCA\ExeLearning\Service\ContentTokenService;
 use OCA\ExeLearning\Service\IframeSandbox;
+use OCA\ExeLearning\Service\Preview\FixedResourceManifest;
+use OCA\ExeLearning\Service\Preview\PreviewSessionLimits;
+use OCA\ExeLearning\Service\Preview\PreviewSessionStore;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
@@ -82,6 +85,29 @@ class Application extends App implements IBootstrap {
 				getenv(...),
 				static fn (string $key): string => $config->getAppValue(self::APP_ID, $key, ''),
 			));
+		});
+
+		// Editor-preview serving contract v2 (docs/preview-serving-contract.md).
+		// The file-backed session store needs a POSIX-local directory (atomic
+		// rename + link + flock), so its root is resolved from the Nextcloud data
+		// directory rather than IAppData (which may be object storage). The store
+		// itself stays OCP-free; this factory is the only OCP seam. PreviewServer,
+		// PreviewSessionApi and the controllers auto-wire from these two.
+		$context->registerService(PreviewSessionStore::class, static function (ContainerInterface $c): PreviewSessionStore {
+			$config = $c->get(IConfig::class);
+			$dataDir = (string)$config->getSystemValue('datadirectory', '');
+			$base = $dataDir !== '' ? $dataDir : sys_get_temp_dir();
+			$root = rtrim($base, '/') . '/' . self::APP_ID . '/preview-sessions';
+			return new PreviewSessionStore($root, new PreviewSessionLimits());
+		});
+
+		// The fixed-installation-resource layer resolves ids through the manifest
+		// (`bundles/preview-fixed-resources.json`) inside the installed static
+		// editor distribution. When the bundled editor predates the manifest the
+		// layer is simply disabled (revisions referencing fixed ids get 422 and
+		// the client demotes them) — never fatal.
+		$context->registerService(FixedResourceManifest::class, static function (): FixedResourceManifest {
+			return new FixedResourceManifest(dirname(__DIR__, 2) . '/js/editor');
 		});
 	}
 

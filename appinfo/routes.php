@@ -28,6 +28,47 @@ return [
 			'requirements' => ['token' => '[A-Za-z0-9._~-]+', 'path' => '.+'],
 			'defaults' => ['path' => 'index.html'],
 		],
+		// Editor-preview serving contract v2. The serving route is an authless,
+		// cookieless capability URL gated solely on the unguessable previewId
+		// UUID; the management routes are authenticated + owner-scoped (CSRF on).
+		[
+			'name' => 'preview#serve',
+			'url' => '/preview/{previewId}/{path}',
+			'verb' => 'GET',
+			'requirements' => [
+				'previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
+				'path' => '.+',
+			],
+		],
+		[
+			'name' => 'preview#serveRoot',
+			'url' => '/preview/{previewId}',
+			'verb' => 'GET',
+			'requirements' => ['previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'],
+		],
+		[
+			'name' => 'previewSession#create',
+			'url' => '/api/preview-session',
+			'verb' => 'POST',
+		],
+		[
+			'name' => 'previewSession#uploadAssets',
+			'url' => '/api/preview-session/{previewId}/assets',
+			'verb' => 'POST',
+			'requirements' => ['previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'],
+		],
+		[
+			'name' => 'previewSession#publishRevision',
+			'url' => '/api/preview-session/{previewId}/revisions',
+			'verb' => 'POST',
+			'requirements' => ['previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'],
+		],
+		[
+			'name' => 'previewSession#delete',
+			'url' => '/api/preview-session/{previewId}',
+			'verb' => 'DELETE',
+			'requirements' => ['previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}'],
+		],
 		[
 			'name' => 'thumbnail#byFileId',
 			'url' => '/thumbnail/by-file-id/{fileId}',
