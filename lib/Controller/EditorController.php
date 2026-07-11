@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Controller;
 
+use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCP\AppFramework\Controller;
@@ -39,6 +40,7 @@ class EditorController extends Controller {
 		private readonly ElpxPackageService $packageService,
 		private readonly IInitialState $initialState,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly CsrfTokenManager $csrfTokenManager,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -205,7 +207,9 @@ class EditorController extends Controller {
 	 *    asset paths (`./libs/...`, `./style/...`) resolve correctly even
 	 *    when the app is mounted under `/custom_apps/`.
 	 *  - `window.__EXE_EMBEDDING_CONFIG__` populated before any editor
-	 *    script runs (the editor's RuntimeConfig reads it during bootstrap).
+	 *    script runs (the editor's RuntimeConfig reads it during bootstrap),
+	 *    including the `previewHttp` block that wires the HTTP editor-preview
+	 *    transport (serving contract v2) — see {@see previewHttpConfig()}.
 	 *  - A small bridge that forwards Ctrl/Cmd+S to the parent and patches
 	 *    `EmbeddingBridge.handleSaveRequest` for the v4.0.0 export quirk.
 	 *  - A permissive CSP — eXeLearning has many inline scripts and styles;
@@ -249,11 +253,13 @@ class EditorController extends Controller {
 			],
 		], JSON_UNESCAPED_SLASHES);
 
+		$previewHttp = json_encode($this->previewHttpConfig(), JSON_HEX_TAG);
+
 		$configScript = '<script>(function(){'
 			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
 			. 'var origin=window.location.origin;'
 			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
-			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin]});'
+			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin],previewHttp:' . $previewHttp . '});'
 			. '})();</script>';
 
 		// The resilience shim must be installed before any editor script
@@ -290,6 +296,56 @@ class EditorController extends Controller {
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
 		$response->addHeader('Cache-Control', 'private, no-cache');
 		return $response;
+	}
+
+	/**
+	 * The `previewHttp` block handed to the embedded editor so it can drive the
+	 * HTTP editor-preview transport (serving contract v2). Shape frozen by the
+	 * normalized contract: `{ protocolVersion, managementBaseUrl, servingBaseUrl,
+	 * managementHeaders }`.
+	 *
+	 *  - Both URLs are generated server-side through the router so they carry the
+	 *    correct webroot and front-controller prefix under a sub-path install,
+	 *    mirroring the client's `@nextcloud/router` `generateUrl`. The serving
+	 *    routes are parameterised, so the base is derived by generating the bare
+	 *    capability-root URL for a placeholder id and stripping that id segment.
+	 *  - `managementHeaders.requesttoken` is the current Nextcloud CSRF token —
+	 *    the same encrypted value the standard template layer exposes as
+	 *    `data-requesttoken`. It is required because the management routes keep
+	 *    CSRF ON (they are NOT `#[NoCSRFRequired]`); the editor replays it on every
+	 *    management request.
+	 *
+	 * Token lifetime: Nextcloud rotates the CSRF token per session. The injected
+	 * value stays valid for the whole editor session while the Nextcloud session
+	 * is alive, but can go stale across a very long idle (session expiry). A future
+	 * refresh path — the parent page re-issuing a CONFIGURE postMessage with a
+	 * fresh token — is intentionally out of scope here.
+	 *
+	 * @return array{protocolVersion:int,managementBaseUrl:string,servingBaseUrl:string,managementHeaders:object}
+	 */
+	private function previewHttpConfig(): array {
+		$managementBaseUrl = $this->urlGenerator->linkToRoute(Application::APP_ID . '.previewSession.create');
+
+		// The serving routes take a `previewId` (and `path`); generate the bare
+		// capability-root URL for a placeholder id, then strip the trailing
+		// `/{id}` so the client can append `/{previewId}/index.html` itself.
+		$sampleId = '00000000-0000-4000-8000-000000000000';
+		$sampleUrl = $this->urlGenerator->linkToRoute(
+			Application::APP_ID . '.preview.serveRoot',
+			['previewId' => $sampleId],
+		);
+		$servingBaseUrl = str_ends_with($sampleUrl, '/' . $sampleId)
+			? substr($sampleUrl, 0, -(strlen($sampleId) + 1))
+			: $sampleUrl;
+
+		return [
+			'protocolVersion' => 2,
+			'managementBaseUrl' => $managementBaseUrl,
+			'servingBaseUrl' => $servingBaseUrl,
+			'managementHeaders' => (object)[
+				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
+			],
+		];
 	}
 
 	/**
