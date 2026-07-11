@@ -226,8 +226,19 @@ final class PreviewSessionStore {
 				continue;
 			}
 			if (!$this->writeBlobAtomic($assetDir, sha1($key), $bytes)) {
-				// Lost an immutability race: the key appeared concurrently.
-				$alreadyStored[] = $key;
+				clearstatcache(true, $target);
+				if (is_file($target)) {
+					// The key appeared concurrently (immutability race): the bytes
+					// ARE present, so report it as already stored.
+					$alreadyStored[] = $key;
+				} else {
+					// Genuine write failure (disk full / unwritable dir): the bytes
+					// are NOT on disk. Reject it so the client leaves the key
+					// un-uploaded — a later revision referencing it then gets a
+					// 422 missing-assets and the client re-uploads. Reporting
+					// alreadyStored here would strand the asset as a permanent 404.
+					$rejected[] = ['key' => $key, 'reason' => 'write-failed'];
+				}
 				continue;
 			}
 			$sessionBytes += $size;

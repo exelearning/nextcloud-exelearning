@@ -151,6 +151,45 @@ final class PreviewSessionStoreTest extends TestCase {
 		self::assertSame([], $result['stored']);
 	}
 
+	public function testBlobWriteFailureIsRejectedNotAlreadyStored(): void {
+		$store = $this->store();
+		$id = $store->create('alice');
+		$key = 'aaaaaaaa-bbbb-4ccc-8ddd-eeeeffff0000@9c41d2e8a1b03f57';
+
+		// Force the underlying blob write to fail deterministically (and
+		// root-independently): replace the session's assets/ directory with a
+		// regular file, so any write under it fails with ENOTDIR.
+		$assetsPath = $this->root . '/' . $id . '/assets';
+		$this->removeTree($assetsPath);
+		file_put_contents($assetsPath, 'not-a-directory');
+
+		$result = $store->storeAssets($id, [$this->asset($key, 'PHOTO-BYTES')]);
+
+		// A write failure must be REJECTED, never stored/alreadyStored: reporting
+		// alreadyStored would make the client mark the key uploaded, stranding the
+		// asset as a permanent 404 that the missing-assets loop can never repair.
+		self::assertSame([], $result['stored']);
+		self::assertSame([], $result['alreadyStored']);
+		self::assertSame([['key' => $key, 'reason' => 'write-failed']], $result['rejected']);
+
+		// The blob is genuinely absent...
+		self::assertFileDoesNotExist($assetsPath . '/' . sha1($key));
+
+		// ...so a revision referencing it returns 422 missing-assets (the client's
+		// recovery path then re-uploads it), instead of a silent permanent 404.
+		$revision = $store->applyRevision($id, [
+			'baseRevision' => 0,
+			'nextRevision' => 1,
+			'writes' => [],
+			'deletes' => [],
+			'assetRefs' => ['content/photo.png' => $key],
+			'fixedRefs' => [],
+		], $this->noFixed());
+		self::assertSame(422, $revision['status']);
+		self::assertSame('missing-assets', $revision['reason']);
+		self::assertSame([$key], $revision['missing']);
+	}
+
 	// -- Revisions -----------------------------------------------------------
 
 	public function testPublishRevisionHappyPath(): void {
