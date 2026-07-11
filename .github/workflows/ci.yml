@@ -234,6 +234,10 @@ jobs:
           php occ app:enable exelearning
           php occ config:system:set trusted_domains 1 --value=127.0.0.1
           php occ config:system:set overwrite.cli.url --value="http://127.0.0.1:8080/index.php"
+          # Serve over plain HTTP: force the protocol to http so Nextcloud does
+          # NOT mark session cookies Secure (curl would refuse to send a Secure
+          # cookie over http, leaving management requests unauthenticated → 401).
+          php occ config:system:set overwriteprotocol --value=http
 
           export OC_PASS='Preview-e2e-owner-1!'
           php occ user:add --password-from-env previewe2e1

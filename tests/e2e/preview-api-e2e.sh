@@ -19,6 +19,9 @@
 set -euo pipefail
 
 BASE="${EXE_E2E_BASE:?EXE_E2E_BASE is required}"
+# The host root (no front controller) for endpoints served as top-level scripts
+# under php -S: status.php and the OCS entry points (/ocs/v2.php/...).
+ROOT="${BASE%/index.php}"
 TMP="${RUNNER_TEMP:-/tmp}"
 JAR1="$TMP/exe-e2e-cookies-1.txt"
 JAR2="$TMP/exe-e2e-cookies-2.txt"
@@ -62,11 +65,22 @@ login() {
 		head -c 400 "$page" >&2; echo >&2
 		fail "no pre-login requesttoken for $user"
 	fi
-	curl -sL -c "$jar" -b "$jar" -o /dev/null \
+	local code
+	code="$(curl -sL -c "$jar" -b "$jar" -o /dev/null -w '%{http_code}' \
 		--data-urlencode "user=$user" \
 		--data-urlencode "password=$pass" \
 		--data-urlencode "requesttoken=$rt" \
-		"$BASE/login"
+		"$BASE/login")"
+	# Verify the session is genuinely authenticated. /csrftoken hands out a
+	# token even to a guest session, so it cannot confirm login; the OCS
+	# cloud/user endpoint returns the authenticated user id or fails.
+	local who
+	who="$(curl -s -H 'OCS-APIRequest: true' -b "$jar" "$ROOT/ocs/v2.php/cloud/user?format=json" | jq -r '.ocs.data.id // empty' 2>/dev/null || true)"
+	if [ "$who" != "$user" ]; then
+		echo "diagnostic: login POST for $user returned HTTP $code but the session is NOT authenticated (cloud/user id='$who')." >&2
+		echo "diagnostic: cookie names in jar: $(grep -v '^#' "$jar" 2>/dev/null | awk '{print $6}' | tr '\n' ' ')" >&2
+		fail "login did not authenticate $user (session cookie likely rejected — check Secure flag / protocol)"
+	fi
 	post_login_token "$jar" || fail "no post-login requesttoken for $user (login did not establish a session)"
 }
 
@@ -76,9 +90,14 @@ SERVE="$BASE/apps/exelearning/preview"
 RT1="$(login "$EXE_E2E_USER1" "$EXE_E2E_PASS1" "$JAR1")"
 [ -n "$RT1" ] || fail "no post-login requesttoken for user1"
 
-# 1. CSRF enforced — a cookie-authenticated create WITHOUT a requesttoken → 412.
-code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR1" -b "$JAR1" -X POST "$MGMT")"
-[ "$code" = "412" ] || fail "create without requesttoken expected 412, got $code"
+# 1. CSRF enforced — an AUTHENTICATED create WITHOUT a requesttoken → 412. The
+#    session cookie jar is sent (so the request passes auth and reaches the CSRF
+#    middleware); only the requesttoken header is omitted.
+code="$(curl -s -o "$TMP/step1.txt" -w '%{http_code}' -c "$JAR1" -b "$JAR1" -X POST "$MGMT")"
+if [ "$code" != "412" ]; then
+	fail "create without requesttoken expected 412, got $code (body: $(head -c 200 "$TMP/step1.txt"))"
+fi
+grep -qi 'csrf' "$TMP/step1.txt" || echo "  note: 412 body did not explicitly mention CSRF: $(head -c 120 "$TMP/step1.txt")"
 echo "  ok: management enforces CSRF (412 without requesttoken)"
 
 # 2. Create WITH requesttoken → 201 { previewId, protocolVersion: 2 }.
