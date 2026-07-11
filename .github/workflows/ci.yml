@@ -256,6 +256,6 @@ jobs:
           EXE_E2E_USER1=previewe2e1 EXE_E2E_PASS1='Preview-e2e-owner-1!' \
           EXE_E2E_USER2=previewe2e2 EXE_E2E_PASS2='Preview-e2e-other-2!' \
             bash "${WORKSPACE}/tests/e2e/preview-api-e2e.sh" \
-            || { echo '--- nextcloud.log ---'; php occ log:tail --num 60 || true; exit 1; }
+            || { echo '--- nextcloud.log (tail) ---'; tail -n 80 data/nextcloud.log 2>/dev/null || true; exit 1; }
 
           kill "$(cat "${RUNNER_TEMP}/nc-server.pid")" 2>/dev/null || true

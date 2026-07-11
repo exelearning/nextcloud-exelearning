@@ -29,23 +29,31 @@ fail() { echo "E2E FAIL: $*" >&2; exit 1; }
 
 # Scrape the current requesttoken from a rendered Nextcloud page (it is exposed
 # as the head element's data-requesttoken — the same value the CSRF middleware
-# validates).
-scrape_token() { grep -o 'data-requesttoken="[^"]*"' | head -1 | sed 's/^[^"]*"//;s/"$//'; }
+# validates). The trailing `|| true` keeps a no-match from tripping `set -e`
+# inside a command substitution (the caller checks for an empty result).
+scrape_token() { grep -o 'data-requesttoken="[^"]*"' | head -1 | sed 's/^[^"]*"//;s/"$//' || true; }
 
 # Log $user in through the real login form (GET for the token + SameSite
 # cookies, POST the credentials) and echo a fresh post-login requesttoken.
+# -L follows Nextcloud's post-login redirect; pages are captured to files so a
+# missing token can be diagnosed instead of failing opaquely.
 login() {
 	local user="$1" pass="$2" jar="$3" page rt
-	page="$(curl -s -c "$jar" -b "$jar" "$BASE/login")"
-	rt="$(printf '%s' "$page" | scrape_token)"
-	[ -n "$rt" ] || fail "no pre-login requesttoken for $user"
-	curl -s -c "$jar" -b "$jar" -o /dev/null \
+	page="$TMP/exe-e2e-page-$user.html"
+	curl -sL -c "$jar" -b "$jar" "$BASE/login" -o "$page"
+	rt="$(scrape_token < "$page")"
+	if [ -z "$rt" ]; then
+		echo "diagnostic: login page for $user had no data-requesttoken (first 400 bytes):" >&2
+		head -c 400 "$page" >&2; echo >&2
+		fail "no pre-login requesttoken for $user"
+	fi
+	curl -sL -c "$jar" -b "$jar" -o /dev/null \
 		--data-urlencode "user=$user" \
 		--data-urlencode "password=$pass" \
 		--data-urlencode "requesttoken=$rt" \
 		"$BASE/login"
-	page="$(curl -s -c "$jar" -b "$jar" "$BASE/apps/files/")"
-	printf '%s' "$page" | scrape_token
+	curl -sL -c "$jar" -b "$jar" "$BASE/apps/files/" -o "$page"
+	scrape_token < "$page"
 }
 
 MGMT="$BASE/apps/exelearning/api/preview-session"
