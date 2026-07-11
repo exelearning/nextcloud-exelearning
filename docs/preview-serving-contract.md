@@ -116,13 +116,20 @@ GET /apps/exelearning/preview/{previewId}/{path}
   it is cookieless — never paired with credentials).
 - `previewId` must match
   `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`; else 404.
-- The bare `/preview/{previewId}` resolves `path` to `index.html`.
+- The bare `/preview/{previewId}` **302-redirects** to `{previewId}/index.html`
+  (a relative `Location`, correct under any webroot). It never serves index.html
+  bytes inline — a document served from the bare URL would resolve its relative
+  subresource references against `preview/` (dropping the id segment) and every
+  asset would 404.
 - **Resolution order** (exact-key against the active revision only):
   `documents[path]` → `assets[assetRefs[path]]` → `fixed[fixedRefs[path]]` → 404.
   A path only ever names a stored entry; only the server-controlled manifest
   `path` reaches the filesystem, contained under the distribution root.
-- **Range** on session assets: `Accept-Ranges: bytes`, single-range `206`, `416`
-  on unsatisfiable. **Conditional**: `ETag: "<assetKey>"`, `If-None-Match` → `304`.
+- **Range** on session assets: `Accept-Ranges: bytes`, a satisfiable single
+  range → `206`, a syntactically valid but unsatisfiable single range (e.g.
+  `bytes=99-` past EOF) → `416`. A malformed, multi-range or non-`bytes` header
+  is **ignored** — the server serves a normal `200` full body. **Conditional**:
+  `ETag: "<assetKey>"`, `If-None-Match` → `304`.
 
 ### Required response headers (on EVERY response, including 404)
 
@@ -200,12 +207,49 @@ be object storage) — the only OCP seam; the store itself is OCP-free.
 route also drops an expired session opportunistically on access, so preview URLs
 stop resolving at the TTL even if cron is starved.
 
-## Editor activation (not wired here)
+## Editor activation (wired)
 
-Turning the preview on is a client-side change (the editor points its embedding
-config at `previewTransport: 'http'` + this host's `previewBasePath`). That
-wiring is intentionally **not** part of this change — this PR delivers only the
-host server side of the contract.
+The embedded editor is handed a `previewHttp` block in
+`window.__EXE_EMBEDDING_CONFIG__` by `EditorController::iframe()`
+(`previewHttpConfig()`), following the normalized HTTP preview contract:
+
+```jsonc
+{
+  "previewHttp": {
+    "protocolVersion": 2,
+    "managementBaseUrl": "/apps/exelearning/api/preview-session",
+    "servingBaseUrl": "/apps/exelearning/preview",
+    "managementHeaders": { "requesttoken": "<current Nextcloud CSRF token>" }
+  }
+}
+```
+
+- Both URLs are generated **server-side** through `IURLGenerator::linkToRoute`,
+  so they carry the correct webroot and front-controller prefix under a sub-path
+  install (mirroring the client's `@nextcloud/router` `generateUrl`). The serving
+  routes are parameterised, so `servingBaseUrl` is derived by generating the bare
+  capability-root URL for a placeholder id and stripping the id segment.
+- `managementHeaders.requesttoken` is the **current Nextcloud CSRF token** — the
+  same encrypted value the standard template layer exposes as `data-requesttoken`
+  (obtained from `CsrfTokenManager::getToken()->getEncryptedValue()`). It is
+  required because the management routes keep CSRF **on** (they are **not**
+  `#[NoCSRFRequired]`); the editor replays it on every management request.
+  Nextcloud rotates the token per session — the injected value is valid for the
+  editor session while the Nextcloud session is alive, and can go stale only
+  across a very long idle (session expiry). A refresh path (the parent re-issuing
+  a CONFIGURE postMessage with a fresh token) is a future enhancement, not built
+  here.
+- `previewTransport` / `previewBasePath` are **dead vocabulary** — the earlier
+  single-`previewBasePath` idea was never implemented and the two-URL
+  `previewHttp` model replaces it.
+
+**Editor-build dependency.** The endpoints are live, but preview only lights up
+once the app ships a capable editor build — one that carries the
+`HttpPreviewProvider` and emits `bundles/preview-fixed-resources.json` under
+`js/editor/`. The bundled v4.0.2 editor predates the HTTP preview client, so it
+simply ignores `previewHttp` today and the endpoints stay dormant (harmless). No
+server change is needed when that build lands; only `make download-editor` points
+at a newer distribution.
 
 ## Conformance
 
@@ -214,3 +258,17 @@ Beyond the CSP drift-check, the shared vectors in
 are replayed against this app's seams in
 `tests/Unit/Service/Preview/PreviewContractConformanceTest.php`, so protocol
 semantics — not just the CSP string — stay aligned with every other host.
+
+**Vectors re-vendor pending.** The vendored `vectors.json` predates the two
+contract CHANGES above (bare-root `302` and the malformed-Range→`200` rule). It is
+**not** forked here — core re-vendors it once its own vectors carry these steps,
+and this app re-syncs then. The new behaviours are covered directly by
+`PreviewServerTest` in the meantime.
+
+The API-level end-to-end job in [`ci.yml`](../.github/workflows/ci.yml) exercises
+the real management + serving surface against a live Nextcloud: it proves CSRF is
+enforced on management (401/412 without a `requesttoken`), cross-user ownership is
+denied (403), an asset upload + revision publish round-trips, the serving response
+carries the `sandbox` CSP with no `allow-same-origin`, a dropped multipart part is
+rejected (400) without advancing the revision, and a deleted session stops serving
+(404).
