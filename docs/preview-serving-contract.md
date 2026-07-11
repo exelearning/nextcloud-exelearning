@@ -274,10 +274,21 @@ contract CHANGES above (bare-root `302` and the malformed-Range→`200` rule). I
 and this app re-syncs then. The new behaviours are covered directly by
 `PreviewServerTest` in the meantime.
 
-The API-level end-to-end job in [`ci.yml`](../.github/workflows/ci.yml) exercises
-the real management + serving surface against a live Nextcloud: it proves CSRF is
-enforced on management (401/412 without a `requesttoken`), cross-user ownership is
-denied (403), an asset upload + revision publish round-trips, the serving response
-carries the `sandbox` CSP with no `allow-same-origin`, a dropped multipart part is
-rejected (400) without advancing the revision, and a deleted session stops serving
-(404).
+The API-level end-to-end job in [`ci.yml`](../.github/workflows/ci.yml)
+(`tests/e2e/preview-api-e2e.sh`) exercises the real management + serving surface
+against a live Nextcloud served over the built-in php server. It authenticates
+with **HTTP Basic auth** (per-request, cookieless — the browser login form's
+SameSite/session cookies do not round-trip under `php -S`, so a cookie login is
+unreliable there) and still exercises CSRF honestly using Nextcloud's own rule:
+`Request::passesCSRFCheck()` passes when the `OCS-APIRequest` header is present,
+so the positive calls send it, and an **authenticated management POST *without*
+that header (and no requesttoken) is rejected 412 "CSRF check failed"** — the real
+proof that the management routes are not `#[NoCSRFRequired]`. It then asserts the
+create → asset → revision → serve round-trip, the authless serving response
+(`200` + the `sandbox` CSP with no `allow-same-origin`), the bare-root `302`,
+cross-user ownership denial (`403`), a dropped multipart part rejected `400`
+without advancing the revision, and a deleted session serving `404`.
+
+The full **browser** editor-iframe E2E (opening the editor, external video, the
+interactive-video iDevice) stays blocked on a capable editor build and is
+documented as that dependency rather than faked.
