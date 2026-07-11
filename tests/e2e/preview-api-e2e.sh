@@ -1,0 +1,125 @@
+#!/usr/bin/env bash
+#
+# API-level end-to-end test of the editor-preview serving contract v2 against a
+# REAL running Nextcloud (no browser). It proves the load-bearing security and
+# protocol properties that unit tests cannot: management CSRF enforcement,
+# owner-scoping, the opaque sandbox CSP on the authless serving route, the
+# corrected bare-root and dropped-part behaviours, and cleanup.
+#
+# Auth is cookie/session based ON PURPOSE: only cookie-authenticated requests
+# exercise Nextcloud's CSRF middleware, so asserting a management POST without a
+# requesttoken is rejected is a genuine CSRF-enforcement proof (Basic Auth would
+# bypass CSRF and hide the property).
+#
+# Required environment:
+#   EXE_E2E_BASE   base URL incl. the front controller, e.g.
+#                  http://127.0.0.1:8080/index.php
+#   EXE_E2E_USER1 / EXE_E2E_PASS1   owner
+#   EXE_E2E_USER2 / EXE_E2E_PASS2   a second, non-owner user
+set -euo pipefail
+
+BASE="${EXE_E2E_BASE:?EXE_E2E_BASE is required}"
+TMP="${RUNNER_TEMP:-/tmp}"
+JAR1="$TMP/exe-e2e-cookies-1.txt"
+JAR2="$TMP/exe-e2e-cookies-2.txt"
+: > "$JAR1"
+: > "$JAR2"
+
+fail() { echo "E2E FAIL: $*" >&2; exit 1; }
+
+# Scrape the current requesttoken from a rendered Nextcloud page (it is exposed
+# as the head element's data-requesttoken — the same value the CSRF middleware
+# validates).
+scrape_token() { grep -o 'data-requesttoken="[^"]*"' | head -1 | sed 's/^[^"]*"//;s/"$//'; }
+
+# Log $user in through the real login form (GET for the token + SameSite
+# cookies, POST the credentials) and echo a fresh post-login requesttoken.
+login() {
+	local user="$1" pass="$2" jar="$3" page rt
+	page="$(curl -s -c "$jar" -b "$jar" "$BASE/login")"
+	rt="$(printf '%s' "$page" | scrape_token)"
+	[ -n "$rt" ] || fail "no pre-login requesttoken for $user"
+	curl -s -c "$jar" -b "$jar" -o /dev/null \
+		--data-urlencode "user=$user" \
+		--data-urlencode "password=$pass" \
+		--data-urlencode "requesttoken=$rt" \
+		"$BASE/login"
+	page="$(curl -s -c "$jar" -b "$jar" "$BASE/apps/files/")"
+	printf '%s' "$page" | scrape_token
+}
+
+MGMT="$BASE/apps/exelearning/api/preview-session"
+SERVE="$BASE/apps/exelearning/preview"
+
+RT1="$(login "$EXE_E2E_USER1" "$EXE_E2E_PASS1" "$JAR1")"
+[ -n "$RT1" ] || fail "no post-login requesttoken for user1"
+
+# 1. CSRF enforced — a cookie-authenticated create WITHOUT a requesttoken → 412.
+code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR1" -b "$JAR1" -X POST "$MGMT")"
+[ "$code" = "412" ] || fail "create without requesttoken expected 412, got $code"
+echo "  ok: management enforces CSRF (412 without requesttoken)"
+
+# 2. Create WITH requesttoken → 201 { previewId, protocolVersion: 2 }.
+resp="$(curl -s -c "$JAR1" -b "$JAR1" -H "requesttoken: $RT1" -X POST "$MGMT")"
+pid="$(printf '%s' "$resp" | jq -r '.previewId // empty')"
+[ -n "$pid" ] || fail "create returned no previewId: $resp"
+[ "$(printf '%s' "$resp" | jq -r '.protocolVersion')" = "2" ] || fail "protocolVersion != 2: $resp"
+echo "  ok: created session $pid"
+
+# 3. Upload an asset (multipart: assets JSON + index-aligned files[]).
+KEY="aaaaaaaa-bbbb-4ccc-8ddd-eeeeffff0000@9c41d2e8"
+printf 'IMGBYTES!' > "$TMP/asset.bin" # 9 bytes
+curl -s -c "$JAR1" -b "$JAR1" -H "requesttoken: $RT1" \
+	-F "assets=[{\"key\":\"$KEY\",\"size\":9}]" \
+	-F "files[]=@$TMP/asset.bin" \
+	-X POST "$MGMT/$pid/assets" >/dev/null
+echo "  ok: uploaded asset"
+
+# 4. Publish revision 1.
+printf '<html><body>preview-v1</body></html>' > "$TMP/index.html"
+resp="$(curl -s -c "$JAR1" -b "$JAR1" -H "requesttoken: $RT1" \
+	-F "revision={\"baseRevision\":0,\"nextRevision\":1,\"writes\":[\"index.html\"],\"deletes\":[],\"assetRefs\":{\"content/photo.png\":\"$KEY\"},\"fixedRefs\":{}}" \
+	-F "files[]=@$TMP/index.html" \
+	-X POST "$MGMT/$pid/revisions")"
+[ "$(printf '%s' "$resp" | jq -r '.revision')" = "1" ] || fail "publish revision != 1: $resp"
+echo "  ok: published revision 1"
+
+# 5. Serve (authless, NO cookie): 200 + opaque sandbox CSP + no allow-same-origin.
+hdrs="$(curl -s -D - -o "$TMP/served.html" "$SERVE/$pid/index.html")"
+printf '%s' "$hdrs" | grep -q '^HTTP/[0-9.]* 200' || fail "serve not 200: $(printf '%s' "$hdrs" | head -1)"
+csp="$(printf '%s' "$hdrs" | grep -i '^content-security-policy:' || true)"
+printf '%s' "$csp" | grep -qi 'sandbox' || fail "serving CSP missing sandbox directive: $csp"
+if printf '%s' "$csp" | grep -qi 'allow-same-origin'; then
+	fail "serving CSP must NOT contain allow-same-origin: $csp"
+fi
+grep -q 'preview-v1' "$TMP/served.html" || fail "served body missing revision content"
+echo "  ok: authless serve is 200 with opaque sandbox CSP (no allow-same-origin)"
+
+# 6. Bare capability root → 302 (never inline index.html bytes).
+code="$(curl -s -o /dev/null -w '%{http_code}' "$SERVE/$pid")"
+[ "$code" = "302" ] || fail "bare root expected 302, got $code"
+echo "  ok: bare root 302"
+
+# 7. Owner-scoping — user2 DELETE on user1's session → 403.
+RT2="$(login "$EXE_E2E_USER2" "$EXE_E2E_PASS2" "$JAR2")"
+[ -n "$RT2" ] || fail "no post-login requesttoken for user2"
+code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR2" -b "$JAR2" -H "requesttoken: $RT2" -X DELETE "$MGMT/$pid")"
+[ "$code" = "403" ] || fail "cross-user delete expected 403, got $code"
+echo "  ok: cross-user management is 403"
+
+# 8. Dropped multipart part — 1 write declared, 0 file parts → 400, revision unchanged.
+code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR1" -b "$JAR1" -H "requesttoken: $RT1" \
+	-F "revision={\"baseRevision\":1,\"nextRevision\":2,\"writes\":[\"index.html\"],\"deletes\":[],\"assetRefs\":{},\"fixedRefs\":{}}" \
+	-X POST "$MGMT/$pid/revisions")"
+[ "$code" = "400" ] || fail "dropped-part revision expected 400, got $code"
+curl -s "$SERVE/$pid/index.html" | grep -q 'preview-v1' || fail "revision advanced despite dropped part"
+echo "  ok: dropped-part revision rejected (400), revision pointer unchanged"
+
+# 9. Owner DELETE → 200, then serve → 404.
+code="$(curl -s -o /dev/null -w '%{http_code}' -c "$JAR1" -b "$JAR1" -H "requesttoken: $RT1" -X DELETE "$MGMT/$pid")"
+[ "$code" = "200" ] || fail "owner delete expected 200, got $code"
+code="$(curl -s -o /dev/null -w '%{http_code}' "$SERVE/$pid/index.html")"
+[ "$code" = "404" ] || fail "serve after delete expected 404, got $code"
+echo "  ok: owner delete 200, serve after delete 404"
+
+echo "Preview API E2E: all checks passed."

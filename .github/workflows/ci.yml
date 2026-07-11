@@ -177,3 +177,82 @@ jobs:
           # that the file actually got staged into the app tree.
           test -f apps/exelearning/src/sw/exelearning-sw.js \
             || test -f custom_apps/exelearning/src/sw/exelearning-sw.js
+
+  preview-e2e:
+    name: Editor-preview API E2E (real Nextcloud)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, gd, zip, intl, mbstring, ctype, curl, dom, fileinfo, simplexml, xml, xmlreader, xmlwriter
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Set up Nextcloud server
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud@main
+        with:
+          version: stable33
+          database-type: sqlite
+          cron: false
+
+      - name: Install eXeLearning app into the running Nextcloud
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud-app@main
+        with:
+          app: exelearning
+          check-code: false
+
+      # Serve the installed Nextcloud over HTTP (the built-in PHP server routes
+      # everything through the front controller, `/index.php/...`), enable the
+      # app, create the owner + a second user, then drive the real management
+      # and serving routes end to end. Cookie/session auth is used on purpose so
+      # the CSRF middleware is genuinely exercised.
+      - name: Preview API end-to-end against the running Nextcloud
+        working-directory: ../server
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          php occ app:enable exelearning
+          php occ config:system:set trusted_domains 1 --value=127.0.0.1
+          php occ config:system:set overwrite.cli.url --value="http://127.0.0.1:8080/index.php"
+
+          export OC_PASS='Preview-e2e-owner-1!'
+          php occ user:add --password-from-env previewe2e1
+          export OC_PASS='Preview-e2e-other-2!'
+          php occ user:add --password-from-env previewe2e2
+
+          php -S 127.0.0.1:8080 >"${RUNNER_TEMP}/nc-server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/nc-server.pid"
+          ready=
+          for _ in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:8080/index.php/status.php" >/dev/null; then ready=1; break; fi
+            sleep 1
+          done
+          [ "$ready" = "1" ] || { echo "Nextcloud did not come up"; cat "${RUNNER_TEMP}/nc-server.log"; exit 1; }
+
+          EXE_E2E_BASE="http://127.0.0.1:8080/index.php" \
+          EXE_E2E_USER1=previewe2e1 EXE_E2E_PASS1='Preview-e2e-owner-1!' \
+          EXE_E2E_USER2=previewe2e2 EXE_E2E_PASS2='Preview-e2e-other-2!' \
+            bash "${WORKSPACE}/tests/e2e/preview-api-e2e.sh" \
+            || { echo '--- nextcloud.log ---'; php occ log:tail --num 60 || true; exit 1; }
+
+          kill "$(cat "${RUNNER_TEMP}/nc-server.pid")" 2>/dev/null || true
