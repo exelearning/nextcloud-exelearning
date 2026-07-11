@@ -231,14 +231,23 @@ The embedded editor is handed a `previewHttp` block in
   capability-root URL for a placeholder id and stripping the id segment.
 - `managementHeaders.requesttoken` is the **current Nextcloud CSRF token** — the
   same encrypted value the standard template layer exposes as `data-requesttoken`
-  (obtained from `CsrfTokenManager::getToken()->getEncryptedValue()`). It is
-  required because the management routes keep CSRF **on** (they are **not**
-  `#[NoCSRFRequired]`); the editor replays it on every management request.
-  Nextcloud rotates the token per session — the injected value is valid for the
-  editor session while the Nextcloud session is alive, and can go stale only
-  across a very long idle (session expiry). A refresh path (the parent re-issuing
-  a CONFIGURE postMessage with a fresh token) is a future enhancement, not built
-  here.
+  and `OC.requestToken` (obtained from
+  `CsrfTokenManager::getToken()->getEncryptedValue()`). It is required because the
+  management routes keep CSRF **on** (they are **not** `#[NoCSRFRequired]`); the
+  editor replays it on every management request.
+
+**CSRF-token durability (audited).** A Nextcloud CSRF token is bound to a
+per-session secret. `getEncryptedValue()` returns a per-call randomized encoding,
+but every value minted from the same session validates against that one secret
+(`isTokenValid()` decrypts and compares), so the injected value stays valid for
+the whole editing session — hours — not just one request. The secret is
+regenerated only when the session id itself is regenerated (login / logout /
+re-auth), never on ordinary navigation; whenever that happens the parent
+Nextcloud page hosting the iframe is itself invalidated and reloads, re-running
+the bootstrap and injecting a fresh token (and the parent's keepalive heartbeat
+keeps the session and `OC.requestToken` alive meanwhile). The injected-token
+approach is therefore **durable**; a postMessage CONFIGURE refresh into the
+iframe is a future nicety, not a correctness requirement.
 - `previewTransport` / `previewBasePath` are **dead vocabulary** — the earlier
   single-`previewBasePath` idea was never implemented and the two-URL
   `previewHttp` model replaces it.

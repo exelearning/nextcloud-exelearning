@@ -315,11 +315,20 @@ class EditorController extends Controller {
 	 *    CSRF ON (they are NOT `#[NoCSRFRequired]`); the editor replays it on every
 	 *    management request.
 	 *
-	 * Token lifetime: Nextcloud rotates the CSRF token per session. The injected
-	 * value stays valid for the whole editor session while the Nextcloud session
-	 * is alive, but can go stale across a very long idle (session expiry). A future
-	 * refresh path — the parent page re-issuing a CONFIGURE postMessage with a
-	 * fresh token — is intentionally out of scope here.
+	 * Token lifetime (audited — the injected-token approach is durable, no
+	 * refresh path needed now): a Nextcloud CSRF token is bound to a per-session
+	 * secret. `getEncryptedValue()` returns a per-call randomized encoding, but
+	 * every value minted from the same session validates against that one secret
+	 * (`isTokenValid()` decrypts and compares), so the injected value stays valid
+	 * for the whole editing session — hours — not just one request. The secret is
+	 * regenerated only when the session id itself is regenerated (login / logout /
+	 * re-auth), never on ordinary navigation; and whenever that happens the parent
+	 * Nextcloud page hosting this iframe is itself invalidated and reloads, which
+	 * re-runs iframe() and injects a fresh token. The parent page also keeps the
+	 * session (and `OC.requestToken`) alive with its keepalive heartbeat. The only
+	 * residual staleness — the parent's token rotating without a reload — cannot
+	 * happen in practice, so a postMessage CONFIGURE refresh into the iframe is a
+	 * future nicety, not a correctness requirement.
 	 *
 	 * @return array{protocolVersion:int,managementBaseUrl:string,servingBaseUrl:string,managementHeaders:object}
 	 */
