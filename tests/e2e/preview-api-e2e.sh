@@ -65,8 +65,10 @@ login() {
 		head -c 400 "$page" >&2; echo >&2
 		fail "no pre-login requesttoken for $user"
 	fi
-	local code
-	code="$(curl -sL -c "$jar" -b "$jar" -o /dev/null -w '%{http_code}' \
+	local code hdrs body
+	hdrs="$TMP/exe-e2e-login-hdrs-$user.txt"
+	body="$TMP/exe-e2e-login-body-$user.html"
+	code="$(curl -sL -c "$jar" -b "$jar" -D "$hdrs" -o "$body" -w '%{http_code}' \
 		--data-urlencode "user=$user" \
 		--data-urlencode "password=$pass" \
 		--data-urlencode "requesttoken=$rt" \
@@ -78,7 +80,12 @@ login() {
 	who="$(curl -s -H 'OCS-APIRequest: true' -b "$jar" "$ROOT/ocs/v2.php/cloud/user?format=json" | jq -r '.ocs.data.id // empty' 2>/dev/null || true)"
 	if [ "$who" != "$user" ]; then
 		echo "diagnostic: login POST for $user returned HTTP $code but the session is NOT authenticated (cloud/user id='$who')." >&2
-		echo "diagnostic: cookie names in jar: $(grep -v '^#' "$jar" 2>/dev/null | awk '{print $6}' | tr '\n' ' ')" >&2
+		echo "diagnostic: Set-Cookie headers from the login flow:" >&2
+		grep -i '^set-cookie:' "$hdrs" 2>/dev/null >&2 || echo "  (none)" >&2
+		echo "diagnostic: raw cookie jar ($jar):" >&2
+		cat "$jar" 2>/dev/null >&2 || true
+		echo "diagnostic: login POST body (first 400 bytes, may carry the NC error):" >&2
+		head -c 400 "$body" >&2; echo >&2
 		fail "login did not authenticate $user (session cookie likely rejected — check Secure flag / protocol)"
 	fi
 	post_login_token "$jar" || fail "no post-login requesttoken for $user (login did not establish a session)"

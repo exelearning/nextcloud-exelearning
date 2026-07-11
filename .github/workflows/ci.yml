@@ -233,11 +233,16 @@ jobs:
           set -euo pipefail
           php occ app:enable exelearning
           php occ config:system:set trusted_domains 1 --value=127.0.0.1
-          php occ config:system:set overwrite.cli.url --value="http://127.0.0.1:8080/index.php"
-          # Serve over plain HTTP: force the protocol to http so Nextcloud does
-          # NOT mark session cookies Secure (curl would refuse to send a Secure
-          # cookie over http, leaving management requests unauthenticated → 401).
+          # Treat the origin as plain HTTP end-to-end so the login session cookie
+          # and the SameSite cookies are NOT marked Secure — curl over http never
+          # sends a Secure cookie back, which silently breaks the login POST's
+          # own CSRF/strict-cookie check and leaves every request unauthenticated.
+          # Use a webroot WITHOUT /index.php so cookies get Path=/ (routing still
+          # goes through the /index.php front controller under php -S).
+          php occ config:system:set overwrite.cli.url --value="http://127.0.0.1:8080"
           php occ config:system:set overwriteprotocol --value=http
+          php occ config:system:delete forcessl 2>/dev/null || true
+          php occ config:system:delete overwritehost 2>/dev/null || true
 
           export OC_PASS='Preview-e2e-owner-1!'
           php occ user:add --password-from-env previewe2e1
