@@ -132,6 +132,51 @@ final class PreviewServerTest extends TestCase {
 		self::assertSame('bytes */10', $response->headers['Content-Range']);
 	}
 
+	/**
+	 * A malformed, multi-range or non-bytes Range header is IGNORED — the server
+	 * serves a normal 200 full body, never 416. (The previous behaviour of 416
+	 * on any parse failure was wrong per the serving contract.)
+	 *
+	 * @dataProvider ignoredRangeProvider
+	 */
+	public function testIgnoredRangeServesFull200(string $range): void {
+		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, $range);
+		self::assertSame(200, $response->status, $range . ' must be ignored, not 416');
+		self::assertSame('0123456789', $response->body);
+		self::assertSame('bytes', $response->headers['Accept-Ranges']);
+		self::assertSame('"' . self::CLIP_KEY . '"', $response->headers['ETag']);
+		self::assertArrayNotHasKey('Content-Range', $response->headers);
+	}
+
+	/** @return array<string,array{0:string}> */
+	public static function ignoredRangeProvider(): array {
+		return [
+			'non-numeric' => ['bytes=abc'],
+			'multi-range' => ['bytes=0-1,2-3'],
+			'non-bytes unit' => ['items=0-1'],
+			'empty range' => ['bytes=-'],
+			'garbage' => ['not-a-range'],
+			'double dash' => ['bytes=1-2-3'],
+		];
+	}
+
+	public function testBareRootRedirectsToIndexHtml(): void {
+		$response = $this->server()->serveRoot($this->previewId);
+		self::assertSame(302, $response->status);
+		// Relative Location so it stays correct under any webroot: it resolves
+		// against the request URI `.../preview/{previewId}`.
+		self::assertSame($this->previewId . '/index.html', $response->headers['Location']);
+		self::assertSame('no-store', $response->headers['Cache-Control']);
+		$this->assertBaseHardening($response->headers);
+	}
+
+	public function testBareRootInvalidPreviewIdIs404(): void {
+		$response = $this->server()->serveRoot('not-a-uuid');
+		self::assertSame(404, $response->status);
+		self::assertArrayNotHasKey('Location', $response->headers);
+		$this->assertBaseHardening($response->headers);
+	}
+
 	public function testServeFixedResourceIsAggressivelyCacheable(): void {
 		$response = $this->server()->serve($this->previewId, 'libs/jquery/jquery.min.js');
 		self::assertSame(200, $response->status);

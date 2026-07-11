@@ -48,6 +48,30 @@ final class PreviewServer {
 	}
 
 	/**
+	 * Bare capability root (`GET {servingBase}/{previewId}`) → 302 redirect to
+	 * `{previewId}/index.html`.
+	 *
+	 * The bare root must NEVER emit index.html bytes: a document served from the
+	 * bare URL resolves its relative subresource references against
+	 * `{servingBase}/` — dropping the `{previewId}` segment — so every asset,
+	 * script and stylesheet 404s. Redirecting to `{previewId}/index.html` rebases
+	 * them onto the correct directory. The `Location` is relative so it stays
+	 * correct under any Nextcloud webroot (it resolves against the request URI,
+	 * `{servingBase}/{previewId}`) without the store needing a URL generator, and
+	 * the whole decision stays OCP-free and vector-replayable. Contract v2.1 §4.
+	 */
+	public function serveRoot(string $previewId): PreviewResponse {
+		if (!PreviewPolicy::isValidPreviewId($previewId)) {
+			return $this->notFound();
+		}
+		$headers = $this->baseHeaders();
+		$headers['Content-Type'] = 'text/plain; charset=utf-8';
+		$headers['Cache-Control'] = 'no-store';
+		$headers['Location'] = $previewId . '/index.html';
+		return new PreviewResponse(302, $headers, '');
+	}
+
+	/**
 	 * Document (layer 3, `no-store`) or fixed resource (layer 1, immutable and
 	 * cacheable). Both may be scriptable and then carry the sandbox CSP.
 	 *
@@ -80,18 +104,22 @@ final class PreviewServer {
 		}
 
 		$size = $file['size'];
-		if ($range !== null && trim($range) !== '') {
-			$parsed = $this->parseRange($range, $size);
-			if ($parsed === null) {
-				$headers = $this->baseHeaders();
-				$headers['Content-Type'] = $file['contentType'];
-				$headers['Cache-Control'] = 'no-cache';
-				$headers['ETag'] = $etag;
-				$headers['Accept-Ranges'] = 'bytes';
-				$headers['Content-Range'] = 'bytes */' . $size;
-				return new PreviewResponse(416, $headers, '');
-			}
-			[$start, $end] = $parsed;
+		$parsed = ($range !== null && trim($range) !== '') ? $this->parseRange($range, $size) : null;
+		if ($parsed !== null && $parsed['satisfiable'] === false) {
+			// A syntactically valid single range wholly outside the entity (e.g.
+			// `bytes=99-` on a 10-byte body) is unsatisfiable → 416. A malformed,
+			// multi-range or non-bytes header is IGNORED by parseRange (null) and
+			// falls through to the normal 200 full body below.
+			$headers = $this->baseHeaders();
+			$headers['Content-Type'] = $file['contentType'];
+			$headers['Cache-Control'] = 'no-cache';
+			$headers['ETag'] = $etag;
+			$headers['Accept-Ranges'] = 'bytes';
+			$headers['Content-Range'] = 'bytes */' . $size;
+			return new PreviewResponse(416, $headers, '');
+		}
+		if ($parsed !== null) {
+			[$start, $end] = [$parsed['start'], $parsed['end']];
 			$length = $end - $start + 1;
 			$headers = $this->baseHeaders();
 			$headers['Content-Type'] = $file['contentType'];
@@ -142,25 +170,33 @@ final class PreviewServer {
 	}
 
 	/**
-	 * Parse a single HTTP byte range against a known size. Returns `[start, end]`
-	 * (inclusive) for a satisfiable range, or null for an unsatisfiable one
-	 * (caller emits 416). A syntactically malformed header also yields null so it
-	 * is treated as unsatisfiable rather than silently serving the whole body.
+	 * Parse a single HTTP byte range against a known size, distinguishing the two
+	 * outcomes the serving contract treats differently:
 	 *
-	 * @return array{0:int,1:int}|null
+	 *  - `null` — the header is malformed, a multi-range set, or a non-`bytes`
+	 *    unit. Per the contract it is IGNORED: the caller serves a normal 200
+	 *    full body (never 416). This is the corrected behaviour — treating a
+	 *    header we don't understand as unsatisfiable was wrong.
+	 *  - `['satisfiable' => false]` — a syntactically valid single range that is
+	 *    unsatisfiable (first-byte-pos at/after EOF, an empty suffix, or an empty
+	 *    span). The caller emits 416.
+	 *  - `['satisfiable' => true, 'start' => int, 'end' => int]` — a satisfiable
+	 *    single range (inclusive). The caller emits 206.
+	 *
+	 * @return array{satisfiable:bool,start?:int,end?:int}|null
 	 */
 	private function parseRange(string $range, int $size): ?array {
 		if (preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m) !== 1) {
-			return null;
+			return null; // malformed / multi-range / non-bytes unit → ignore (200)
 		}
 		[$rawStart, $rawEnd] = [$m[1], $m[2]];
 		if ($rawStart === '' && $rawEnd === '') {
-			return null;
+			return null; // `bytes=-` carries no range → ignore (200)
 		}
 		if ($rawStart === '') {
 			$suffix = (int)$rawEnd;
 			if ($suffix <= 0 || $size === 0) {
-				return null;
+				return ['satisfiable' => false];
 			}
 			$start = max(0, $size - $suffix);
 			$end = $size - 1;
@@ -169,9 +205,9 @@ final class PreviewServer {
 			$end = $rawEnd === '' ? $size - 1 : min((int)$rawEnd, $size - 1);
 		}
 		if ($start < 0 || $start >= $size || $start > $end) {
-			return null;
+			return ['satisfiable' => false];
 		}
-		return [$start, $end];
+		return ['satisfiable' => true, 'start' => $start, 'end' => $end];
 	}
 
 	/** Read $length bytes from $filePath starting at $start. */

@@ -58,13 +58,15 @@ class PreviewController extends Controller {
 	/**
 	 * GET /apps/exelearning/preview/{previewId}
 	 *
-	 * The bare capability root resolves to `index.html` (the `.+` path route
-	 * above cannot match an empty segment).
+	 * The bare capability root 302-redirects to `{previewId}/index.html` rather
+	 * than serving index.html bytes inline — otherwise the document's relative
+	 * subresource references resolve against `preview/` (dropping the id segment)
+	 * and every asset 404s. See {@see PreviewServer::serveRoot()}.
 	 */
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function serveRoot(string $previewId): DataDisplayResponse {
-		return $this->serve($previewId, 'index.html');
+		return $this->toDataDisplay($this->server->serveRoot($previewId));
 	}
 
 	/** Map the framework-agnostic response onto a DataDisplayResponse. */
