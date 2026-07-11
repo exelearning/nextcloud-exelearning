@@ -126,10 +126,25 @@ final class PreviewServerTest extends TestCase {
 		self::assertSame('3', $response->headers['Content-Length']);
 	}
 
-	public function testUnsatisfiableRangeReturns416(): void {
-		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=99-');
-		self::assertSame(416, $response->status);
+	/**
+	 * 416 is reserved for a valid single range that is unsatisfiable: a
+	 * first-byte-pos at/after EOF (`bytes=99-`) or a zero-length suffix
+	 * (`bytes=-0`).
+	 *
+	 * @dataProvider unsatisfiableRangeProvider
+	 */
+	public function testUnsatisfiableRangeReturns416(string $range): void {
+		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, $range);
+		self::assertSame(416, $response->status, $range . ' must be 416');
 		self::assertSame('bytes */10', $response->headers['Content-Range']);
+	}
+
+	/** @return array<string,array{0:string}> */
+	public static function unsatisfiableRangeProvider(): array {
+		return [
+			'first-byte-pos past EOF' => ['bytes=99-'],
+			'zero-length suffix' => ['bytes=-0'],
+		];
 	}
 
 	/**
@@ -157,6 +172,9 @@ final class PreviewServerTest extends TestCase {
 			'empty range' => ['bytes=-'],
 			'garbage' => ['not-a-range'],
 			'double dash' => ['bytes=1-2-3'],
+			// last-byte-pos < first-byte-pos is an invalid spec (RFC 9110
+			// §14.1.2) → ignore the header, not 416.
+			'last before first' => ['bytes=5-2'],
 		];
 	}
 

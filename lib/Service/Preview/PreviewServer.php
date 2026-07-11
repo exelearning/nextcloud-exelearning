@@ -170,16 +170,16 @@ final class PreviewServer {
 	}
 
 	/**
-	 * Parse a single HTTP byte range against a known size, distinguishing the two
-	 * outcomes the serving contract treats differently:
+	 * Parse a single HTTP byte range against a known size, per the contract's
+	 * canonical classification (RFC 9110 §14.1.2). Three outcomes:
 	 *
-	 *  - `null` — the header is malformed, a multi-range set, or a non-`bytes`
-	 *    unit. Per the contract it is IGNORED: the caller serves a normal 200
-	 *    full body (never 416). This is the corrected behaviour — treating a
-	 *    header we don't understand as unsatisfiable was wrong.
-	 *  - `['satisfiable' => false]` — a syntactically valid single range that is
-	 *    unsatisfiable (first-byte-pos at/after EOF, an empty suffix, or an empty
-	 *    span). The caller emits 416.
+	 *  - `null` — IGNORE the header, serve a normal 200 full body. This covers a
+	 *    non-`bytes` unit, a multi-range set, any malformed value, AND a valid
+	 *    syntax whose last-byte-pos is less than its first-byte-pos (`bytes=5-2`)
+	 *    — an *invalid* spec, which RFC 9110 says to ignore, not 416.
+	 *  - `['satisfiable' => false]` — a valid single range that is *unsatisfiable*:
+	 *    first-byte-pos at/after EOF (`bytes=99-`) or a zero-length suffix
+	 *    (`bytes=-0`). The caller emits 416.
 	 *  - `['satisfiable' => true, 'start' => int, 'end' => int]` — a satisfiable
 	 *    single range (inclusive). The caller emits 206.
 	 *
@@ -187,26 +187,31 @@ final class PreviewServer {
 	 */
 	private function parseRange(string $range, int $size): ?array {
 		if (preg_match('/^bytes=(\d*)-(\d*)$/', trim($range), $m) !== 1) {
-			return null; // malformed / multi-range / non-bytes unit → ignore (200)
+			return null; // non-bytes unit / multi-range / garbage → ignore (200)
 		}
 		[$rawStart, $rawEnd] = [$m[1], $m[2]];
 		if ($rawStart === '' && $rawEnd === '') {
 			return null; // `bytes=-` carries no range → ignore (200)
 		}
 		if ($rawStart === '') {
+			// Suffix range `bytes=-N`: the last N bytes. A zero-length suffix or
+			// an empty entity is unsatisfiable (416); otherwise it clamps in.
 			$suffix = (int)$rawEnd;
-			if ($suffix <= 0 || $size === 0) {
+			if ($suffix === 0 || $size === 0) {
 				return ['satisfiable' => false];
 			}
-			$start = max(0, $size - $suffix);
-			$end = $size - 1;
-		} else {
-			$start = (int)$rawStart;
-			$end = $rawEnd === '' ? $size - 1 : min((int)$rawEnd, $size - 1);
+			return ['satisfiable' => true, 'start' => max(0, $size - $suffix), 'end' => $size - 1];
 		}
-		if ($start < 0 || $start >= $size || $start > $end) {
-			return ['satisfiable' => false];
+		$start = (int)$rawStart;
+		if ($rawEnd !== '' && (int)$rawEnd < $start) {
+			// last-byte-pos < first-byte-pos is an INVALID spec, not an
+			// unsatisfiable one → ignore the header and serve 200.
+			return null;
 		}
+		if ($start >= $size) {
+			return ['satisfiable' => false]; // first-byte-pos at/after EOF → 416
+		}
+		$end = $rawEnd === '' ? $size - 1 : min((int)$rawEnd, $size - 1);
 		return ['satisfiable' => true, 'start' => $start, 'end' => $end];
 	}
 
