@@ -69,6 +69,7 @@ final class PreviewSessionApi {
 			409 => new ApiResult(409, ['reason' => 'revision-conflict', 'currentRevision' => $result['currentRevision']]),
 			422 => new ApiResult(422, $this->unprocessableBody($result)),
 			413 => new ApiResult(413, ['error' => $result['message'] ?? 'Preview storage budget exceeded']),
+			500 => new ApiResult(500, ['error' => $result['message'] ?? 'Failed to persist revision']),
 			default => new ApiResult(400, ['error' => $result['message'] ?? 'Bad request']),
 		};
 	}

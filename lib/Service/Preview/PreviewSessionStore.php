@@ -275,6 +275,9 @@ final class PreviewSessionStore {
 	 * budgets (413). The publish itself is an atomic blob-write → manifest-write
 	 * → pointer-swap under an advisory lock.
 	 *
+	 * A genuine document blob-write failure aborts the publish with `500` before
+	 * the pointer swap, leaving the previously active revision intact.
+	 *
 	 * @param array{baseRevision:int,nextRevision:int,writes:list<array{path:string,bytes:string}>,deletes:list<string>,assetRefs:array<string,string>,fixedRefs:array<string,string>} $meta
 	 * @return array{status:int,revision?:int,currentRevision?:int,reason?:string,missing?:list<string>,resources?:list<string>,message?:string}
 	 */
@@ -377,9 +380,21 @@ final class PreviewSessionStore {
 			}
 
 			// 6. Publish. Write new content-addressed blobs, then the revision
-			//    manifest, then atomically swap the pointer.
+			//    manifest, then atomically swap the pointer. A genuine blob-write
+			//    failure (disk full / unwritable) must abort BEFORE the manifest
+			//    and pointer swap, or the active revision advances onto a document
+			//    whose bytes are absent (a silent permanent 404). This mirrors the
+			//    asset path's write-failed rigor. An "already present" blob is not
+			//    a failure — content-addressing dedups identical bytes.
 			foreach ($writes as $bytes) {
-				$this->writeBlobAtomic($dir . '/documents', sha1($bytes), $bytes);
+				$hash = sha1($bytes);
+				$target = $dir . '/documents/' . $hash;
+				if (!$this->writeBlobAtomic($dir . '/documents', $hash, $bytes)) {
+					clearstatcache(true, $target);
+					if (!is_file($target)) {
+						return ['status' => 500, 'message' => 'Failed to persist revision document'];
+					}
+				}
 			}
 			$this->writeFileAtomic($dir . '/revisions/' . $next . '.json', json_encode([
 				'assetRefs' => (object)$assetRefs,

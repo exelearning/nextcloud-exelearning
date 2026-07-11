@@ -309,6 +309,35 @@ final class PreviewSessionStoreTest extends TestCase {
 		self::assertSame(413, $result['status']);
 	}
 
+	public function testRevisionDocumentWriteFailureAbortsBeforePointerSwap(): void {
+		$store = $this->store();
+		$id = $store->create('alice');
+		// Establish revision 1.
+		$this->publish($store, $id, 0, 1, [['path' => 'index.html', 'bytes' => 'v1']], [], []);
+
+		// Force the next document blob write to fail deterministically: replace
+		// the documents/ directory with a regular file so any write under it
+		// fails with ENOTDIR.
+		$documentsPath = $this->root . '/' . $id . '/documents';
+		$this->removeTree($documentsPath);
+		file_put_contents($documentsPath, 'not-a-directory');
+
+		$result = $store->applyRevision($id, [
+			'baseRevision' => 1,
+			'nextRevision' => 2,
+			'writes' => [['path' => 'index.html', 'bytes' => 'v2-NEW-UNIQUE-BYTES']],
+			'deletes' => [],
+			'assetRefs' => [],
+			'fixedRefs' => [],
+		], $this->noFixed());
+
+		// The publish aborts with 500 and never advances the pointer, so the
+		// previously active revision stays intact (no silent 404 document).
+		self::assertSame(500, $result['status']);
+		self::assertSame(1, $store->activeRevision($id));
+		self::assertFileDoesNotExist($this->root . '/' . $id . '/revisions/2.json');
+	}
+
 	public function testSupersededRevisionsArePrunedToBoundDisk(): void {
 		$store = $this->store();
 		$id = $store->create('alice');

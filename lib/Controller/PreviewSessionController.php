@@ -88,11 +88,31 @@ class PreviewSessionController extends Controller {
 			return $this->unauthenticated();
 		}
 		$revision = $this->decodeJsonParam('revision');
-		$files = $this->uploadedFileBytes('files');
-		$writePaths = is_array($revision['writes'] ?? null) ? $revision['writes'] : [];
+		$parts = $this->uploadedFileParts('files');
+		$writePaths = is_array($revision['writes'] ?? null) ? array_values($revision['writes']) : [];
+
+		// Strict alignment: every declared write MUST have a healthy uploaded part
+		// (present, UPLOAD_ERR_OK, readable). A dropped/failed/unreadable part — or
+		// a part/write count mismatch — rejects the ENTIRE batch with 400 before
+		// any staging, so a silently-empty document (`sha1('')`, size 0) can never
+		// be published. The revision pointer is untouched; a subsequent GET keeps
+		// serving the previous revision.
+		if (count($parts) !== count($writePaths)) {
+			return new DataResponse(
+				['error' => 'Revision upload incomplete: ' . count($writePaths)
+					. ' write(s) declared but ' . count($parts) . ' file part(s) received'],
+				Http::STATUS_BAD_REQUEST,
+			);
+		}
 		$writes = [];
-		foreach (array_values($writePaths) as $index => $path) {
-			$writes[] = ['path' => (string)$path, 'bytes' => $files[$index] ?? ''];
+		foreach ($writePaths as $index => $path) {
+			if (!$parts[$index]['ok']) {
+				return new DataResponse(
+					['error' => 'Revision upload incomplete: missing or unreadable file part for write #' . $index],
+					Http::STATUS_BAD_REQUEST,
+				);
+			}
+			$writes[] = ['path' => (string)$path, 'bytes' => $parts[$index]['bytes']];
 		}
 		$meta = [
 			'baseRevision' => (int)($revision['baseRevision'] ?? -1),
@@ -143,29 +163,58 @@ class PreviewSessionController extends Controller {
 
 	/**
 	 * Read the `files[]` multipart parts (index-aligned) into a list of byte
-	 * strings. Handles both the array shape (`files[]`, multiple parts) and the
-	 * scalar shape (a single part).
+	 * strings, mapping a missing/failed/unreadable part to an empty string. Used
+	 * by the asset path, where the store rejects a dropped part via its
+	 * declared/actual size guard.
 	 *
 	 * @return list<string>
 	 */
 	private function uploadedFileBytes(string $field): array {
+		return array_map(
+			static fn (array $part): string => $part['bytes'],
+			$this->uploadedFileParts($field),
+		);
+	}
+
+	/**
+	 * Read the `files[]` multipart parts (index-aligned) with their upload
+	 * health, so a caller can reject a batch when a part is missing, errored or
+	 * unreadable. Handles both the array shape (`files[]`, multiple parts) and the
+	 * scalar shape (a single part).
+	 *
+	 * A part is `ok` only when `$_FILES[...]['error']` is `UPLOAD_ERR_OK`, the
+	 * `tmp_name` is a genuine uploaded file, and its bytes read back. A genuinely
+	 * empty but successfully uploaded file is `ok` with empty bytes; a
+	 * dropped/failed/unreadable part is `ok=false` — the distinction the revision
+	 * path needs and that a plain byte string cannot carry.
+	 *
+	 * @return list<array{ok:bool,bytes:string}>
+	 */
+	private function uploadedFileParts(string $field): array {
 		$uploaded = $this->request->getUploadedFile($field);
 		if (!is_array($uploaded) || !isset($uploaded['tmp_name'])) {
 			return [];
 		}
 		$tmpNames = $uploaded['tmp_name'];
+		$errors = $uploaded['error'] ?? UPLOAD_ERR_NO_FILE;
 		if (!is_array($tmpNames)) {
 			$tmpNames = [$tmpNames];
+			$errors = [$errors];
 		}
-		$bytes = [];
-		foreach ($tmpNames as $tmpName) {
-			if (!is_string($tmpName) || $tmpName === '' || !is_uploaded_file($tmpName)) {
-				$bytes[] = '';
+		$parts = [];
+		foreach ($tmpNames as $index => $tmpName) {
+			$error = is_array($errors) ? ($errors[$index] ?? UPLOAD_ERR_NO_FILE) : $errors;
+			if ((int)$error !== UPLOAD_ERR_OK || !is_string($tmpName) || $tmpName === '' || !is_uploaded_file($tmpName)) {
+				$parts[] = ['ok' => false, 'bytes' => ''];
 				continue;
 			}
 			$content = file_get_contents($tmpName);
-			$bytes[] = $content === false ? '' : $content;
+			if ($content === false) {
+				$parts[] = ['ok' => false, 'bytes' => ''];
+				continue;
+			}
+			$parts[] = ['ok' => true, 'bytes' => $content];
 		}
-		return $bytes;
+		return $parts;
 	}
 }
