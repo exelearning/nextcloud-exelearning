@@ -1,19 +1,23 @@
-name: Diagnose frontend build
+name: Prepare focused webpack hotfix
 
 on:
   pull_request:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
-  build:
-    name: Generate and verify focused webpack hotfix
+  prepare-hotfix:
+    name: Generate, verify, and commit dependency fix
+    if: github.repository == 'exelearning/nextcloud-exelearning'
     runs-on: ubuntu-latest
     steps:
-      - name: Checkout
+      - name: Checkout hotfix branch
         uses: actions/checkout@v7
+        with:
+          ref: hotfix/declare-terser-webpack-plugin
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
@@ -24,30 +28,23 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Add the missing webpack minimizer dependency
+      - name: Declare the missing webpack minimizer dependency
         run: npm install --save-dev "terser-webpack-plugin@^5.5.0"
 
-      - name: Run frontend build
-        id: build
+      - name: Verify frontend build
+        run: npm run build
+
+      - name: Commit generated dependency files
         shell: bash
         run: |
-          set +e
-          npm run build > build.log 2>&1
-          status=$?
-          echo "status=${status}" >> "${GITHUB_OUTPUT}"
-          exit 0
-
-      - name: Upload generated hotfix files and build log
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: webpack-hotfix
-          path: |
-            package.json
-            package-lock.json
-            build.log
-          if-no-files-found: error
-
-      - name: Propagate build result
-        if: steps.build.outputs.status != '0'
-        run: exit 1
+          set -euo pipefail
+          git diff --check
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json package-lock.json
+          if git diff --cached --quiet; then
+            echo "No dependency changes to commit."
+            exit 0
+          fi
+          git commit -m "fix(ci): declare terser webpack plugin dependency"
+          git push origin HEAD:hotfix/declare-terser-webpack-plugin
