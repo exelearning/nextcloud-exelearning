@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build:
-    name: Capture webpack build output
+    name: Generate and verify focused webpack hotfix
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
@@ -24,6 +24,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Add the missing webpack minimizer dependency
+        run: npm install --save-dev "terser-webpack-plugin@^5.5.0"
+
       - name: Run frontend build
         id: build
         shell: bash
@@ -34,12 +37,15 @@ jobs:
           echo "status=${status}" >> "${GITHUB_OUTPUT}"
           exit 0
 
-      - name: Upload build log
+      - name: Upload generated hotfix files and build log
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: webpack-build-log
-          path: build.log
+          name: webpack-hotfix
+          path: |
+            package.json
+            package-lock.json
+            build.log
           if-no-files-found: error
 
       - name: Propagate build result
