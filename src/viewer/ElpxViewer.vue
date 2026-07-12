@@ -44,8 +44,8 @@ import { readPackage, ZipReadError } from '../elpx/zip-reader'
 import { validatePackage } from '../elpx/package-validator'
 import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
-import { createContentIframe, createPackageIframe, buildSandboxedIframe } from '../elpx/iframe-renderer'
-import { ASSET_PREFIX, buildAssetUrl, CONTENT_PREFIX } from '../elpx/paths'
+import { createAssetIframe, createContentIframe, createPackageIframe } from '../elpx/iframe-renderer'
+import { ASSET_PREFIX, CONTENT_PREFIX } from '../elpx/paths'
 import { attachMedia, clearOverlays, type EmbedRelayConfig, pingEmbeds, reflowOverlays, startRelay } from '../embed/relay-host'
 
 /**
@@ -212,10 +212,12 @@ export default defineComponent({
 			const slot = this.$refs.frameSlot as HTMLElement | undefined
 			if (!slot) return
 			slot.innerHTML = ''
-			const iframe = buildSandboxedIframe(
-				buildAssetUrl(generateUrl(ASSET_PREFIX), fileId, indexEntry),
-				this.basename || this.filename || 'package.elpx',
-			)
+			const iframe = createAssetIframe({
+				assetBase: generateUrl(ASSET_PREFIX),
+				fileId,
+				indexEntry,
+				title: this.basename || this.filename || 'package.elpx',
+			})
 			slot.appendChild(iframe)
 			this.iframe = iframe
 		},

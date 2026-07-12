@@ -1,10 +1,11 @@
 import { describe, expect, it } from 'vitest'
 import {
 	buildSandboxedIframe,
+	createAssetIframe,
 	createContentIframe,
 	createPackageIframe,
 } from '../../src/elpx/iframe-renderer'
-import { CONTENT_PREFIX, RUNTIME_PREFIX } from '../../src/elpx/paths'
+import { ASSET_PREFIX, CONTENT_PREFIX, RUNTIME_PREFIX } from '../../src/elpx/paths'
 
 describe('buildSandboxedIframe', () => {
 	it('appends the eXeLearning teacher-mode param to the index src', () => {
@@ -60,6 +61,19 @@ describe('createPackageIframe (legacy Service Worker path)', () => {
 			title: 'pkg',
 		})
 		expect(iframe.src).toContain(`${RUNTIME_PREFIX}/session-1/index.html?exe-teacher=1`)
+		expect(iframe.getAttribute('sandbox')).toContain('allow-same-origin')
+	})
+})
+
+describe('createAssetIframe (authenticated server fallback)', () => {
+	it('builds a same-origin asset URL so Nextcloud authentication is retained', () => {
+		const iframe = createAssetIframe({
+			assetBase: ASSET_PREFIX,
+			fileId: 81,
+			indexEntry: 'index.html',
+			title: 'pkg',
+		})
+		expect(iframe.src).toContain(`${ASSET_PREFIX}/81/index.html?exe-teacher=1`)
 		expect(iframe.getAttribute('sandbox')).toContain('allow-same-origin')
 	})
 })

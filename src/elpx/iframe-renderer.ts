@@ -13,7 +13,7 @@
  * by touching the same-origin iframe document.
  */
 
-import { buildContentUrl, buildRuntimeUrl } from './paths'
+import { buildAssetUrl, buildContentUrl, buildRuntimeUrl } from './paths'
 
 /** Opaque, secure sandbox: no allow-same-origin (that absence is the isolation). */
 const SECURE_SANDBOX_FLAGS = [
@@ -78,6 +78,13 @@ export interface ContentIframeOptions {
 	title: string
 }
 
+export interface AssetIframeOptions {
+	assetBase: string
+	fileId: number
+	indexEntry: string
+	title: string
+}
+
 /**
  * Builds a sandboxed iframe pointed at an already-resolved `src`.
  * @param src Fully-resolved URL the iframe should load.
@@ -132,6 +139,21 @@ export function createContentIframe(options: ContentIframeOptions): HTMLIFrameEl
 export function createPackageIframe(options: IframeOptions): HTMLIFrameElement {
 	return buildSandboxedIframe(
 		buildRuntimeUrl(options.runtimeBase, options.sessionId, options.indexEntry),
+		options.title,
+		false,
+	)
+}
+
+/**
+ * Builds the authenticated same-origin iframe used when Service Worker
+ * registration is unavailable. AssetController checks the Nextcloud session,
+ * so this path must retain `allow-same-origin`; the secure capability-backed
+ * `/content` route remains the only opaque variant.
+ * @param options Asset base URL, file id, index entry and accessible title.
+ */
+export function createAssetIframe(options: AssetIframeOptions): HTMLIFrameElement {
+	return buildSandboxedIframe(
+		buildAssetUrl(options.assetBase, options.fileId, options.indexEntry),
 		options.title,
 		false,
 	)
