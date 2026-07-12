@@ -32,13 +32,17 @@ class ZipEntryService {
 		}
 
 		$localPath = $file->getStorage()->getLocalFile($file->getInternalPath());
-		if ($localPath === false || $localPath === null) {
+		if (!is_string($localPath) || $localPath === '') {
 			return $this->readEntryFromStream($file, $normalized);
 		}
 
 		$zip = new ZipArchive();
 		if ($zip->open($localPath) !== true) {
-			return null;
+			// Some virtual storage implementations (notably the php-wasm
+			// Playground filesystem) expose a nominal local path that native
+			// ZipArchive still cannot open. Treat it like any other non-local
+			// storage and retry through the portable File::fopen() path.
+			return $this->readEntryFromStream($file, $normalized);
 		}
 		try {
 			if ($zip->numFiles > self::MAX_ENTRIES) {

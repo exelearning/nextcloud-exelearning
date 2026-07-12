@@ -44,4 +44,48 @@ final class ZipEntryServiceTest extends TestCase {
 		self::assertNull($this->service->normalizeEntry(''));
 		self::assertNull($this->service->normalizeEntry("a\0b"));
 	}
+
+	public function testReadEntryFallsBackToStreamWhenLocalPathCannotBeOpened(): void {
+		if (!class_exists('OCP\\Files\\File')) {
+			eval('namespace OCP\\Files; class File {}');
+		}
+
+		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
+		self::assertNotFalse($archivePath);
+		$zip = new \ZipArchive();
+		self::assertTrue($zip->open($archivePath, \ZipArchive::OVERWRITE) === true);
+		$zip->addFromString('index.html', '<h1>Playground</h1>');
+		$zip->close();
+		$archive = file_get_contents($archivePath);
+		@unlink($archivePath);
+		self::assertIsString($archive);
+
+		$file = new class($archive) extends \OCP\Files\File {
+			public function __construct(
+				private readonly string $archive,
+			) {
+			}
+
+			public function getStorage(): object {
+				return new class {
+					public function getLocalFile(string $path): string {
+						return '/virtual/php-wasm/package.elpx';
+					}
+				};
+			}
+
+			public function getInternalPath(): string {
+				return 'files/package.elpx';
+			}
+
+			public function fopen(string $mode) {
+				$stream = fopen('php://temp', 'w+b');
+				fwrite($stream, $this->archive);
+				rewind($stream);
+				return $stream;
+			}
+		};
+
+		self::assertSame('<h1>Playground</h1>', $this->service->readEntry($file, 'index.html'));
+	}
 }
