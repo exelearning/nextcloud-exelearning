@@ -5,11 +5,15 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\AppInfo;
 
 use OCA\ExeLearning\Preview\ElpxPreviewProvider;
+use OCA\ExeLearning\Service\PreviewSnapshotStore;
+use OCA\ExeLearning\Service\ZipEntryService;
 use OCP\AppFramework\App;
 use OCP\AppFramework\Bootstrap\IBootContext;
 use OCP\AppFramework\Bootstrap\IBootstrap;
 use OCP\AppFramework\Bootstrap\IRegistrationContext;
+use OCP\IConfig;
 use OCP\Util;
+use Psr\Container\ContainerInterface;
 
 class Application extends App implements IBootstrap {
 	public const APP_ID = 'exelearning';
@@ -57,6 +61,14 @@ class Application extends App implements IBootstrap {
 		// the legacy `IPreview::registerProviderV2()` call in boot() only
 		// covered some of those code paths.
 		$context->registerPreviewProvider(ElpxPreviewProvider::class, ElpxPreviewProvider::MIME_REGEX);
+		$context->registerService(PreviewSnapshotStore::class, static function (ContainerInterface $container): PreviewSnapshotStore {
+			$config = $container->get(IConfig::class);
+			$dataDirectory = (string)$config->getSystemValue('datadirectory', sys_get_temp_dir());
+			return new PreviewSnapshotStore(
+				rtrim($dataDirectory, '/') . '/' . self::APP_ID . '/preview-snapshots',
+				$container->get(ZipEntryService::class),
+			);
+		});
 	}
 
 	public function boot(IBootContext $context): void {

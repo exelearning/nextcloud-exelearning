@@ -57,5 +57,38 @@ return [
 			'url' => '/template/blank',
 			'verb' => 'GET',
 		],
+		[
+			'name' => 'preview#replace',
+			'url' => '/preview-session/{fileId}',
+			'verb' => 'POST',
+			'requirements' => ['fileId' => '\d+'],
+		],
+		[
+			'name' => 'preview#delete',
+			'url' => '/preview-session/{fileId}/{previewId}',
+			'verb' => 'DELETE',
+			'requirements' => [
+				'fileId' => '\d+',
+				'previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+			],
+		],
+		[
+			'name' => 'preview#serveRoot',
+			'url' => '/preview/{previewId}',
+			'verb' => 'GET',
+			'defaults' => ['path' => 'index.html'],
+			'requirements' => [
+				'previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+			],
+		],
+		[
+			'name' => 'preview#serve',
+			'url' => '/preview/{previewId}/{path}',
+			'verb' => 'GET',
+			'requirements' => [
+				'previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}',
+				'path' => '.+',
+			],
+		],
 	],
 ];

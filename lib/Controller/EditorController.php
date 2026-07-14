@@ -213,7 +213,7 @@ class EditorController extends Controller {
 	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function iframe(): DataDisplayResponse|DataResponse {
+	public function iframe(?int $fileId = null): DataDisplayResponse|DataResponse {
 		$user = $this->userSession->getUser();
 		if ($user === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
@@ -238,6 +238,15 @@ class EditorController extends Controller {
 		// save. Deriving from `document.baseURI` (which equals the scoped
 		// `<base href>` at runtime) keeps it correct in both a normal install and
 		// under a scoped path.
+		$previewSnapshot = null;
+		if ($fileId !== null && $fileId > 0) {
+			$dummyId = '00000000-0000-4000-8000-000000000000';
+			$servingUrl = $this->urlGenerator->linkToRoute(Application::APP_ID . '.preview.serveRoot', ['previewId' => $dummyId]);
+			$previewSnapshot = [
+				'managementUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.preview.replace', ['fileId' => $fileId]),
+				'servingBaseUrl' => substr($servingUrl, 0, -strlen($dummyId)),
+			];
+		}
 		$staticConfig = json_encode([
 			'hideUI' => (object)[
 				'fileMenu' => true,
@@ -247,13 +256,17 @@ class EditorController extends Controller {
 				'downloadButton' => false,
 				'helpMenu' => false,
 			],
+			'previewSnapshot' => $previewSnapshot,
 		], JSON_UNESCAPED_SLASHES);
 
 		$configScript = '<script>(function(){'
 			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
 			. 'var origin=window.location.origin;'
-			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
+			. 'var config=Object.assign(' . $staticConfig . ','
 			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin]});'
+			. 'if(config.previewSnapshot){config.previewSnapshot.managementHeaders={'
+			. 'requesttoken:String(window.parent.OC&&window.parent.OC.requestToken||"")};}'
+			. 'window.__EXE_EMBEDDING_CONFIG__=config;'
 			. '})();</script>';
 
 		// The resilience shim must be installed before any editor script

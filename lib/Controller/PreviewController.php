@@ -4,37 +4,28 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Controller;
 
+use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\PreviewSnapshotStore;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
+use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
 use OCP\AppFramework\Http\Attribute\PublicPage;
 use OCP\AppFramework\Http\DataDisplayResponse;
+use OCP\AppFramework\Http\DataResponse;
+use OCP\Files\NotFoundException;
+use OCP\Files\NotPermittedException;
 use OCP\IRequest;
+use OCP\IUserSession;
 
 /**
- * AUTHLESS, cookieless serving endpoint for the eXeLearning **editor preview**
- * of untrusted, unsaved author content, served from an opaque origin.
- *
- * This mirrors the canonical contract in eXe core:
- *   `doc/development/preview-serving-contract.md` (repo exelearning/exelearning).
- * Core is authoritative. In particular the sandbox CSP in {@see self::SANDBOX_CSP}
- * MUST stay **byte-identical** to the string in that document — do not re-order,
- * re-quote or reformat it.
- *
- * Unlike {@see AssetController} (authenticated, same-origin, published content),
- * this route is a `#[PublicPage]` capability URL: knowledge of the `previewId`
- * UUID is the only bearer of access. It never emits a session cookie and always
- * responds with `Access-Control-Allow-Origin: *` (sound only because the origin
- * is cookieless). The editor preview must be served from here and **never**
- * same-origin or through the Service Worker.
- *
- * NOTE: the content-addressed per-session store and the authenticated
- * management API (create session / manifest / blobs / delete) are follow-up
- * work — see the class TODOs. Store lookup is stubbed below.
+ * Manages complete editor-preview snapshots and serves them through expiring
+ * capability URLs. The core editor loads these URLs only in an iframe sandbox
+ * without `allow-same-origin`, giving the preview document an opaque origin.
  */
 class PreviewController extends Controller {
 	/** v4 UUID; anything else is a hard 404. */
-	private const PREVIEW_ID_RE = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
+	private const PREVIEW_ID_RE = '/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/';
 
 	/**
 	 * Document types that can execute script and therefore MUST carry the
@@ -47,59 +38,34 @@ class PreviewController extends Controller {
 		'application/xhtml+xml',
 	];
 
-	/**
-	 * VERBATIM sandbox-first CSP from eXe core preview-serving-contract.md.
-	 * Keep byte-identical. Ideally hoist into one shared constant reused by the
-	 * published-content path — kept inline here to keep the skeleton readable.
-	 */
-	private const SANDBOX_CSP = "sandbox allow-scripts allow-popups allow-forms; default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; child-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self';";
+	/** Defence-in-depth sandbox for directly opened scriptable resources. */
+	private const SANDBOX_CSP = "sandbox allow-scripts allow-popups allow-forms; default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; child-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'";
 
 	public function __construct(
 		string $appName,
 		IRequest $request,
-		// TODO(follow-up): inject PreviewSessionStore here once it exists.
-		//   private readonly PreviewSessionStore $store,
+		private readonly PreviewSnapshotStore $store,
+		private readonly IUserSession $userSession,
+		private readonly ElpxPackageService $packageService,
 	) {
 		parent::__construct($appName, $request);
 	}
 
-	/**
-	 * GET {previewBasePath}/preview/{previewId}/{path}
-	 *
-	 * Route (appinfo/routes.php), following the `asset#fetch` pattern:
-	 *   [
-	 *     'name' => 'preview#serve',
-	 *     'url'  => '/preview/{previewId}/{path}',
-	 *     'verb' => 'GET',
-	 *     'requirements' => [
-	 *       'previewId' => '[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}',
-	 *       'path'      => '.+',
-	 *     ],
-	 *     'defaults' => ['path' => 'index.html'],
-	 *   ]
-	 * plus a sibling route for the bare `/preview/{previewId}/` root that also
-	 * defaults `path` to `index.html`.
-	 */
+	/** Serves one file from an authless capability snapshot. */
 	#[PublicPage]
 	#[NoCSRFRequired]
 	public function serve(string $previewId, string $path = 'index.html'): DataDisplayResponse {
-		// 1. Validate the capability UUID. Invalid → 404 (still hardened).
 		if (preg_match(self::PREVIEW_ID_RE, $previewId) !== 1) {
 			return $this->notFound();
 		}
 
-		// 2. Resolve the blob from the per-session content-addressed store.
-		//    The store owns path-safety (reuse ZipEntryService::normalizeEntry
-		//    semantics), idle-TTL expiry, caps, and returns the *real* MIME it
-		//    recorded when the blob was re-hashed on upload.
-		$blob = $this->lookup($previewId, $path);
+		$blob = $this->store->get($previewId, $path);
 		if ($blob === null) {
 			return $this->notFound();
 		}
-		[$bytes, $mime] = $blob;
+		$bytes = $blob['bytes'];
+		$mime = $blob['mime'];
 
-		// 3. Serve with the hardening header set; add the sandbox CSP only on
-		//    scriptable document types.
 		$response = new DataDisplayResponse($bytes, Http::STATUS_OK, ['Content-Type' => $mime]);
 		$this->harden($response);
 		if ($this->isScriptable($mime)) {
@@ -108,23 +74,59 @@ class PreviewController extends Controller {
 		return $response;
 	}
 
-	/**
-	 * Store lookup. Returns `[bytes, mime]` or null when the session/blob is
-	 * missing, expired, or was quarantined for a hash mismatch.
-	 *
-	 * TODO(follow-up): replace with PreviewSessionStore. The real store:
-	 *   - refreshes the session idle TTL (default 30 min) on each hit,
-	 *   - normalises `$path` (reject `..`/`.`/absolute/NUL — see
-	 *     ZipEntryService::normalizeEntry),
-	 *   - maps the manifest path to a SHA-256-addressed blob,
-	 *   - returns the MIME captured at upload time (never sniffed here).
-	 *
-	 * @return array{0: string, 1: string}|null
-	 */
-	private function lookup(string $previewId, string $path): ?array {
-		// Stub: no store wired yet.
-		unset($previewId, $path);
-		return null;
+	#[PublicPage]
+	#[NoCSRFRequired]
+	public function serveRoot(string $previewId): DataDisplayResponse {
+		return $this->serve($previewId, 'index.html');
+	}
+
+	#[NoAdminRequired]
+	public function replace(int $fileId, ?string $previewId = null): DataResponse {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+		try {
+			$file = $this->packageService->getForUserById($user->getUID(), $fileId);
+		} catch (NotFoundException|NotPermittedException) {
+			return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
+		}
+		if (!$file->isUpdateable()) {
+			return new DataResponse(['error' => 'Read-only'], Http::STATUS_FORBIDDEN);
+		}
+		$upload = $this->request->getUploadedFile('snapshot');
+		if (!is_array($upload) || !isset($upload['tmp_name']) || !is_string($upload['tmp_name']) || !is_uploaded_file($upload['tmp_name'])) {
+			return new DataResponse(['error' => 'Missing snapshot'], Http::STATUS_BAD_REQUEST);
+		}
+		try {
+			$id = $this->store->replace($user->getUID(), (string)$fileId, $upload['tmp_name'], $previewId);
+		} catch (\InvalidArgumentException|\LengthException $error) {
+			return new DataResponse(['error' => $error->getMessage()], Http::STATUS_BAD_REQUEST);
+		} catch (\UnexpectedValueException) {
+			return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+		} catch (\RuntimeException $error) {
+			return new DataResponse(['error' => $error->getMessage()], Http::STATUS_NOT_FOUND);
+		}
+		return new DataResponse(['previewId' => $id]);
+	}
+
+	#[NoAdminRequired]
+	public function delete(int $fileId, string $previewId): DataResponse {
+		$user = $this->userSession->getUser();
+		if ($user === null) {
+			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
+		}
+		try {
+			$this->packageService->getForUserById($user->getUID(), $fileId);
+		} catch (NotFoundException|NotPermittedException) {
+			return new DataResponse(['error' => 'File not found'], Http::STATUS_NOT_FOUND);
+		}
+		try {
+			$deleted = $this->store->delete($user->getUID(), (string)$fileId, $previewId);
+		} catch (\UnexpectedValueException) {
+			return new DataResponse(['error' => 'Forbidden'], Http::STATUS_FORBIDDEN);
+		}
+		return new DataResponse([], $deleted ? Http::STATUS_NO_CONTENT : Http::STATUS_NOT_FOUND);
 	}
 
 	/** 404 body with the full hardening header set (contract: headers on 404 too). */
@@ -140,7 +142,7 @@ class PreviewController extends Controller {
 		$response->addHeader('Referrer-Policy', 'no-referrer');
 		$response->addHeader('Cache-Control', 'no-store');
 		$response->addHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=(), payment=()');
-		// Opaque, cookieless origin — safe to allow any reader, never with credentials.
+		// The public capability route never depends on credentials.
 		$response->addHeader('Access-Control-Allow-Origin', '*');
 	}
 

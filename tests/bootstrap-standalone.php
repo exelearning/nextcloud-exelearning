@@ -30,6 +30,48 @@ if (!class_exists('OCP\\AppFramework\\App', false)) {
 		}
 	');
 }
+if (!class_exists('OCP\\AppFramework\\Controller', false)) {
+	eval('
+		namespace OCP\AppFramework;
+		class Controller {
+			public function __construct(string $appName, protected object $request) {}
+		}
+		class Http {
+			public const STATUS_OK = 200;
+			public const STATUS_NO_CONTENT = 204;
+			public const STATUS_BAD_REQUEST = 400;
+			public const STATUS_UNAUTHORIZED = 401;
+			public const STATUS_FORBIDDEN = 403;
+			public const STATUS_NOT_FOUND = 404;
+		}
+	');
+}
+if (!class_exists('OCP\\AppFramework\\Http\\DataDisplayResponse', false)) {
+	eval('
+		namespace OCP\AppFramework\Http;
+		class DataDisplayResponse {
+			private array $headers;
+			public function __construct(private string $data = "", private int $status = 200, array $headers = []) {
+				$this->headers = $headers;
+			}
+			public function addHeader(string $name, string $value): void { $this->headers[$name] = $value; }
+			public function getHeaders(): array { return $this->headers; }
+			public function getData(): string { return $this->data; }
+			public function getStatus(): int { return $this->status; }
+		}
+		class DataResponse extends DataDisplayResponse {
+			public function __construct(array $data = [], int $status = 200, array $headers = []) {
+				parent::__construct(json_encode($data), $status, $headers);
+			}
+		}
+	');
+}
+if (!interface_exists('OCP\\IRequest', false)) {
+	eval('namespace OCP; interface IRequest {} interface IUserSession {} interface IConfig {}');
+}
+if (!class_exists('OCP\\Files\\NotFoundException', false)) {
+	eval('namespace OCP\Files; class NotFoundException extends \\Exception {} class NotPermittedException extends \\Exception {}');
+}
 if (!interface_exists('OCP\\AppFramework\\Bootstrap\\IBootstrap', false)) {
 	eval('
 		namespace OCP\\AppFramework\\Bootstrap;

@@ -60,7 +60,7 @@ async function boot(): Promise<void> {
 	// Nextcloud runs under a sub-path (e.g. the browser Playground), so using it
 	// as the iframe src would escape the scope and 404. generateUrl() is correct
 	// in both a normal install and under a scoped path.
-	const editorIframeUrl = generateUrl('/apps/exelearning/editor/iframe')
+	const editorIframeUrl = `${generateUrl('/apps/exelearning/editor/iframe')}?fileId=${encodeURIComponent(String(file.id))}`
 
 	const frame = new EditorFrame(root, { editorIframeUrl })
 
