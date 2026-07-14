@@ -44,6 +44,9 @@ final class PreviewControllerTest extends TestCase {
 		self::assertSame('nosniff', $headers['X-Content-Type-Options']);
 		self::assertSame('no-referrer', $headers['Referrer-Policy']);
 		self::assertStringContainsString('sandbox allow-scripts', $headers['Content-Security-Policy']);
+		self::assertStringContainsString('allow-downloads', $headers['Content-Security-Policy']);
+		self::assertStringContainsString('allow-presentation', $headers['Content-Security-Policy']);
+		self::assertStringNotContainsString('allow-same-origin', $headers['Content-Security-Policy']);
 	}
 
 	public function testInvalidCapabilityReturnsHardenedNotFound(): void {
