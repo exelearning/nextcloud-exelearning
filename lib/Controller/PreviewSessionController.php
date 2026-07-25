@@ -78,16 +78,28 @@ class PreviewSessionController extends Controller {
 		return new DataResponse(['previewId' => $result['previewId']], Http::STATUS_OK);
 	}
 
-	/** DELETE {basePath}/api/preview-session/{previewId} */
+	/**
+	 * DELETE {basePath}/api/preview-session/{previewId}
+	 *
+	 * Owner scoping reports the same two statuses as the publish path: 404 for a
+	 * capability that does not exist, 403 for one that belongs to somebody else.
+	 * The store collapses both into a single `false`, so the distinction is drawn
+	 * here — otherwise deleting another author's capability would answer 404
+	 * while publishing over it answers 403, for the very same condition.
+	 */
 	#[NoAdminRequired]
 	public function delete(string $previewId): DataResponse {
 		$userId = $this->currentUserId();
 		if ($userId === null) {
 			return $this->unauthenticated();
 		}
-		if (!$this->store->delete($previewId, $userId)) {
+		if (!$this->store->exists($previewId)) {
 			return new DataResponse(['error' => 'Preview snapshot not found'], Http::STATUS_NOT_FOUND);
 		}
+		if ($this->store->ownerOf($previewId) !== $userId) {
+			return new DataResponse(['error' => 'Access denied'], Http::STATUS_FORBIDDEN);
+		}
+		$this->store->delete($previewId, $userId);
 		return new DataResponse([], Http::STATUS_OK);
 	}
 
