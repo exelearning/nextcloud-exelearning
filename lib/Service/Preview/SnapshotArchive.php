@@ -63,9 +63,11 @@ final class SnapshotArchive {
 	 * be enforced mid-file: an entry that inflates past the cap is abandoned
 	 * as soon as the cap is crossed, not after it has filled the disk.
 	 *
+	 * @return int Bytes written — the caller needs the total and this already
+	 *             counted every one of them.
 	 * @throws RuntimeException When extraction fails or exceeds the budget.
 	 */
-	public static function extract(ZipArchive $zip, string $targetDir, PreviewSnapshotLimits $limits): void {
+	public static function extract(ZipArchive $zip, string $targetDir, PreviewSnapshotLimits $limits): int {
 		$written = 0;
 		for ($index = 0; $index < $zip->numFiles; $index++) {
 			$name = (string)$zip->getNameIndex($index);
@@ -79,6 +81,7 @@ final class SnapshotArchive {
 			}
 			$written += self::extractEntry($zip, $index, $destination, $limits->maxBytesPerSnapshot - $written);
 		}
+		return $written;
 	}
 
 	/**

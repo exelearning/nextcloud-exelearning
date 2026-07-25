@@ -64,14 +64,6 @@ final class PreviewPolicy {
 	public const PREVIEW_ID_RE = '/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/';
 
 	/**
-	 * Asset-key wire format: `{assetId}@{contentHashPrefix}` — a 36-char
-	 * UUID-like id plus 8-64 hex chars of the content hash the project model
-	 * already stores. The server validates the shape and treats the key as an
-	 * opaque token; it NEVER hashes asset bytes.
-	 */
-	public const ASSET_KEY_RE = '/^[0-9a-fA-F-]{36}@[0-9a-f]{8,64}$/';
-
-	/**
 	 * Scriptable document types that MUST carry the sandbox-first CSP so they
 	 * stay opaque even when opened top-level. Not just `text/html`: an
 	 * author-supplied `image/svg+xml` served without the sandbox CSP runs its
@@ -145,11 +137,6 @@ final class PreviewPolicy {
 	/** Whether $previewId is a well-formed capability id. */
 	public static function isValidPreviewId(string $previewId): bool {
 		return preg_match(self::PREVIEW_ID_RE, $previewId) === 1;
-	}
-
-	/** Whether $key is a well-formed asset key. */
-	public static function isValidAssetKey(string $key): bool {
-		return preg_match(self::ASSET_KEY_RE, $key) === 1;
 	}
 
 	/**

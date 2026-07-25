@@ -66,10 +66,6 @@ final class PreviewSnapshotStore {
 		$this->clock = $clock ?? static fn (): int => time();
 	}
 
-	public function limits(): PreviewSnapshotLimits {
-		return $this->limits;
-	}
-
 	// =========================================================================
 	// Publication
 	// =========================================================================
@@ -89,7 +85,7 @@ final class PreviewSnapshotStore {
 
 		$replacing = $previewId !== null && $previewId !== '';
 		if ($replacing) {
-			$guard = $this->guardExistingCapability((string)$previewId, $ownerUserId);
+			$guard = $this->authorize((string)$previewId, $ownerUserId);
 			if ($guard !== null) {
 				return $guard;
 			}
@@ -126,11 +122,18 @@ final class PreviewSnapshotStore {
 	}
 
 	/**
-	 * Refuse a replace whose capability is unknown or owned by somebody else.
+	 * The authorization verdict for a capability this user is claiming.
 	 *
-	 * @return array{error:string,status:int}|null Null when the replace may proceed.
+	 * Both management verbs run through here, so publish and delete can never
+	 * disagree about what owner scoping means: a malformed id is a 400, one
+	 * nobody holds a 404 and somebody else's a 403. Keeping the rule in the
+	 * store — rather than letting each caller assemble it from `exists()` and
+	 * `ownerOf()` — is what makes that guarantee structural instead of a
+	 * convention two controllers have to remember.
+	 *
+	 * @return array{error:string,status:int}|null Null when the caller may proceed.
 	 */
-	private function guardExistingCapability(string $previewId, string $ownerUserId): ?array {
+	public function authorize(string $previewId, string $ownerUserId): ?array {
 		if (!PreviewPolicy::isValidPreviewId($previewId)) {
 			return ['error' => 'Invalid preview capability.', 'status' => 400];
 		}
@@ -156,13 +159,13 @@ final class PreviewSnapshotStore {
 		}
 		try {
 			SnapshotArchive::inspect($zip, $this->limits);
-			SnapshotArchive::extract($zip, $contentDir, $this->limits);
+			$bytes = SnapshotArchive::extract($zip, $contentDir, $this->limits);
 		} catch (RuntimeException $e) {
 			return ['error' => $e->getMessage(), 'status' => 400];
 		} finally {
 			$zip->close();
 		}
-		return ['bytes' => $this->treeBytes($contentDir)];
+		return ['bytes' => $bytes];
 	}
 
 	/**
@@ -213,7 +216,12 @@ final class PreviewSnapshotStore {
 	 * Resolve a served path inside a snapshot and refresh its idle clock, so a
 	 * preview in use never expires under the author.
 	 *
-	 * @return array{kind:string,contentType:string,isScriptable:bool,bytes?:string,filePath?:string,size?:int,etag?:string}|null
+	 * A scriptable type is a `document` (rewritten on every refresh, so served
+	 * whole and uncached); everything else is an `asset` (revalidated with an
+	 * ETag and range-capable). The kind IS the scriptability — there is no second
+	 * flag to disagree with it.
+	 *
+	 * @return array{kind:string,contentType:string,bytes?:string,filePath?:string,size?:int,etag?:string}|null
 	 */
 	public function resolve(string $previewId, string $rawPath): ?array {
 		if (!PreviewPolicy::isValidPreviewId($previewId) || $this->isExpired($previewId)) {
@@ -230,10 +238,7 @@ final class PreviewSnapshotStore {
 		$this->touch($previewId);
 
 		$contentType = PreviewPolicy::mimeForPath($path);
-		$isScriptable = PreviewPolicy::isScriptable($contentType);
-		if ($isScriptable) {
-			// Scriptable documents are rewritten on every refresh, so they are
-			// served whole and uncached rather than revalidated.
+		if (PreviewPolicy::isScriptable($contentType)) {
 			$bytes = @file_get_contents($file);
 			if ($bytes === false) {
 				return null;
@@ -241,7 +246,6 @@ final class PreviewSnapshotStore {
 			return [
 				'kind' => 'document',
 				'contentType' => $contentType,
-				'isScriptable' => true,
 				'bytes' => $bytes,
 			];
 		}
@@ -249,7 +253,6 @@ final class PreviewSnapshotStore {
 		return [
 			'kind' => 'asset',
 			'contentType' => $contentType,
-			'isScriptable' => false,
 			'filePath' => $file,
 			'size' => $size,
 			'etag' => sha1($path . '|' . (string)@filemtime($file) . '|' . $size),
@@ -280,16 +283,6 @@ final class PreviewSnapshotStore {
 	// Lifecycle
 	// =========================================================================
 
-	/** Whether the snapshot exists on disk (independent of TTL). */
-	public function exists(string $previewId): bool {
-		if (!PreviewPolicy::isValidPreviewId($previewId)) {
-			return false;
-		}
-		$meta = $this->snapshotDir($previewId) . '/meta.json';
-		clearstatcache(true, $meta);
-		return is_file($meta);
-	}
-
 	/** The owner user id of a snapshot, or null when it does not exist. */
 	public function ownerOf(string $previewId): ?string {
 		$meta = $this->readMeta($previewId);
@@ -297,13 +290,18 @@ final class PreviewSnapshotStore {
 		return is_string($owner) ? $owner : null;
 	}
 
-	/** Delete a snapshot owned by $ownerUserId. Returns whether it was removed. */
-	public function delete(string $previewId, string $ownerUserId): bool {
-		if (!$this->exists($previewId) || $this->ownerOf($previewId) !== $ownerUserId) {
-			return false;
+	/**
+	 * Delete a snapshot after {@see authorize()} has cleared the caller.
+	 *
+	 * @return array{error:string,status:int}|null Null once it is gone.
+	 */
+	public function deleteOwned(string $previewId, string $ownerUserId): ?array {
+		$guard = $this->authorize($previewId, $ownerUserId);
+		if ($guard !== null) {
+			return $guard;
 		}
 		$this->removeTree($this->snapshotDir($previewId));
-		return true;
+		return null;
 	}
 
 	/** Whether a snapshot has been idle longer than the TTL. */
@@ -404,19 +402,6 @@ final class PreviewSnapshotStore {
 	private function snapshotBytes(string $previewId): int {
 		$meta = $this->readMeta($previewId);
 		return isset($meta['bytes']) ? (int)$meta['bytes'] : 0;
-	}
-
-	/** Total size of a freshly extracted tree. */
-	private function treeBytes(string $dir): int {
-		$total = 0;
-		foreach (scandir($dir) ?: [] as $entry) {
-			if ($entry === '.' || $entry === '..') {
-				continue;
-			}
-			$path = $dir . '/' . $entry;
-			$total += is_dir($path) ? $this->treeBytes($path) : (int)@filesize($path);
-		}
-		return $total;
 	}
 
 	// =========================================================================

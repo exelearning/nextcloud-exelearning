@@ -101,14 +101,25 @@ final class PreviewSnapshotStoreTest extends TestCase {
 		self::assertSame(404, $result['status']);
 	}
 
+	/**
+	 * Both verbs share one verdict, so an unknown capability and a malformed id
+	 * report the same statuses here as they do on publish.
+	 */
+	public function testDeleteReportsTheSameVerdictAsPublish(): void {
+		$store = $this->store();
+
+		self::assertSame(404, $store->deleteOwned('ffffffff-ffff-4fff-bfff-ffffffffffff', 'alice')['status']);
+		self::assertSame(400, $store->deleteOwned('not-a-uuid', 'alice')['status']);
+	}
+
 	public function testDeleteIsOwnerScoped(): void {
 		$store = $this->store();
 		$id = $store->replace('alice', $this->zip(['index.html' => 'ok']))['previewId'];
 
-		self::assertFalse($store->delete($id, 'mallory'));
+		self::assertSame(403, $store->deleteOwned($id, 'mallory')['status']);
 		self::assertNotNull($store->resolve($id, 'index.html'));
 
-		self::assertTrue($store->delete($id, 'alice'));
+		self::assertNull($store->deleteOwned($id, 'alice'));
 		self::assertNull($store->resolve($id, 'index.html'));
 	}
 

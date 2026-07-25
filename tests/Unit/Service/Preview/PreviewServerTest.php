@@ -205,7 +205,7 @@ final class PreviewServerTest extends TestCase {
 	}
 
 	public function testDeletedSnapshotStopsServing(): void {
-		$this->store->delete($this->previewId, 'alice');
+		$this->store->deleteOwned($this->previewId, 'alice');
 		$response = $this->server()->serve($this->previewId, 'index.html');
 		self::assertSame(404, $response->status);
 		self::assertSame('no-store', $response->headers['Cache-Control']);

@@ -146,10 +146,4 @@ final class PreviewPolicyTest extends TestCase {
 		self::assertFalse(PreviewPolicy::isValidPreviewId('../../etc/passwd'));
 	}
 
-	public function testAssetKeyValidation(): void {
-		self::assertTrue(PreviewPolicy::isValidAssetKey('aaaaaaaa-bbbb-4ccc-8ddd-eeeeffff0000@9c41d2e8a1b03f57'));
-		self::assertFalse(PreviewPolicy::isValidAssetKey('too-short@9c41'));
-		self::assertFalse(PreviewPolicy::isValidAssetKey('aaaaaaaa-bbbb-4ccc-8ddd-eeeeffff0000@NOTHEX!!'));
-		self::assertFalse(PreviewPolicy::isValidAssetKey('no-at-sign-1234567890123456789012'));
-	}
 }

@@ -41,7 +41,7 @@ final class PreviewServer {
 
 		return match ($file['kind']) {
 			'asset' => $this->serveAsset($file, $ifNoneMatch, $range),
-			default => $this->serveBytes($file, 'no-store'),
+			default => $this->serveDocument($file),
 		};
 	}
 
@@ -70,18 +70,18 @@ final class PreviewServer {
 	}
 
 	/**
-	 * A scriptable document: rewritten on every refresh, so `no-store`, and it
-	 * carries the sandbox CSP.
+	 * A scriptable document. It is rewritten on every refresh, so `no-store`, and
+	 * it ALWAYS carries the sandbox CSP: `resolve()` only labels a file a
+	 * document when its type is scriptable, so there is no case here that should
+	 * go out without it.
 	 *
-	 * @param array{contentType:string,isScriptable:bool,bytes?:string} $file
+	 * @param array{contentType:string,bytes?:string} $file
 	 */
-	private function serveBytes(array $file, string $cacheControl): PreviewResponse {
+	private function serveDocument(array $file): PreviewResponse {
 		$headers = $this->baseHeaders();
 		$headers['Content-Type'] = $file['contentType'];
-		$headers['Cache-Control'] = $cacheControl;
-		if ($file['isScriptable']) {
-			$headers['Content-Security-Policy'] = PreviewPolicy::CSP;
-		}
+		$headers['Cache-Control'] = 'no-store';
+		$headers['Content-Security-Policy'] = PreviewPolicy::CSP;
 		return new PreviewResponse(200, $headers, $file['bytes'] ?? '');
 	}
 
@@ -89,57 +89,43 @@ final class PreviewServer {
 	 * A non-scriptable asset: revalidated (`no-cache`) with an ETag,
 	 * `Accept-Ranges: bytes`, `If-None-Match` → 304 and single-range 206/416.
 	 *
-	 * @param array{contentType:string,isScriptable:bool,filePath:string,size:int,etag:string} $file
+	 * No sandbox CSP here, and that is not an omission: `resolve()` labels a file
+	 * an asset precisely when its type is NOT scriptable, so a CSP branch on this
+	 * path could never fire.
+	 *
+	 * @param array{contentType:string,filePath:string,size:int,etag:string} $file
 	 */
 	private function serveAsset(array $file, ?string $ifNoneMatch, ?string $range): PreviewResponse {
 		$etag = '"' . $file['etag'] . '"';
-
-		if ($ifNoneMatch !== null && trim($ifNoneMatch) === $etag) {
-			$headers = $this->baseHeaders();
-			$headers['Cache-Control'] = 'no-cache';
-			$headers['ETag'] = $etag;
-			return new PreviewResponse(304, $headers, '');
-		}
-
 		$size = $file['size'];
-		$parsed = ($range !== null && trim($range) !== '') ? $this->parseRange($range, $size) : null;
-		if ($parsed !== null && $parsed['satisfiable'] === false) {
-			// A syntactically valid single range wholly outside the entity (e.g.
-			// `bytes=99-` on a 10-byte body) is unsatisfiable → 416. A malformed,
-			// multi-range or non-bytes header is IGNORED by parseRange (null) and
-			// falls through to the normal 200 full body below.
-			$headers = $this->baseHeaders();
-			$headers['Content-Type'] = $file['contentType'];
-			$headers['Cache-Control'] = 'no-cache';
-			$headers['ETag'] = $etag;
-			$headers['Accept-Ranges'] = 'bytes';
-			$headers['Content-Range'] = 'bytes */' . $size;
-			return new PreviewResponse(416, $headers, '');
-		}
-		if ($parsed !== null) {
-			[$start, $end] = [$parsed['start'], $parsed['end']];
-			$length = $end - $start + 1;
-			$headers = $this->baseHeaders();
-			$headers['Content-Type'] = $file['contentType'];
-			$headers['Cache-Control'] = 'no-cache';
-			$headers['ETag'] = $etag;
-			$headers['Accept-Ranges'] = 'bytes';
-			$headers['Content-Range'] = 'bytes ' . $start . '-' . $end . '/' . $size;
-			$headers['Content-Length'] = (string)$length;
-			if ($file['isScriptable']) {
-				$headers['Content-Security-Policy'] = PreviewPolicy::CSP;
-			}
-			return new PreviewResponse(206, $headers, $this->readSlice($file['filePath'], $start, $length));
-		}
 
 		$headers = $this->baseHeaders();
 		$headers['Content-Type'] = $file['contentType'];
 		$headers['Cache-Control'] = 'no-cache';
 		$headers['ETag'] = $etag;
 		$headers['Accept-Ranges'] = 'bytes';
-		if ($file['isScriptable']) {
-			$headers['Content-Security-Policy'] = PreviewPolicy::CSP;
+
+		if ($ifNoneMatch !== null && trim($ifNoneMatch) === $etag) {
+			return new PreviewResponse(304, $headers, '');
 		}
+
+		$parsed = ($range !== null && trim($range) !== '') ? $this->parseRange($range, $size) : null;
+		if ($parsed !== null && $parsed['satisfiable'] === false) {
+			// A syntactically valid single range wholly outside the entity (e.g.
+			// `bytes=99-` on a 10-byte body) is unsatisfiable → 416. A malformed,
+			// multi-range or non-bytes header is IGNORED by parseRange (null) and
+			// falls through to the normal 200 full body below.
+			$headers['Content-Range'] = 'bytes */' . $size;
+			return new PreviewResponse(416, $headers, '');
+		}
+		if ($parsed !== null) {
+			[$start, $end] = [$parsed['start'], $parsed['end']];
+			$length = $end - $start + 1;
+			$headers['Content-Range'] = 'bytes ' . $start . '-' . $end . '/' . $size;
+			$headers['Content-Length'] = (string)$length;
+			return new PreviewResponse(206, $headers, $this->readSlice($file['filePath'], $start, $length));
+		}
+
 		return new PreviewResponse(200, $headers, (string)@file_get_contents($file['filePath']));
 	}
 
