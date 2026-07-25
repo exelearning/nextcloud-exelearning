@@ -250,12 +250,19 @@ final class PreviewSnapshotStore {
 			];
 		}
 		$size = (int)@filesize($file);
+		// The content directory's inode is part of the identity on purpose: mtime
+		// has one-second granularity, so an author refreshing twice within the
+		// same second with an edit that keeps a file the same length would
+		// otherwise produce the same tag and be handed a 304 for the previous
+		// bytes. Every publish extracts into a fresh directory and renames it in,
+		// so the inode always turns over.
+		$generation = (string)@fileinode($this->snapshotDir($previewId) . '/content');
 		return [
 			'kind' => 'asset',
 			'contentType' => $contentType,
 			'filePath' => $file,
 			'size' => $size,
-			'etag' => sha1($path . '|' . (string)@filemtime($file) . '|' . $size),
+			'etag' => sha1($path . '|' . $generation . '|' . (string)@filemtime($file) . '|' . $size),
 		];
 	}
 

@@ -98,6 +98,29 @@ final class PreviewServerTest extends TestCase {
 		self::assertSame($etag, $response->headers['ETag']);
 	}
 
+	/**
+	 * The ETag is built from identity rather than from hashing the bytes, so it
+	 * has to turn over on a refresh that mtime and size alone cannot see: two
+	 * publishes inside the same second where the file keeps its length.
+	 */
+	public function testEtagTurnsOverOnASameSizeRefresh(): void {
+		$before = $this->etagFor('media/clip.mp4');
+
+		$this->store->replace('alice', $this->zip([
+			'index.html' => '<html></html>',
+			'media/clip.mp4' => '9876543210',
+		]), $this->previewId);
+
+		$response = $this->server()->serve(
+			$this->previewId,
+			'media/clip.mp4',
+			$before,
+		);
+		self::assertSame(200, $response->status, 'a stale ETag must not win a conditional request');
+		self::assertSame('9876543210', $response->body);
+		self::assertNotSame($before, $response->headers['ETag']);
+	}
+
 	public function testSingleRangeReturns206(): void {
 		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=2-4');
 		self::assertSame(206, $response->status);
