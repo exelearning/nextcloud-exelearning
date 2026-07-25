@@ -1,19 +1,21 @@
-# Host-served opaque HTTP preview — serving contract v2
+# Opaque editor preview — Nextcloud adapter
 
-This Nextcloud app is a **preview host** for the eXeLearning editor: it serves
-the *editor preview* of untrusted, in-progress author content over HTTP from an
-**opaque origin**, isolated from the Nextcloud session.
+The embedded editor renders its preview **filtered** by default: sanitised, with
+no author JavaScript running. When the author opts in to running their own code,
+the editor needs somewhere to put the real project bytes that is **not** the
+Nextcloud page — a browser-enforced **opaque origin** the content cannot reach
+out of.
 
-This document is the host-side companion to the canonical contract in eXe core:
-**`doc/development/preview-serving-contract.md`** (repo `exelearning/exelearning`).
-Core is authoritative; if the two disagree, core wins — in particular the sandbox
-CSP string must stay **byte-identical** to core's `previewCspHeader()`.
+This app is that somewhere. The editor POSTs the whole project as one ZIP and
+gets back an unguessable capability id; the app serves that tree from an authless
+route under a sandbox CSP. There is no authored-content `srcdoc` transport and no
+Service Worker fallback here: missing or invalid configuration **fails closed**
+and the filtered preview stays.
 
-**Protocol version: 2.** v1 (a full SHA-256 manifest + content-addressed blob
-diff) is removed, not kept alongside. A create-session response without
-`protocolVersion: 2` must surface an error (no silent fallback).
+The sandbox CSP string must stay **byte-identical** to eXe core's
+`previewCspHeader()`; core is authoritative.
 
-## Why an HTTP transport (and not the Service Worker)
+## Why not the Service Worker
 
 For *published* `.elpx` content this app serves package bytes same-origin (the
 Service Worker `src/sw/exelearning-sw.js` and the authenticated
@@ -23,272 +25,138 @@ The **editor preview** is different: it renders *untrusted, unsaved* author HTML
 and SVG that can contain arbitrary scripts. Rendering that same-origin — or via a
 Service Worker in our scope — would let it read the Nextcloud session, call our
 APIs and pivot. A Service Worker **cannot** back an opaque origin (its
-subresources bypass the SW). So the editor preview is served from a **separate,
-authless, cookieless origin** and never through the Service Worker.
+subresources bypass the SW), so the preview is served from an authless,
+cookieless route and never through the Service Worker.
 
-## The three layers (why v2)
+## The two endpoints
 
-v2 splits a preview into three layers with different lifecycles so a refresh
-costs `O(changed documents + new assets)` instead of `O(whole project)`:
-
-| Layer | Contents | Lifecycle | Transferred |
-|---|---|---|---|
-| **Fixed installation resources** (1) | official libraries, base iDevice runtimes, base theme files, PDF.js, content CSS, logo, fonts | immutable per installed editor version | **never** — served from the installed static editor distribution, gated by a build manifest |
-| **Session project assets** (2) | author images/audio/video/PDF — anything with an asset identity | immutable per `assetKey`, whole session | **once per session** |
-| **Generated documents** (3) | page HTML, navigation, generated CSS/JS, user theme/iDevice files | change every edit | **only the changed files**, as an atomic revision delta |
-
-Classification is by **provenance, not name**: a resource is *fixed* only when the
-client resolved it from the installation-immutable editor distribution. Custom
-themes, user-installed iDevices and anything embedded in an `.elpx` ride the
-session layers.
-
-## Implementation map
-
-All protocol logic is OCP-free and unit-testable; the controllers are thin
-Nextcloud adapters.
-
-| Concern | Class |
-|---|---|
-| Isolation policy (CSP, scriptable set, Permissions-Policy, MIME, path normalization) | `lib/Service/Preview/PreviewPolicy.php` |
-| Session store (three layers, atomic revisions, budgets, TTL, immutability) | `lib/Service/Preview/PreviewSessionStore.php` |
-| Fixed-resource layer (manifest lookup + containment) | `lib/Service/Preview/FixedResourceManifest.php` |
-| Serving HTTP policy (headers/CSP/cache tiers/Range/304) | `lib/Service/Preview/PreviewServer.php` |
-| Management HTTP policy (ownership gate, status/body mapping) | `lib/Service/Preview/PreviewSessionApi.php` |
-| Authless serving controller | `lib/Controller/PreviewController.php` |
-| Authenticated management controller | `lib/Controller/PreviewSessionController.php` |
-| Idle-TTL cleanup job | `lib/BackgroundJob/PreviewCleanupJob.php` |
-
-## A. Management API (AUTHENTICATED, owner-scoped)
-
-Served under the normal authenticated app routes (CSRF **on** — these are called
-by the embedded editor same-origin, mirroring `editor#save`; they are **not**
-`#[NoCSRFRequired]`). Ownership is scoped to the `IUserSession` user id.
-
-| Method & path | Body | Success |
+| | Request | Result |
 |---|---|---|
-| `POST /apps/exelearning/api/preview-session` | – | `201 { previewId, protocolVersion: 2, revision: 0, limits }` |
-| `POST …/preview-session/{previewId}/assets` | multipart: `assets` (JSON `[{key,size}]`), `files[]` index-aligned | `200 { stored, alreadyStored, rejected }` |
-| `POST …/preview-session/{previewId}/revisions` | multipart: `revision` (JSON, below), `files[]` aligned with `writes` | `200 { revision, active: true }` |
-| `DELETE …/preview-session/{previewId}` | – | `200 { success: true }` |
+| Management | `POST {basePath}/api/preview-session` | multipart `snapshot=<zip>`, optional `previewId` → `{previewId}` |
+| Management | `DELETE {basePath}/api/preview-session/{previewId}` | drops the snapshot |
+| Serving | `GET {basePath}/preview/{previewId}/{path}` | the snapshot, authless |
 
-- **Asset keys** match `^[0-9a-fA-F-]{36}@[0-9a-f]{8,64}$` and are **immutable**:
-  re-uploading an existing key returns it in `alreadyStored` and never replaces
-  bytes (a replaced author file gets a new key). The server treats the key as an
-  opaque token — it never hashes asset bytes. Enforced on the buffered bytes; a
-  declared/actual size mismatch rejects that entry.
-- **Revision JSON** (`writes` = paths, index-aligned with `files[]`):
+Management is the only authenticated surface: a logged-in `IUserSession` user
+plus Nextcloud's ordinary CSRF check (the actions are deliberately **not**
+`#[NoCSRFRequired]`, mirroring `editor#save`), and the store scopes every
+snapshot to its owner (403/404).
 
-  ```jsonc
-  {
-    "baseRevision": 17,          // the revision the client believes is active
-    "nextRevision": 18,          // must be baseRevision + 1
-    "writes": ["index.html"],    // aligned with files[]
-    "deletes": ["html/old.html"],
-    "assetRefs": { "content/photo.png": "3f2a…@9c41d2e8" },  // FULL map served path → assetKey
-    "fixedRefs": { "libs/jquery/jquery.min.js": "libs/jquery/jquery.min.js" }  // FULL map served path → fixedResourceId
-  }
-  ```
+Serving carries no authentication at all. The unguessable id plus the idle TTL is
+the whole credential, which is what makes the origin opaque — an iframe pointed
+at this URL carries no Nextcloud session, so author code inside it has nothing to
+steal.
 
-  Validation order: session exists (`404`) → `baseRevision`/`nextRevision`
-  consistent else `409 { reason: "revision-conflict", currentRevision }` → every
-  path normalized/safe else `400` → every `assetRefs` value stored else
-  `422 { reason: "missing-assets", missing }` → every `fixedRefs` value in the
-  fixed manifest else `422 { reason: "unknown-fixed-resources", resources }` →
-  file-count/byte budgets else `413`.
-- **Atomicity.** A revision is published by writing its content-addressed blobs,
-  writing the revision manifest (temp+rename), then swapping the `current`
-  pointer (temp+rename). A concurrent `GET` reads `current` once then an
-  immutable manifest, so it observes revision *N* or *N+1*, never a mixture.
-- **Budgets & TTL.** 30-min idle TTL, 4 sessions/user, 5000 files/session, 200
-  MiB/session, 128 MiB/asset, 2 GiB global (per-user and global caps evict LRU).
+## Why one whole snapshot
 
-## B. Serving route (AUTHLESS capability URL)
-
-```
-GET /apps/exelearning/preview/{previewId}/{path}
-```
-
-- **Authless, cookieless.** The opaque iframe sends no SameSite cookies, so this
-  route does not depend on the session. It is gated solely on the unguessable
-  server-minted `previewId` UUID + idle TTL (Nextcloud's cookieless serving
-  primitive, `#[PublicPage]` + `#[NoCSRFRequired]`). It never emits a session
-  cookie and always answers `Access-Control-Allow-Origin: *` (sound only because
-  it is cookieless — never paired with credentials).
-- `previewId` must match
-  `^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$`; else 404.
-- The bare `/preview/{previewId}` **302-redirects** to `{previewId}/index.html`
-  (a relative `Location`, correct under any webroot). It never serves index.html
-  bytes inline — a document served from the bare URL would resolve its relative
-  subresource references against `preview/` (dropping the id segment) and every
-  asset would 404.
-- **Resolution order** (exact-key against the active revision only):
-  `documents[path]` → `assets[assetRefs[path]]` → `fixed[fixedRefs[path]]` → 404.
-  A path only ever names a stored entry; only the server-controlled manifest
-  `path` reaches the filesystem, contained under the distribution root.
-- **Range** on session assets: `Accept-Ranges: bytes`, a satisfiable single
-  range → `206`, a syntactically valid but unsatisfiable single range (e.g.
-  `bytes=99-` past EOF) → `416`. A malformed, multi-range or non-`bytes` header
-  is **ignored** — the server serves a normal `200` full body. **Conditional**:
-  `ETag: "<assetKey>"`, `If-None-Match` → `304`.
-
-### Required response headers (on EVERY response, including 404)
-
-| Header | Value |
-| --- | --- |
-| `X-Content-Type-Options` | `nosniff` |
-| `Referrer-Policy` | `no-referrer` |
-| `Permissions-Policy` | `camera=(), microphone=(), geolocation=(), payment=()` |
-| `Access-Control-Allow-Origin` | `*` (never with credentials) |
-| `Content-Type` | the served file's real MIME (always set explicitly — Nextcloud serves unknown extensions as `text/plain`) |
-
-`Cache-Control` is **tiered by layer**:
-
-| Response | Cache-Control |
-| --- | --- |
-| Generated document (layer 3) | `no-store` |
-| Session asset (layer 2) | `no-cache` (+ `ETag`, `If-None-Match` → 304) |
-| Fixed resource (layer 1) | `private, max-age=31536000` |
-| 404 / errors | `no-store` |
-
-### Sandbox CSP (every scriptable document type, from every layer)
-
-On `text/html`, `image/svg+xml`, `application/xml`, `text/xml` and
-`application/xhtml+xml` — whether the response resolves from the session or the
-fixed layer — add this `Content-Security-Policy` **verbatim** (byte-identical to
-eXe core `previewCspHeader()`; `PreviewPolicy::CSP`):
-
-```
-sandbox allow-scripts allow-popups allow-forms; default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; font-src 'self' data:; connect-src 'self'; frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; child-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'self'
-```
-
-The leading `sandbox` directive drops the document into an opaque, unique origin
-even when opened top-level (a raw `*.html` **or** `*.svg` in a new tab stays
-opaque — an author SVG served without it runs its inline `<script>` same-origin).
-
-> **Two CSP strings in this app.** The preview CSP above (`PreviewPolicy::CSP`)
-> is a **different** string from `IframeSandbox::contentSecurityPolicy()` used for
-> *published* content. Published content pins `frame-src`/`img-src` to the
-> maintained provider hosts (token-exfiltration hardening for a longer-lived
-> capability token); the editor preview is a short-lived ephemeral capability and
-> matches core's preview CSP verbatim. They are deliberately **not** unified —
-> unifying would either weaken published-content hardening or drift the preview
-> CSP from core. Do not change published-content behaviour to reconcile them.
-
-## The fixed-resource manifest
-
-The fixed layer resolves ids through
-`bundles/preview-fixed-resources.json` inside the installed static editor
-distribution (`js/editor/`, staged by `make download-editor`). eXe core emits it
-into the distribution; `resources[id].path` is relative to the distribution root.
-`FixedResourceManifest` resolves an id by **exact map lookup** (never path
-arithmetic on client input) and reads the file with a containment check.
-
-When the bundled editor predates the manifest (as with the current v4.0.2
-bundle), the file is absent and the **fixed layer is simply disabled**: any
-`fixedRefs` in a revision is rejected with `422 unknown-fixed-resources` and the
-client demotes those refs into the session layers. This is never fatal.
+An earlier revision implemented a layered protocol (contract v2): immutable asset
+keys uploaded once, incremental document revisions, and a manifest of fixed
+installation resources resolved out of the editor distribution — all to avoid
+re-uploading unchanged bytes. The editor no longer speaks it; it was handed a
+contract nothing read while the one it does read (`previewSnapshot`) was
+withheld, which left the opaque preview unreachable here. One ZIP per refresh
+replaced the store, the fixed-resource layer and the four-operation management
+API.
 
 ## Storage
 
-Sessions are file-backed under `{datadirectory}/exelearning/preview-sessions/`
-(PHP is request-scoped — an in-memory map cannot survive between the management
-POSTs and the authless GETs). Each session directory holds `meta.json`, a
-`.accessed` TTL/LRU marker, a `current` pointer, `assets/{sha1(key)}`,
-content-addressed `documents/{sha1(bytes)}`, and `revisions/{N}.json`. The store
-requires a POSIX-local directory (atomic rename + link + flock), matching the
-contract's PHP-host note ("atomic pointer swap … rename a `current` marker"). It
-is resolved from the Nextcloud data directory rather than `IAppData` (which may
-be object storage) — the only OCP seam; the store itself is OCP-free.
+    {datadirectory}/exelearning/preview-snapshots/{previewId}/
+      meta.json    ownerUserId, createdAt, bytes
+      .accessed    empty marker; its mtime is the idle-TTL / LRU clock
+      content/     the extracted snapshot
 
-## Cleanup
+Outside the web root, so no direct web-server path can bypass the serving route
+and its sandbox CSP. The root comes from `datadirectory` rather than `IAppData`
+because the store needs a POSIX-local directory for atomic renames, and
+`IAppData` may be object storage. Content sits in its own subdirectory so no
+author path can collide with the store's own files — there are no reserved names
+to police. A write is staged beside the live tree and swapped in, so a reader
+sees the previous snapshot or the new one, never a half-written one.
 
-`PreviewCleanupJob` (a `TimedJob` registered in `appinfo/info.xml`
-`<background-jobs>`) sweeps idle-expired sessions every 10 minutes; the serving
-route also drops an expired session opportunistically on access, so preview URLs
-stop resolving at the TTL even if cron is starved.
+## What an archive must survive before extraction
 
-## Editor activation (wired)
+`SnapshotArchive` vets every entry **before** anything is written, then extracts
+under a byte budget:
 
-The embedded editor is handed a `previewHttp` block in
-`window.__EXE_EMBEDDING_CONFIG__` by `EditorController::iframe()`
-(`previewHttpConfig()`), following the normalized HTTP preview contract:
+- Unsafe entries (absolute paths, backslashes, `.`/`..` segments, NUL bytes) and
+  symbolic links reject the **whole** archive in the first pass.
+- The zip-bomb cap is enforced on the **real decompressed bytes** as they stream
+  out, not on the sizes declared in the central directory — those are supplied by
+  whoever built the archive. The declared total is only an early reject.
+- An `index.html` must be present, or it is not a preview.
+
+## Bounds
+
+Nextcloud is the one adapter where these matter beyond a single author, because
+one shared instance hosts many users against one filesystem:
+
+| Bound | Default |
+|---|---|
+| Idle TTL | 30 min |
+| Snapshots per user | 4 (LRU-evicted) |
+| Files per snapshot | 5000 |
+| Bytes per snapshot | 200 MiB |
+| Global | 2 GiB (LRU-evicted, then 507) |
+
+Serving a snapshot pushes its idle clock back, so a preview in use never expires
+under the author. Every publish sweeps, and `PreviewCleanupJob` sweeps every
+10 minutes, so the store never depends on cron alone to bound its size.
+
+## Response headers
+
+Every response, 404s included, carries `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: no-referrer`, the preview `Permissions-Policy` and
+`Access-Control-Allow-Origin: *` — safe here precisely because the route is
+authless and cookieless, and never to be paired with credentials. There is
+deliberately no `X-Frame-Options`: framing is governed by the CSP
+`frame-ancestors` directive.
+
+Every **scriptable** type — `text/html`, `image/svg+xml`, XML, XHTML — also gets
+the sandbox CSP, so a capability URL stays opaque even when opened directly. Not
+just HTML: an author-supplied SVG runs its inline `<script>` top-level, and
+`nosniff` does not help — SVG is already a scriptable type.
+
+Caching is tiered: a scriptable document is `no-store` (it is rewritten on every
+refresh), everything else revalidates with an `ETag` and supports single-range
+206/416, which is what makes a video inside the snapshot seek without a full
+re-download.
+
+The bare capability URL (`…/{previewId}`) never serves `index.html` bytes: it
+302s to `…/{previewId}/index.html`, so the opaque iframe's base URL is the
+snapshot directory. The `Location` is relative, so it stays correct under any
+Nextcloud webroot.
+
+## Client wiring
+
+`EditorController::previewSnapshotConfig()` injects into
+`window.__EXE_EMBEDDING_CONFIG__`:
 
 ```jsonc
-{
-  "previewHttp": {
-    "protocolVersion": 2,
-    "managementBaseUrl": "/apps/exelearning/api/preview-session",
-    "servingBaseUrl": "/apps/exelearning/preview",
-    "managementHeaders": { "requesttoken": "<current Nextcloud CSRF token>" }
-  }
+"previewSnapshot": {
+  "managementUrl":     "{basePath}/api/preview-session",
+  "servingBaseUrl":    "{basePath}/preview",
+  "deleteUrlTemplate": "{basePath}/api/preview-session/{previewId}",
+  "managementHeaders": { "requesttoken": "…" }
 }
 ```
 
-- Both URLs are generated **server-side** through `IURLGenerator::linkToRoute`,
-  so they carry the correct webroot and front-controller prefix under a sub-path
-  install (mirroring the client's `@nextcloud/router` `generateUrl`). The serving
-  routes are parameterised, so `servingBaseUrl` is derived by generating the bare
-  capability-root URL for a placeholder id and stripping the id segment.
-- `managementHeaders.requesttoken` is the **current Nextcloud CSRF token** — the
-  same encrypted value the standard template layer exposes as `data-requesttoken`
-  and `OC.requestToken` (obtained from
-  `CsrfTokenManager::getToken()->getEncryptedValue()`). It is required because the
-  management routes keep CSRF **on** (they are **not** `#[NoCSRFRequired]`); the
-  editor replays it on every management request.
+Every URL is generated server-side through the router, so it carries the correct
+webroot and front-controller prefix under a sub-path install. `requesttoken` is
+the current Nextcloud CSRF token: it stays valid for the whole editing session,
+because a token is bound to a per-session secret that only rotates when the
+session id does — and that invalidates the parent page hosting the iframe, which
+reloads and injects a fresh one.
 
-**CSRF-token durability (audited).** A Nextcloud CSRF token is bound to a
-per-session secret. `getEncryptedValue()` returns a per-call randomized encoding,
-but every value minted from the same session validates against that one secret
-(`isTokenValid()` decrypts and compares), so the injected value stays valid for
-the whole editing session — hours — not just one request. The secret is
-regenerated only when the session id itself is regenerated (login / logout /
-re-auth), never on ordinary navigation; whenever that happens the parent
-Nextcloud page hosting the iframe is itself invalidated and reloads, re-running
-the bootstrap and injecting a fresh token (and the parent's keepalive heartbeat
-keeps the session and `OC.requestToken` alive meanwhile). The injected-token
-approach is therefore **durable**; a postMessage CONFIGURE refresh into the
-iframe is a future nicety, not a correctness requirement.
-- `previewTransport` / `previewBasePath` are **dead vocabulary** — the earlier
-  single-`previewBasePath` idea was never implemented and the two-URL
-  `previewHttp` model replaces it.
+## External video inside the opaque iframe
 
-**Editor-build dependency.** The endpoints are live, but preview only lights up
-once the app ships a capable editor build — one that carries the
-`HttpPreviewProvider` and emits `bundles/preview-fixed-resources.json` under
-`js/editor/`. The bundled v4.0.2 editor predates the HTTP preview client, so it
-simply ignores `previewHttp` today and the endpoints stay dormant (harmless). No
-server change is needed when that build lands; only `make download-editor` points
-at a newer distribution.
+An opaque origin fails YouTube's and Vimeo's embedder check (Error 153), so the
+players cannot run inside the sandbox. `exe_embed_shim.js` — inlined into the
+served package by `ContentController` — demotes provider iframes to geometry
+placeholders, and `exe_embed_relay.js` on the trusted parent (driven by
+`src/embed/relay-host.ts`) overlays the real player over each one.
 
-## Conformance
+## Tests
 
-Beyond the CSP drift-check, the shared vectors in
-`tests/fixtures/preview-contract/vectors.json` (vendored verbatim from eXe core)
-are replayed against this app's seams in
-`tests/Unit/Service/Preview/PreviewContractConformanceTest.php`, so protocol
-semantics — not just the CSP string — stay aligned with every other host.
-
-**Vectors re-vendor pending.** The vendored `vectors.json` predates the two
-contract CHANGES above (bare-root `302` and the malformed-Range→`200` rule). It is
-**not** forked here — core re-vendors it once its own vectors carry these steps,
-and this app re-syncs then. The new behaviours are covered directly by
-`PreviewServerTest` in the meantime.
-
-The API-level end-to-end job in [`ci.yml`](../.github/workflows/ci.yml)
-(`tests/e2e/preview-api-e2e.sh`) exercises the real management + serving surface
-against a live Nextcloud served over the built-in php server. It authenticates
-with **HTTP Basic auth** (per-request, cookieless — the browser login form's
-SameSite/session cookies do not round-trip under `php -S`, so a cookie login is
-unreliable there) and still exercises CSRF honestly using Nextcloud's own rule:
-`Request::passesCSRFCheck()` passes when the `OCS-APIRequest` header is present,
-so the positive calls send it, and an **authenticated management POST *without*
-that header (and no requesttoken) is rejected 412 "CSRF check failed"** — the real
-proof that the management routes are not `#[NoCSRFRequired]`. It then asserts the
-create → asset → revision → serve round-trip, the authless serving response
-(`200` + the `sandbox` CSP with no `allow-same-origin`), the bare-root `302`,
-cross-user ownership denial (`403`), a dropped multipart part rejected `400`
-without advancing the revision, and a deleted session serving `404`.
-
-The full **browser** editor-iframe E2E (opening the editor, external video, the
-interactive-video iDevice) stays blocked on a capable editor build and is
-documented as that dependency rather than faked.
+`PreviewSnapshotStoreTest` covers the capability lifecycle, owner scoping, the
+archive guards and the DoS bounds; `PreviewServerTest` covers the serving
+response contract; `PreviewPolicyTest` covers MIME/scriptable classification and
+path normalization.

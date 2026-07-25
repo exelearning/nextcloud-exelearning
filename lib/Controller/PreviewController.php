@@ -15,8 +15,8 @@ use OCP\IRequest;
 /**
  * AUTHLESS, cookieless serving endpoint for the eXeLearning **editor preview**
  * of untrusted, unsaved author content, served from an opaque origin
- * (serving contract v2 — docs/preview-serving-contract.md, canonical spec in
- * eXe core `doc/development/preview-serving-contract.md`).
+ * (docs/preview-serving-contract.md, canonical spec in eXe core
+ * `doc/development/preview-serving-contract.md`).
  *
  * Unlike {@see AssetController} (authenticated, same-origin, published content),
  * this route is a `#[PublicPage]` capability URL: knowledge of the `previewId`

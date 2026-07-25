@@ -208,8 +208,8 @@ class EditorController extends Controller {
 	 *    when the app is mounted under `/custom_apps/`.
 	 *  - `window.__EXE_EMBEDDING_CONFIG__` populated before any editor
 	 *    script runs (the editor's RuntimeConfig reads it during bootstrap),
-	 *    including the `previewHttp` block that wires the HTTP editor-preview
-	 *    transport (serving contract v2) — see {@see previewHttpConfig()}.
+	 *    including the `previewSnapshot` block that wires the opaque preview —
+	 *    see {@see previewSnapshotConfig()}.
 	 *  - A small bridge that forwards Ctrl/Cmd+S to the parent and patches
 	 *    `EmbeddingBridge.handleSaveRequest` for the v4.0.0 export quirk.
 	 *  - A permissive CSP — eXeLearning has many inline scripts and styles;
@@ -253,13 +253,13 @@ class EditorController extends Controller {
 			],
 		], JSON_UNESCAPED_SLASHES);
 
-		$previewHttp = json_encode($this->previewHttpConfig(), JSON_HEX_TAG);
+		$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
 
 		$configScript = '<script>(function(){'
 			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
 			. 'var origin=window.location.origin;'
 			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
-			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin],previewHttp:' . $previewHttp . '});'
+			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin],previewSnapshot:' . $previewSnapshot . '});'
 			. '})();</script>';
 
 		// The resilience shim must be installed before any editor script
@@ -299,9 +299,8 @@ class EditorController extends Controller {
 	}
 
 	/**
-	 * The `previewHttp` block handed to the embedded editor so it can drive the
-	 * HTTP editor-preview transport (serving contract v2). Shape frozen by the
-	 * normalized contract: `{ protocolVersion, managementBaseUrl, servingBaseUrl,
+	 * The `previewSnapshot` block handed to the embedded editor so it can publish
+	 * opaque previews: `{ managementUrl, servingBaseUrl, deleteUrlTemplate,
 	 * managementHeaders }`.
 	 *
 	 *  - Both URLs are generated server-side through the router so they carry the
@@ -330,15 +329,14 @@ class EditorController extends Controller {
 	 * happen in practice, so a postMessage CONFIGURE refresh into the iframe is a
 	 * future nicety, not a correctness requirement.
 	 *
-	 * @return array{protocolVersion:int,managementBaseUrl:string,servingBaseUrl:string,managementHeaders:object}
+	 * @return array{managementUrl:string,servingBaseUrl:string,deleteUrlTemplate:string,managementHeaders:object}
 	 */
-	private function previewHttpConfig(): array {
-		$managementBaseUrl = $this->urlGenerator->linkToRoute(Application::APP_ID . '.previewSession.create');
+	private function previewSnapshotConfig(): array {
+		$sampleId = '00000000-0000-4000-8000-000000000000';
 
 		// The serving routes take a `previewId` (and `path`); generate the bare
 		// capability-root URL for a placeholder id, then strip the trailing
 		// `/{id}` so the client can append `/{previewId}/index.html` itself.
-		$sampleId = '00000000-0000-4000-8000-000000000000';
 		$sampleUrl = $this->urlGenerator->linkToRoute(
 			Application::APP_ID . '.preview.serveRoot',
 			['previewId' => $sampleId],
@@ -347,10 +345,21 @@ class EditorController extends Controller {
 			? substr($sampleUrl, 0, -(strlen($sampleId) + 1))
 			: $sampleUrl;
 
+		// The delete route is templated rather than derived by concatenation, so
+		// the client never has to know how this app spells a capability URL.
+		$deleteUrlTemplate = str_replace(
+			$sampleId,
+			'{previewId}',
+			$this->urlGenerator->linkToRoute(
+				Application::APP_ID . '.previewSession.delete',
+				['previewId' => $sampleId],
+			),
+		);
+
 		return [
-			'protocolVersion' => 2,
-			'managementBaseUrl' => $managementBaseUrl,
+			'managementUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.previewSession.create'),
 			'servingBaseUrl' => $servingBaseUrl,
+			'deleteUrlTemplate' => $deleteUrlTemplate,
 			'managementHeaders' => (object)[
 				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
 			],

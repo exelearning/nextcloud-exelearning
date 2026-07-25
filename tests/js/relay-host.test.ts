@@ -1,6 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import {
-	attachMedia,
 	clearOverlays,
 	pingEmbeds,
 	reflowOverlays,
@@ -10,7 +9,6 @@ import {
 
 type WindowWithBridge = Window & {
 	exeEmbedRelay?: unknown
-	exeMediaHost?: unknown
 }
 
 const w = window as WindowWithBridge
@@ -18,7 +16,6 @@ const w = window as WindowWithBridge
 afterEach(() => {
 	resetRelayForTests()
 	delete w.exeEmbedRelay
-	delete w.exeMediaHost
 })
 
 describe('relay-host', () => {
@@ -56,19 +53,10 @@ describe('relay-host', () => {
 		expect(postMessage).toHaveBeenCalledWith({ type: 'exe-embed', action: 'request' }, '*')
 	})
 
-	it('attachMedia attaches the media host to the iframe', () => {
-		const attach = vi.fn()
-		w.exeMediaHost = { attach }
-		const iframe = {} as HTMLIFrameElement
-		attachMedia(iframe)
-		expect(attach).toHaveBeenCalledWith(iframe, {})
-	})
-
-	it('clear/reflow/attach are safe no-ops when the bridge is absent', () => {
+	it('clear/reflow are safe no-ops when the relay is absent', () => {
 		expect(() => {
 			clearOverlays()
 			reflowOverlays()
-			attachMedia({} as HTMLIFrameElement)
 		}).not.toThrow()
 	})
 })

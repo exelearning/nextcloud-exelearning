@@ -8,20 +8,19 @@ namespace OCA\ExeLearning\Service\Preview;
  * HTTP serving policy for the authless preview capability URL
  * (`GET {basePath}/preview/{previewId}/{path}`).
  *
- * Pure logic over {@see PreviewSessionStore} + {@see FixedResourceManifest}:
- * it validates the capability id, resolves the three layers, and applies the
- * contract's response policy — the hardening header set on EVERY response
- * (404s included), the tiered `Cache-Control`, `ETag`/`If-None-Match` → 304 and
- * single-range 206/416 on assets, and the sandbox-first CSP on every scriptable
- * document type from any layer. It returns a {@see PreviewResponse} value
- * object so the whole policy is unit-testable and vector-replayable without a
- * Nextcloud server; {@see \OCA\ExeLearning\Controller\PreviewController} is the
- * thin adapter onto `DataDisplayResponse`.
+ * Pure logic over {@see PreviewSnapshotStore}: it validates the capability id,
+ * resolves the path inside the snapshot, and applies the contract's response
+ * policy — the hardening header set on EVERY response (404s included), the
+ * tiered `Cache-Control`, `ETag`/`If-None-Match` → 304 and single-range 206/416
+ * on assets, and the sandbox-first CSP on every scriptable document type. It
+ * returns a {@see PreviewResponse} value object so the whole policy is
+ * unit-testable without a Nextcloud server;
+ * {@see \OCA\ExeLearning\Controller\PreviewController} is the thin adapter onto
+ * `DataDisplayResponse`.
  */
 final class PreviewServer {
 	public function __construct(
-		private readonly PreviewSessionStore $store,
-		private readonly FixedResourceManifest $fixed,
+		private readonly PreviewSnapshotStore $store,
 	) {
 	}
 
@@ -35,14 +34,13 @@ final class PreviewServer {
 		if (!PreviewPolicy::isValidPreviewId($previewId)) {
 			return $this->notFound();
 		}
-		$file = $this->store->resolve($previewId, $rawPath, $this->fixed);
+		$file = $this->store->resolve($previewId, $rawPath);
 		if ($file === null) {
 			return $this->notFound();
 		}
 
 		return match ($file['kind']) {
 			'asset' => $this->serveAsset($file, $ifNoneMatch, $range),
-			'fixed' => $this->serveBytes($file, 'private, max-age=31536000'),
 			default => $this->serveBytes($file, 'no-store'),
 		};
 	}
@@ -58,7 +56,7 @@ final class PreviewServer {
 	 * them onto the correct directory. The `Location` is relative so it stays
 	 * correct under any Nextcloud webroot (it resolves against the request URI,
 	 * `{servingBase}/{previewId}`) without the store needing a URL generator, and
-	 * the whole decision stays OCP-free and vector-replayable. Contract v2.1 §4.
+	 * the whole decision stays OCP-free.
 	 */
 	public function serveRoot(string $previewId): PreviewResponse {
 		if (!PreviewPolicy::isValidPreviewId($previewId)) {
@@ -72,8 +70,8 @@ final class PreviewServer {
 	}
 
 	/**
-	 * Document (layer 3, `no-store`) or fixed resource (layer 1, immutable and
-	 * cacheable). Both may be scriptable and then carry the sandbox CSP.
+	 * A scriptable document: rewritten on every refresh, so `no-store`, and it
+	 * carries the sandbox CSP.
 	 *
 	 * @param array{contentType:string,isScriptable:bool,bytes?:string} $file
 	 */
@@ -88,7 +86,7 @@ final class PreviewServer {
 	}
 
 	/**
-	 * Session project asset (layer 2): revalidated (`no-cache`) with an ETag,
+	 * A non-scriptable asset: revalidated (`no-cache`) with an ETag,
 	 * `Accept-Ranges: bytes`, `If-None-Match` → 304 and single-range 206/416.
 	 *
 	 * @param array{contentType:string,isScriptable:bool,filePath:string,size:int,etag:string} $file
