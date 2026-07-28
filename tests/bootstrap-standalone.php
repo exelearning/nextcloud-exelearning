@@ -53,7 +53,7 @@ if (!interface_exists('OCP\\Files\\File', false)) {
 		interface File {
 			public function getStorage();
 			public function getInternalPath();
-			public function fopen(string $mode);
+			public function fopen($mode);
 		}
 	');
 }
