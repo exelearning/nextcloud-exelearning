@@ -9,9 +9,9 @@ use PHPUnit\Framework\TestCase;
 
 /**
  * Tests for {@see ZipEntryService}. `readEntry()` takes a Nextcloud `File`,
- * which is faked here via a minimal anonymous subclass so the local-path and
- * stream-fallback branches can be exercised without a real Nextcloud server
- * or storage backend.
+ * which is mocked here (against the interface stub from
+ * `bootstrap-standalone.php`) so the local-path and stream-fallback branches
+ * can be exercised without a real Nextcloud server or storage backend.
  */
 final class ZipEntryServiceTest extends TestCase {
 	private ZipEntryService $service;
@@ -85,46 +85,35 @@ final class ZipEntryServiceTest extends TestCase {
 	}
 
 	/**
-	 * Fakes a Nextcloud `File` whose storage reports `$localPath` as the
+	 * Mocks a Nextcloud `File` whose storage reports `$localPath` as the
 	 * local path (any value `ZipEntryService` should NOT be able to open
 	 * directly — e.g. a virtual path or an empty string) and whose
 	 * `fopen()` streams the given archive bytes.
 	 */
 	private function createFakeFile(string $archive, string $localPath): \OCP\Files\File {
-		if (!class_exists('OCP\\Files\\File')) {
-			eval('namespace OCP\\Files; class File {}');
-		}
-
-		return new class($archive, $localPath) extends \OCP\Files\File {
+		$storage = new class($localPath) {
 			public function __construct(
-				private readonly string $archive,
 				private readonly string $localPath,
 			) {
 			}
 
-			public function getStorage(): object {
-				return new class($this->localPath) {
-					public function __construct(
-						private readonly string $localPath,
-					) {
-					}
-
-					public function getLocalFile(string $path): string {
-						return $this->localPath;
-					}
-				};
-			}
-
-			public function getInternalPath(): string {
-				return 'files/package.elpx';
-			}
-
-			public function fopen(string $mode) {
-				$stream = fopen('php://temp', 'w+b');
-				fwrite($stream, $this->archive);
-				rewind($stream);
-				return $stream;
+			public function getLocalFile(string $path): string {
+				return $this->localPath;
 			}
 		};
+
+		$file = $this->createMock(\OCP\Files\File::class);
+		$file->method('getStorage')->willReturn($storage);
+		$file->method('getInternalPath')->willReturn('files/package.elpx');
+		$file->method('fopen')->with('rb')->willReturnCallback(
+			static function () use ($archive) {
+				$stream = fopen('php://temp', 'w+b');
+				fwrite($stream, $archive);
+				rewind($stream);
+				return $stream;
+			},
+		);
+
+		return $file;
 	}
 }
