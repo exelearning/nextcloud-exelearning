@@ -8,9 +8,10 @@ use OCA\ExeLearning\Service\ZipEntryService;
 use PHPUnit\Framework\TestCase;
 
 /**
- * Tests for {@see ZipEntryService::normalizeEntry}. The reading methods need a
- * Nextcloud File handle which is too heavy to fake here — they are exercised
- * by integration tests that run against a real server.
+ * Tests for {@see ZipEntryService}. `readEntry()` takes a Nextcloud `File`,
+ * which is faked here via a minimal anonymous subclass so the local-path and
+ * stream-fallback branches can be exercised without a real Nextcloud server
+ * or storage backend.
  */
 final class ZipEntryServiceTest extends TestCase {
 	private ZipEntryService $service;
@@ -46,30 +47,70 @@ final class ZipEntryServiceTest extends TestCase {
 	}
 
 	public function testReadEntryFallsBackToStreamWhenLocalPathCannotBeOpened(): void {
-		if (!class_exists('OCP\\Files\\File')) {
-			eval('namespace OCP\\Files; class File {}');
-		}
+		// Some virtual storage implementations (notably the php-wasm
+		// Playground filesystem) expose a nominal local path that native
+		// ZipArchive still cannot open.
+		$archive = $this->createTestArchive('index.html', '<h1>Playground</h1>');
+		$file = $this->createFakeFile($archive, '/virtual/php-wasm/package.elpx');
 
+		self::assertSame('<h1>Playground</h1>', $this->service->readEntry($file, 'index.html'));
+	}
+
+	public function testReadEntryFallsBackToStreamWhenLocalFileIsEmptyString(): void {
+		// S3/object storage and other non-local primary storages commonly
+		// return an empty string — not false/null — from getLocalFile() when
+		// there is no local path at all. That empty string must not be
+		// handed to ZipArchive::open(), which would emit a PHP warning and
+		// leave the entry unreadable.
+		$archive = $this->createTestArchive('content.xml', '<content/>');
+		$file = $this->createFakeFile($archive, '');
+
+		self::assertSame('<content/>', $this->service->readEntry($file, 'content.xml'));
+	}
+
+	/**
+	 * Builds a minimal in-memory ZIP archive and returns its raw bytes.
+	 */
+	private function createTestArchive(string $entryName, string $entryContents): string {
 		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
 		self::assertNotFalse($archivePath);
 		$zip = new \ZipArchive();
 		self::assertTrue($zip->open($archivePath, \ZipArchive::OVERWRITE) === true);
-		$zip->addFromString('index.html', '<h1>Playground</h1>');
+		$zip->addFromString($entryName, $entryContents);
 		$zip->close();
 		$archive = file_get_contents($archivePath);
 		@unlink($archivePath);
 		self::assertIsString($archive);
+		return $archive;
+	}
 
-		$file = new class($archive) extends \OCP\Files\File {
+	/**
+	 * Fakes a Nextcloud `File` whose storage reports `$localPath` as the
+	 * local path (any value `ZipEntryService` should NOT be able to open
+	 * directly — e.g. a virtual path or an empty string) and whose
+	 * `fopen()` streams the given archive bytes.
+	 */
+	private function createFakeFile(string $archive, string $localPath): \OCP\Files\File {
+		if (!class_exists('OCP\\Files\\File')) {
+			eval('namespace OCP\\Files; class File {}');
+		}
+
+		return new class($archive, $localPath) extends \OCP\Files\File {
 			public function __construct(
 				private readonly string $archive,
+				private readonly string $localPath,
 			) {
 			}
 
 			public function getStorage(): object {
-				return new class {
+				return new class($this->localPath) {
+					public function __construct(
+						private readonly string $localPath,
+					) {
+					}
+
 					public function getLocalFile(string $path): string {
-						return '/virtual/php-wasm/package.elpx';
+						return $this->localPath;
 					}
 				};
 			}
@@ -85,7 +126,5 @@ final class ZipEntryServiceTest extends TestCase {
 				return $stream;
 			}
 		};
-
-		self::assertSame('<h1>Playground</h1>', $this->service->readEntry($file, 'index.html'));
 	}
 }
