@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\Tests\Unit\Service;
 
 use OCA\ExeLearning\Service\ZipEntryService;
 use PHPUnit\Framework\TestCase;
+use RuntimeException;
 
 /**
  * Tests for {@see ZipEntryService}. `readEntry()` takes a Nextcloud `File`,
@@ -66,6 +67,60 @@ final class ZipEntryServiceTest extends TestCase {
 		$file = $this->createFakeFile($archive, '');
 
 		self::assertSame('<content/>', $this->service->readEntry($file, 'content.xml'));
+	}
+
+	public function testReadsZeroByteEntriesAsEmptyString(): void {
+		// A declared size of 0 means the bounded read asks for a single byte;
+		// getFromName() must still report the empty entry as '' — not false.
+		$archive = $this->createTestArchive('empty.txt', '');
+		$file = $this->createFakeFile($archive, '');
+
+		self::assertSame('', $this->service->readEntry($file, 'empty.txt'));
+	}
+
+	public function testStreamFallbackRejectsEntriesOverTheUncompressedSizeLimit(): void {
+		// Both branches must enforce the same limits: an oversized entry has
+		// to be rejected whether the package is opened from a local path or
+		// through the File::fopen() fallback.
+		$service = new ZipEntryService(maxUncompressedSizeBytes: 8);
+		$archive = $this->createTestArchive('index.html', '<h1>Playground</h1>');
+		$file = $this->createFakeFile($archive, '');
+
+		$this->expectException(RuntimeException::class);
+		$service->readEntry($file, 'index.html');
+	}
+
+	public function testLocalPathRejectsEntriesOverTheUncompressedSizeLimit(): void {
+		$service = new ZipEntryService(maxUncompressedSizeBytes: 8);
+		$archive = $this->createTestArchive('index.html', '<h1>Playground</h1>');
+		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
+		self::assertNotFalse($archivePath);
+		file_put_contents($archivePath, $archive);
+		$file = $this->createFakeFile($archive, $archivePath);
+
+		try {
+			$this->expectException(RuntimeException::class);
+			$service->readEntry($file, 'index.html');
+		} finally {
+			@unlink($archivePath);
+		}
+	}
+
+	public function testStreamFallbackReturnsNullWhenArchiveHasTooManyEntries(): void {
+		$service = new ZipEntryService(maxEntries: 1);
+		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
+		self::assertNotFalse($archivePath);
+		$zip = new \ZipArchive();
+		self::assertTrue($zip->open($archivePath, \ZipArchive::OVERWRITE) === true);
+		$zip->addFromString('index.html', '<h1>Playground</h1>');
+		$zip->addFromString('content.xml', '<content/>');
+		$zip->close();
+		$archive = file_get_contents($archivePath);
+		@unlink($archivePath);
+		self::assertIsString($archive);
+		$file = $this->createFakeFile($archive, '');
+
+		self::assertNull($service->readEntry($file, 'index.html'));
 	}
 
 	/**
