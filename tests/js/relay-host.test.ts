@@ -4,11 +4,13 @@ import {
 	pingEmbeds,
 	reflowOverlays,
 	resetRelayForTests,
+	startMedia,
 	startRelay,
 } from '../../src/embed/relay-host'
 
 type WindowWithBridge = Window & {
 	exeEmbedRelay?: unknown
+	exeExternalMediaHost?: unknown
 }
 
 const w = window as WindowWithBridge
@@ -16,6 +18,7 @@ const w = window as WindowWithBridge
 afterEach(() => {
 	resetRelayForTests()
 	delete w.exeEmbedRelay
+	delete w.exeExternalMediaHost
 })
 
 describe('relay-host', () => {
@@ -51,6 +54,42 @@ describe('relay-host', () => {
 		const iframe = { contentWindow: { postMessage } } as unknown as HTMLIFrameElement
 		pingEmbeds(iframe)
 		expect(postMessage).toHaveBeenCalledWith({ type: 'exe-embed', action: 'request' }, '*')
+	})
+
+	/**
+	 * The media half is adopted SEPARATELY from the embed half (ADR-0024): starting the
+	 * relay overlays declarative embeds, and does nothing for an iDevice that asks the host
+	 * to drive a video. Without this the interactive-video iDevice inside the opaque package
+	 * gets no answer to its handshake and falls back to loading YouTube's SDK, which the
+	 * content CSP blocks — measured here, with the evidence harness, as a silent failure
+	 * every existing assertion sailed straight through.
+	 */
+	it('startMedia attaches the media host to the content iframe', () => {
+		const attachMedia = vi.fn().mockReturnValue({ detach: vi.fn() })
+		w.exeExternalMediaHost = { attachMedia }
+		const iframe = { contentWindow: {} } as unknown as HTMLIFrameElement
+
+		startMedia(iframe)
+
+		expect(attachMedia).toHaveBeenCalledWith(iframe)
+	})
+
+	it('startMedia attaches once per iframe, not once per page', () => {
+		const attachMedia = vi.fn().mockReturnValue({ detach: vi.fn() })
+		w.exeExternalMediaHost = { attachMedia }
+		const first = { contentWindow: {} } as unknown as HTMLIFrameElement
+		const second = { contentWindow: {} } as unknown as HTMLIFrameElement
+
+		startMedia(first)
+		startMedia(first)
+		startMedia(second)
+
+		expect(attachMedia).toHaveBeenCalledTimes(2)
+	})
+
+	it('startMedia is a safe no-op when the host bundle is absent', () => {
+		const iframe = { contentWindow: {} } as unknown as HTMLIFrameElement
+		expect(() => startMedia(iframe)).not.toThrow()
 	})
 
 	it('clear/reflow are safe no-ops when the relay is absent', () => {

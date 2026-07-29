@@ -149,9 +149,9 @@ reloads and injects a fresh one.
 ## External video inside the opaque iframe
 
 An opaque origin fails YouTube's and Vimeo's embedder check (Error 153), so the
-players cannot run inside the sandbox. `exe_embed_shim.js` — inlined into the
+players cannot run inside the sandbox. `exe-external-media-child.min.js` — inlined into the
 served package by `ContentController` — demotes provider iframes to geometry
-placeholders, and `exe_embed_relay.js` on the trusted parent (driven by
+placeholders, and `exe-external-media-host.min.js` on the trusted parent (driven by
 `src/embed/relay-host.ts`) overlays the real player over each one.
 
 ## Tests

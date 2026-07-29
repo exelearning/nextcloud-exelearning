@@ -13,11 +13,15 @@
 # --- Frontend sources -------------------------------------------------
 # All TypeScript / Vue under src/ is compiled into js/ at build time
 # and not needed at runtime, EXCEPT src/sw/ which `SwController.php`
-# reads to serve /apps/exelearning/sw.js. Whitelist that subtree
-# before excluding the rest of src/.
+# reads to serve /apps/exelearning/sw.js, and
+# src/embed/exe_external_media/ which `ContentController.php` inlines into every
+# served package. Whitelist those subtrees before excluding the rest of src/.
 + src/
 + src/sw/
 + src/sw/**
++ src/embed/
++ src/embed/exe_external_media/
++ src/embed/exe_external_media/**
 - src/**
 
 # --- Version control & developer metadata --------------------------------

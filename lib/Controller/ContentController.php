@@ -7,6 +7,7 @@ namespace OCA\ExeLearning\Controller;
 use OCA\ExeLearning\Service\ContentTokenService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCA\ExeLearning\Service\EmbedShimInjector;
+use OCA\ExeLearning\Service\EmbedShimSource;
 use OCA\ExeLearning\Service\IframeSandbox;
 use OCA\ExeLearning\Service\PackageMimeService;
 use OCA\ExeLearning\Service\ZipEntryService;
@@ -97,17 +98,15 @@ class ContentController extends Controller {
 	}
 
 	/**
-	 * Inline shim source, or null when the mirror asset is not present. Read
-	 * from src/embed/ at runtime, the same way {@see SwController} reads
+	 * Inline shim source, or null when the vendored artifact is not present. Read from
+	 * src/embed/ at runtime, the same way {@see SwController} reads
 	 * src/sw/exelearning-sw.js — the app ships its src/ tree.
+	 *
+	 * The bytes are the CANONICAL child bundle from eXeLearning core, not a copy kept
+	 * here; {@see EmbedShimSource} owns that decision and is unit-tested for it.
 	 */
 	private function shimSource(): ?string {
-		$path = __DIR__ . '/../../src/embed/exe_embed_shim.js';
-		if (!is_file($path)) {
-			return null;
-		}
-		$source = file_get_contents($path);
-		return $source === false ? null : $source;
+		return (new EmbedShimSource())->read();
 	}
 
 	/** 404 with the mandatory hardening headers (present on every response). */

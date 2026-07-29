@@ -18,10 +18,11 @@ module.exports = {
 		'js/',
 		'node_modules/',
 		'vendor/',
-		// Centrally-maintained, byte-synced eXe-core embed/media bridge mirrors
-		// (see scripts/check-embed-sync.mjs). They keep upstream's code style and
-		// module wrapper, so our lint rules do not apply to them.
-		'src/embed/exe_*.js',
+		// The vendored eXe-core external-media bundle: built artifacts owned by
+		// upstream (eXe ADR-0021), verified byte for byte against the manifest core
+		// published. They are minified output, not source, so our lint rules do not
+		// apply — and a local "fix" here would be overwritten on the next re-vendor.
+		'src/embed/exe_external_media/',
 	],
 	rules: {
 		// `void promise` is the canonical TypeScript way of marking a

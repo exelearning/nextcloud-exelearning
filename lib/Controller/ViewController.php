@@ -124,6 +124,12 @@ class ViewController extends Controller {
 		$csp->addAllowedScriptDomain("'self'");
 		$csp->addAllowedConnectDomain("'self'");
 		$csp->addAllowedFrameDomain("'self'");
+		// Promoted players are cross-origin frames mounted on THIS page by the relay, so
+		// 'self' alone blocks every one of them. Allowed hosts come from the same list the
+		// relay is given, never a copy.
+		foreach ($this->sandbox->playerFrameDomains() as $host) {
+			$csp->addAllowedFrameDomain('https://' . $host);
+		}
 		$response->setContentSecurityPolicy($csp);
 		return $response;
 	}

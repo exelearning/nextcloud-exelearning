@@ -25,14 +25,14 @@ the opaque path is served over real HTTP, not the SW.
 | Token minted at view-open (read permission checked here) | `lib/Controller/ViewController.php` |
 | Opaque iframe (`allow-scripts allow-popups allow-forms`) | `src/elpx/iframe-renderer.ts` |
 | Relay + media host in the parent page | `src/embed/relay-host.ts` + `src/viewer/ElpxViewer.vue` |
-| eXe-core embed/media bridge mirrors | `src/embed/exe_embed_shim.js`, `exe_embed_relay.js`, `exe_media_policy.js`, `exe_media_host.js` |
+| eXe-core external-media bundle (vendored) | `src/embed/exe_external_media/exe-external-media-child.min.js`, `exe-external-media-host.min.js` |
 
 Flow: the Viewer downloads + validates the package (legacy `.elp` → migration
 prompt), then loads the opaque iframe from `/content/{token}/index.html`. The PHP
 `ContentController` verifies the token, resolves the file, serves each entry with
 the sandbox CSP, and **inlines the embed shim** into HTML. Inside the opaque iframe
 the shim promotes each cross-origin/PDF sub-iframe to a geometry placeholder; the
-parent's relay (`exe_embed_relay.js`) overlays a real player over it, and the media
+parent's relay (`exe-external-media-host.min.js`) overlays a real player over it, and the media
 host (`exe_media_host.js`) drives the interactive-video iDevice.
 
 ## Capability model (cookieless)

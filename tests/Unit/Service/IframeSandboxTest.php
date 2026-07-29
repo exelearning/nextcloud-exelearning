@@ -99,4 +99,30 @@ final class IframeSandboxTest extends TestCase {
 		self::assertSame(array_values(array_unique($hosts)), $hosts);
 		self::assertSame(array_map('strtolower', $hosts), $hosts);
 	}
+
+	/**
+	 * The page CSP must allow exactly the hosts the relay is allowed to promote.
+	 *
+	 * These are two halves of one decision kept in two places, and the failure when they
+	 * drift is silent and ugly: the relay overlays a real player, the browser refuses to
+	 * load a frame the CSP never allowed, and the learner gets a permanent black
+	 * rectangle where the video should be. That is exactly what the viewer shipped —
+	 * `frame-src 'self'` with a ten-host provider whitelist next to it.
+	 */
+	public function testPlayerFrameDomainsCoverEveryWhitelistedProvider(): void {
+		$sandbox = new IframeSandbox();
+
+		$domains = $sandbox->playerFrameDomains();
+
+		foreach ($sandbox->providerWhitelist() as $host) {
+			self::assertContains($host, $domains, "CSP would block a promoted player on $host");
+		}
+	}
+
+	/** And nothing beyond them: the CSP is not a place to widen the gate quietly. */
+	public function testPlayerFrameDomainsAddNothingBeyondTheWhitelist(): void {
+		$sandbox = new IframeSandbox();
+
+		self::assertSame([], array_diff($sandbox->playerFrameDomains(), $sandbox->providerWhitelist()));
+	}
 }

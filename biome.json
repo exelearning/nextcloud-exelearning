@@ -17,7 +17,7 @@
 			"!**/js/**",
 			"!**/exelearning/**",
 			"!**/*.vue",
-			"!**/src/embed/exe_*.js"
+			"!**/src/embed/exe_external_media/**"
 		]
 	},
 	"formatter": {

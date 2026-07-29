@@ -5,7 +5,7 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\Service;
 
 /**
- * Inlines the eXe-core external-media shim (exe_embed_shim.js) into a served
+ * Inlines the eXe-core external-media child (exe-external-media-child.min.js) into a served
  * HTML package document, so that inside the opaque iframe every cross-origin /
  * PDF sub-iframe is promoted to a geometry placeholder the parent relay can
  * overlay. Mirrors the inject-at-serve approach of wp-exelearning

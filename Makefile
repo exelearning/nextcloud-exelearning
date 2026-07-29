@@ -346,7 +346,12 @@ appstore: package
 # sidesteps that.
 #
 # Override host port with `make up DOCKER_PORT=9000`.
-APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
+# src/embed carries the vendored external-media child bundle, which
+# ContentController inlines into every served package AT RUNTIME — like src/sw,
+# it is shipped source, not build input. Leaving it out made shimSource() return
+# null inside the container: no shim injected, no embed ever promoted, and no
+# error anywhere to say so.
+APP_RUNTIME_DIRS := appinfo lib js templates img src/sw src/embed
 
 # Verify both that the docker CLI exists and that its daemon is
 # reachable. `docker version` talks to the daemon, so it fails with a
@@ -433,6 +438,12 @@ up: check-docker
 	@docker exec -u www-data $(DOCKER_NAME) php occ config:system:set apps_paths 1 writable --value=true  --type=boolean        >/dev/null
 	@echo ">> enabling exelearning"
 	@docker exec -u www-data $(DOCKER_NAME) php occ app:enable exelearning
+	@# The first-run wizard opens a modal over the whole page on first login. In a dev
+	@# container that is pure noise, and it actively breaks automated checks: it covers
+	@# the content iframe, which the external-media host correctly reads as "obscured"
+	@# and hides every promoted player behind it.
+	@echo ">> disabling the first-run wizard"
+	@docker exec -u www-data $(DOCKER_NAME) php occ app:disable firstrunwizard >/dev/null 2>&1 || true
 	@# `.elp(x)` → MIME mapping + icon alias. These are the only pieces
 	@# a Nextcloud app cannot ship by itself: both files are read from
 	@# /var/www/html/config/. See README → "Custom MIME types" for the

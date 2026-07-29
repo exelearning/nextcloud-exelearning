@@ -31,7 +31,7 @@ class IframeSandbox {
 	public const EMBED_STRICT = 'strict';
 	public const EMBED_OPEN = 'open';
 
-	/** Hosts whose embedded players the relay may overlay (see exe_embed_relay.js). */
+	/** Hosts whose embedded players the relay may overlay (see exe-external-media-host.min.js). */
 	private const PROVIDER_WHITELIST = [
 		'www.youtube.com',
 		'youtube.com',
@@ -146,5 +146,19 @@ class IframeSandbox {
 	 */
 	public function providerWhitelist(): array {
 		return self::PROVIDER_WHITELIST;
+	}
+
+	/**
+	 * Hosts the page CSP must allow as frame sources.
+	 *
+	 * The relay overlays real players for exactly these hosts, on the trusted page. If the
+	 * CSP is narrower the browser blocks the frame and the learner gets a black rectangle
+	 * with nothing in the console to explain it, so this deliberately returns the same
+	 * list rather than a second one that could drift from it.
+	 *
+	 * @return string[]
+	 */
+	public function playerFrameDomains(): array {
+		return $this->providerWhitelist();
 	}
 }

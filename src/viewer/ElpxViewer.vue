@@ -46,7 +46,7 @@ import { ViewerSession } from '../elpx/viewer-session'
 import { ensureRuntimeWorker, registerSession, unregisterSession, type RuntimeWorker } from '../elpx/service-worker-client'
 import { createAssetIframe, createContentIframe, createPackageIframe } from '../elpx/iframe-renderer'
 import { ASSET_PREFIX, CONTENT_PREFIX } from '../elpx/paths'
-import { clearOverlays, type EmbedRelayConfig, pingEmbeds, reflowOverlays, startRelay } from '../embed/relay-host'
+import { clearOverlays, type EmbedRelayConfig, pingEmbeds, reflowOverlays, startMedia, startRelay } from '../embed/relay-host'
 
 /**
  * Reads a server-provided initial-state value, falling back on any error so the
@@ -239,6 +239,10 @@ export default defineComponent({
 				pingEmbeds(iframe)
 			})
 			slot.appendChild(iframe)
+			// Attached as soon as the frame has a window, and deliberately NOT inside the
+			// `load` handler above: the content announces itself while it runs, so a host
+			// that starts listening only after `load` can miss the one hello it sends.
+			startMedia(iframe)
 			this.iframe = iframe
 			this.relayActive = true
 			window.addEventListener('resize', this.onResize)
