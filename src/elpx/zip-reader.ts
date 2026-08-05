@@ -1,7 +1,8 @@
 /**
  * Reads an `.elpx` (ZIP) archive in the browser using fflate. The output is
- * keyed by normalized entry path; binary entries stay as `Uint8Array` so the
- * Service Worker can hand them back as bytes without re-decoding.
+ * keyed by the entry's stored name, which `normalizeEntryPath` has validated
+ * and returned unchanged; binary entries stay as `Uint8Array` so the Service
+ * Worker can hand them back as bytes without re-decoding.
  *
  * Limits are enforced both on the number of entries and on the total
  * decompressed size to prevent ZIP bombs.
@@ -60,10 +61,10 @@ export function looksLikeZip(buffer: ArrayBuffer): boolean {
 }
 
 /**
- * Decompresses an `.elpx` archive into a map of normalised entry paths to
- * their bytes. Throws {@link ZipReadError} with a typed `code` for any
- * limit violation (size, entry count, traversal) or corruption — the
- * caller surfaces those as user-facing errors.
+ * Decompresses an `.elpx` archive into a map of entry paths to their bytes.
+ * Throws {@link ZipReadError} with a typed `code` for any limit violation
+ * (size, entry count), corruption, or an entry whose stored name is not a
+ * canonical package path — the caller surfaces those as user-facing errors.
  * @param buffer Raw `.elpx` bytes (must already be in memory).
  * @param limits Optional override of {@link DEFAULT_LIMITS} for tests.
  */
@@ -114,9 +115,12 @@ export async function readPackage(
 		if (count > limits.maxEntries) {
 			throw new ZipReadError(`Package has more than ${limits.maxEntries} entries`, 'TOO_MANY_ENTRIES')
 		}
+		// `normalizeEntryPath` validates without rewriting, so `normalized` is
+		// `rawName` itself. A package is refused whole rather than served with
+		// some entries silently missing.
 		const normalized = normalizeEntryPath(rawName)
 		if (normalized === null) {
-			throw new ZipReadError(`Unsafe entry path: ${rawName}`, 'UNSAFE_ENTRY')
+			throw new ZipReadError(`Entry path is not a canonical package path: ${rawName}`, 'UNSAFE_ENTRY')
 		}
 		totalUncompressed += data.byteLength
 		if (totalUncompressed > limits.maxUncompressedBytes) {
