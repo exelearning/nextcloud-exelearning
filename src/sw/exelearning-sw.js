@@ -182,23 +182,28 @@ function safeDecode(value) {
  * SW-side mirror of `normalizeEntryPath` from src/elpx/paths.ts. Kept
  * inline because the SW must not import from the bundled application
  * code (it is loaded out-of-band by the browser, not by webpack).
+ *
+ * Validates and returns the input unchanged, or null. A path is accepted
+ * only when it is non-empty, free of NUL bytes and backslashes, and made
+ * exclusively of segments that are non-empty and are neither `.` nor `..`.
+ * Nothing is rewritten: entries are looked up by their stored name, so
+ * turning `a/b/../c` into `a/c` would serve a different file than the one
+ * requested.
+ *
+ * The same rule lives in `src/elpx/paths.ts` and in
+ * `lib/Service/ZipEntryService.php`. All three are tested against
+ * `tests/fixtures/entry-path-vectors.json` — change one and the shared
+ * table fails until the other two follow. See
+ * `docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md`.
  * @param {unknown} input Untrusted entry value coming from a request URL.
  */
 function normalizeEntry(input) {
-	if (typeof input !== 'string' || input.length === 0 || input.indexOf('\0') >= 0) {
+	if (typeof input !== 'string' || input.length === 0
+		|| input.indexOf('\0') >= 0 || input.indexOf('\\') >= 0) {
 		return null
 	}
-	const cleaned = input.replace(/\\/g, '/').replace(/^\/+/, '')
-	const parts = cleaned.split('/')
-	const stack = []
-	for (const part of parts) {
-		if (part === '' || part === '.') continue
-		if (part === '..') {
-			if (stack.length === 0) return null
-			stack.pop()
-			continue
-		}
-		stack.push(part)
+	for (const segment of input.split('/')) {
+		if (segment === '' || segment === '.' || segment === '..') return null
 	}
-	return stack.length === 0 ? null : stack.join('/')
+	return input
 }

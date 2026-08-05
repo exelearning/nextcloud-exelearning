@@ -1,0 +1,31 @@
+{
+	"description": "Shared test vectors for the .elpx entry-path rule. Loaded verbatim by tests/js/paths.test.ts (the TypeScript helper and the Service Worker mirror) and by tests/Unit/Service/ZipEntryServiceTest.php (PHP). One file, three implementations: a divergence between them fails a test instead of shipping.",
+	"rule": "An entry path is accepted only when it is already canonical, and it is then returned unchanged. Rejected: the empty string, any NUL byte, any backslash, and any empty, '.' or '..' segment (which covers leading, doubled and trailing slashes). Nothing is ever rewritten.",
+	"adr": "docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md",
+	"vectors": [
+		{ "input": "index.html", "expected": "index.html", "why": "canonical root entry" },
+		{ "input": "a/b/c", "expected": "a/b/c", "why": "canonical nested entry" },
+		{ "input": "html/page-1.html", "expected": "html/page-1.html", "why": "canonical entry with punctuation" },
+		{ "input": "content/Página 1.html", "expected": "content/Página 1.html", "why": "non-ASCII and spaces are ordinary name characters" },
+		{ "input": "..../x", "expected": "..../x", "why": "four dots is a name, not a dot segment" },
+		{ "input": "../escape", "expected": null, "why": "climbs above the package root" },
+		{ "input": "html/../../etc", "expected": null, "why": "climbs above the package root after one level" },
+		{ "input": "a/b/../c", "expected": null, "why": "interior '..' segment: resolving it would address a different archive entry" },
+		{ "input": "a/b/..", "expected": null, "why": "trailing '..' segment" },
+		{ "input": "a/./b", "expected": null, "why": "interior '.' segment" },
+		{ "input": "./a", "expected": null, "why": "leading '.' segment" },
+		{ "input": ".", "expected": null, "why": "bare '.' is not an entry" },
+		{ "input": "..", "expected": null, "why": "bare '..' is not an entry" },
+		{ "input": "a//b", "expected": null, "why": "empty interior segment (doubled slash)" },
+		{ "input": "....//x", "expected": null, "why": "empty interior segment behind a four-dot name" },
+		{ "input": "/leading", "expected": null, "why": "absolute path: the ZIP format forbids a leading slash in a stored name" },
+		{ "input": "/", "expected": null, "why": "nothing but a separator" },
+		{ "input": "//", "expected": null, "why": "nothing but separators" },
+		{ "input": "trailing/", "expected": null, "why": "directory entry, not a file entry" },
+		{ "input": "a\\b", "expected": null, "why": "backslash: the ZIP format requires forward slashes" },
+		{ "input": "\\leading", "expected": null, "why": "Windows-style absolute path" },
+		{ "input": "", "expected": null, "why": "empty string" },
+		{ "input": "a\u0000b", "expected": null, "why": "NUL byte inside an otherwise ordinary name" },
+		{ "input": "\u0000", "expected": null, "why": "bare NUL byte" }
+	]
+}

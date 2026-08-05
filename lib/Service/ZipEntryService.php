@@ -33,7 +33,9 @@ class ZipEntryService {
 	 * Reads a single entry from the package. Returns the raw bytes or null if
 	 * the entry is not present.
 	 *
-	 * Path traversal entries (`..`, absolute paths) are rejected.
+	 * Entry names that are not already canonical — traversal, absolute paths,
+	 * dot segments, doubled slashes, backslashes — are rejected outright by
+	 * {@see self::normalizeEntry()} rather than repaired.
 	 */
 	public function readEntry(File $file, string $entry): ?string {
 		$normalized = $this->normalizeEntry($entry);
@@ -123,18 +125,32 @@ class ZipEntryService {
 	}
 
 	/**
-	 * Returns the canonical form of an entry name or null if the entry is
-	 * unsafe (path traversal, absolute path).
+	 * Validates an entry name and returns it **unchanged**, or null when it is
+	 * not already a canonical path inside the package.
+	 *
+	 * This method never rewrites its input: an accepted name is byte-identical
+	 * to the one passed in. A name is accepted only when it is non-empty, free
+	 * of NUL bytes and backslashes, and made exclusively of segments that are
+	 * non-empty and are neither `.` nor `..`. That rejects leading, doubled and
+	 * trailing slashes, dot segments, and Windows separators.
+	 *
+	 * Rewriting would be unsound here: `readEntry()` hands the result straight
+	 * to `ZipArchive::statName()`, which matches central-directory names
+	 * verbatim, so resolving `a/b/../c` into `a/c` would serve a *different*
+	 * entry than the one that was asked for.
+	 *
+	 * `normalizeEntryPath` in `src/elpx/paths.ts` and its inline mirror in
+	 * `src/sw/exelearning-sw.js` implement exactly this rule. All three are
+	 * tested against the shared table in
+	 * `tests/fixtures/entry-path-vectors.json`; see
+	 * `docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md`.
 	 */
 	public function normalizeEntry(string $entry): ?string {
-		$entry = ltrim($entry, '/\\');
-		$entry = str_replace('\\', '/', $entry);
-		if ($entry === '' || str_contains($entry, "\0")) {
+		if ($entry === '' || str_contains($entry, "\0") || str_contains($entry, '\\')) {
 			return null;
 		}
-		$parts = explode('/', $entry);
-		foreach ($parts as $part) {
-			if ($part === '..' || $part === '.') {
+		foreach (explode('/', $entry) as $segment) {
+			if ($segment === '' || $segment === '.' || $segment === '..') {
 				return null;
 			}
 		}
