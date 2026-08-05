@@ -194,7 +194,7 @@ function safeDecode(value) {
  * `lib/Service/ZipEntryService.php`. All three are tested against
  * `tests/fixtures/entry-path-vectors.json` — change one and the shared
  * table fails until the other two follow. See
- * `docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md`.
+ * `docs/architecture/adr/ADR-96-01-validate-entry-paths-instead-of-rewriting-them.md`.
  * @param {unknown} input Untrusted entry value coming from a request URL.
  */
 function normalizeEntry(input) {

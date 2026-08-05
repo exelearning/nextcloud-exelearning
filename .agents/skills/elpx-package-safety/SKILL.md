@@ -45,7 +45,7 @@ RFC 3986 §5.2.4 dot-segment removal before a request is dispatched, so a stored
 name containing one can never be addressed over the runtime URL scheme.
 
 Full reasoning, options and evidence:
-[`ADR-XXXX-01`](../../../docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md).
+[`ADR-96-01`](../../../docs/architecture/adr/ADR-96-01-validate-entry-paths-instead-of-rewriting-them.md).
 
 ## There are three implementations, and they must agree exactly
 
@@ -59,7 +59,7 @@ The SW copy is an inline mirror of the TS one — deliberately, because the SW i
 loaded out-of-band by the browser and cannot import bundled application code.
 **Keep it inline. Do not make it import anything.**
 
-They diverged once, before `ADR-XXXX-01`: PHP rejected `.`/`..` segments while
+They diverged once, before `ADR-96-01`: PHP rejected `.`/`..` segments while
 TS/SW resolved them, and PHP kept the empty segment from a doubled slash while
 TS/SW collapsed it. It was never a traversal hole — both rejected `../escape` —
 but a package containing `a/b/../c` rendered in the browser and 404'd from the
@@ -72,7 +72,7 @@ PHP asset controller and the preview provider, and the docblock on
 - Add the case to `tests/fixtures/entry-path-vectors.json`. It is a single file
   loaded by both test suites, so a divergence fails a test instead of shipping.
 - Loosening or tightening the rule is a behaviour change to a security boundary:
-  supersede `ADR-XXXX-01` rather than editing it, and do it in its own PR.
+  supersede `ADR-96-01` rather than editing it, and do it in its own PR.
 
 ### Resolution is a separate concern
 

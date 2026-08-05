@@ -143,7 +143,7 @@ class ZipEntryService {
 	 * `src/sw/exelearning-sw.js` implement exactly this rule. All three are
 	 * tested against the shared table in
 	 * `tests/fixtures/entry-path-vectors.json`; see
-	 * `docs/architecture/adr/ADR-XXXX-01-validate-entry-paths-instead-of-rewriting-them.md`.
+	 * `docs/architecture/adr/ADR-96-01-validate-entry-paths-instead-of-rewriting-them.md`.
 	 */
 	public function normalizeEntry(string $entry): ?string {
 		if ($entry === '' || str_contains($entry, "\0") || str_contains($entry, '\\')) {
