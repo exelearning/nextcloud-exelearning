@@ -57,7 +57,7 @@ describe('relay-host', () => {
 	})
 
 	/**
-	 * The media half is adopted SEPARATELY from the embed half (ADR-0024): starting the
+	 * The media half is adopted SEPARATELY from the embed half (exelearning/exelearning ADR-2199-15): starting the
 	 * relay overlays declarative embeds, and does nothing for an iDevice that asks the host
 	 * to drive a video. Without this the interactive-video iDevice inside the opaque package
 	 * gets no answer to its handshake and falls back to loading YouTube's SDK, which the

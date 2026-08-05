@@ -19,7 +19,7 @@ module.exports = {
 		'node_modules/',
 		'vendor/',
 		// The vendored eXe-core external-media bundle: built artifacts owned by
-		// upstream (eXe ADR-0021), verified byte for byte against the manifest core
+		// upstream (exelearning/exelearning ADR-2199-12), verified byte for byte against the manifest core
 		// published. They are minified output, not source, so our lint rules do not
 		// apply — and a local "fix" here would be overwritten on the next re-vendor.
 		'src/embed/exe_external_media/',

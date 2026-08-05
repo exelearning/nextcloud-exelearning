@@ -36,7 +36,7 @@ final class ExternalMediaArtifactTest extends TestCase {
 		self::assertStringContainsString('exeExternalMediaChild', $source);
 		self::assertStringContainsString('exeEmbedShim', $source);
 		self::assertStringContainsString('exeMediaBridge', $source);
-		// And the licence notice ADR-0018 requires to survive minification.
+		// And the licence notice exelearning/exelearning ADR-2199-09 requires to survive minification.
 		self::assertStringContainsString('Dual-licensed', $source);
 	}
 

@@ -67,7 +67,7 @@ const mediaHosts = new WeakMap<HTMLIFrameElement, AttachedMediaHost>()
 /**
  * Attach the MEDIA half to a content iframe.
  *
- * Separate from `startRelay` because the two halves are adopted separately (ADR-0024):
+ * Separate from `startRelay` because the two halves are adopted separately (exelearning/exelearning ADR-2199-15):
  * the relay promotes declarative embeds it finds by scanning, while this answers an iDevice
  * that asks the host to open and drive a video over a private port. A viewer with only the
  * relay looks completely healthy — embeds are promoted, nothing errors — while every bridged

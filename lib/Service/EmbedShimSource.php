@@ -9,7 +9,7 @@ namespace OCA\ExeLearning\Service;
  * inlined into every served package so that, inside the opaque iframe, each cross-origin
  * or PDF sub-iframe is replaced by a geometry placeholder the parent host can overlay.
  *
- * eXeLearning core is canonical (eXe ADR-0021): this app holds the BYTES and verifies them
+ * eXeLearning core is canonical (exelearning/exelearning ADR-2199-12): this app holds the BYTES and verifies them
  * against the manifest core published, rather than a copy of the logic that could drift.
  * Do not patch the artifact here — a local edit is invisible upstream, is overwritten on
  * the next re-vendor, and fails `verify.mjs` in CI in the meantime.
