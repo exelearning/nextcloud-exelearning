@@ -25,6 +25,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  architecture-records:
+    name: Architecture records (identifiers, metadata, cross-references)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate architecture records
+        run: python3 tools/architecture_records.py check
+
+      - name: Test the record tooling itself
+        run: python3 -m unittest discover -s tools -p '*_test.py' -v
+
+      - name: Print the record index
+        run: python3 tools/architecture_records.py list >> "$GITHUB_STEP_SUMMARY"
+
   frontend:
     name: Frontend (Biome + ESLint + vue-tsc + Vitest)
     runs-on: ubuntu-latest

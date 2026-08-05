@@ -65,6 +65,50 @@ protocol, the iframe boot HTML pattern). Remove everything Drive-specific.
   new helper that handles entries must call `normalizeEntryPath` (TS) or
   `ZipEntryService::normalizeEntry` (PHP).
 
+## Architecture decision records
+
+Durable decisions are recorded as ADRs under `docs/architecture/adr/`, and
+significant designs as change directories under `docs/architecture/changes/`.
+Full policy: [`docs/architecture/adr/README.md`](docs/architecture/adr/README.md).
+
+- **Identifiers come from the GitHub tracking number — there is NO global
+  counter.** Never compute `max(existing) + 1`. The number is the change's issue
+  when it has one and its pull request otherwise; GitHub draws both from one
+  repository-wide sequence, so they never collide. **Issues are disabled on this
+  repository**, so in practice it is always the PR number.
+- **Never open an issue to obtain an identifier.** You could not here anyway.
+- ADR filename: `ADR-<number>-<NN>-<decision-slug>.md`. `<NN>` is a two-digit
+  sequence scoped to that number alone, starting at `01`, present even for a
+  single ADR. The slug names the **decision**, not the topic.
+- Frontmatter `id` and `tracking_issue` must match the filename, and the H1 must
+  be exactly `# <id>: <title>`. CI enforces all three.
+- Change documents live in `docs/architecture/changes/<number>-<slug>/` and hold
+  any of `proposal.md`, `spec.md`, `design.md`, `research.md`, `tasks.md`.
+  **Create only the files with real content** — no empty placeholders — and do
+  not duplicate content across them.
+- Status lives in the frontmatter **only**. Never add a `## Status` section.
+- **There is no committed index.** `make architecture-records` prints one;
+  `make architecture-check` validates. Never create a `records.md` — a generated
+  file in git conflicts on every concurrent branch, and CI rejects it.
+- Do not rewrite an accepted ADR. Supersede it: the new record sets
+  `supersedes`, the old one sets `superseded_by` and `status: Superseded`.
+- Write an ADR for decisions about sandboxing and the Service Worker scope, the
+  editor `postMessage` contract, package storage and opacity, the Nextcloud
+  integration surface, or release packaging. Do **not** write one for bug fixes,
+  routine refactors or dependency bumps.
+
+## Skills
+
+Task-specific guidance lives in `.agents/skills/<name>/SKILL.md`. Read the one
+that matches before starting:
+
+| Skill | When |
+|---|---|
+| `architecture-records` | Writing or reviewing an ADR or a change document |
+| `nextcloud-app` | Touching `lib/` — controllers, services, DI, routes, preview |
+| `elpx-package-safety` | Touching ZIP entry handling, path normalization or the Service Worker |
+| `testing` | Adding or fixing tests in `tests/js/` or `tests/Unit/` |
+
 ## Documentation lookup
 
 Use Context7 MCP for current library documentation (Nextcloud app
@@ -82,6 +126,7 @@ npm install
 npm run typecheck
 npm test
 npm run build
+make architecture-check
 make -n download-editor fetch-editor-source build-editor clean-editor build dev lint typecheck
 git diff --check
 ```
@@ -122,6 +167,8 @@ nextcloud-exelearning/
 ├── img/                    # app icon and MIME icon
 ├── templates/              # PHP templates rendered server-side
 ├── tests/                  # Unit + JS tests
+├── docs/architecture/      # ADRs and change documents (not shipped)
+├── .agents/skills/         # task-specific agent guidance
 ├── composer.json
 ├── package.json
 ├── webpack.config.js

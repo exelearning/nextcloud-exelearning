@@ -38,3 +38,8 @@ coverage/
 build/
 release/
 *.tar.gz
+
+# Architecture record index — derived, printed by `make architecture-records`.
+# Never commit it: a generated file in git conflicts on every concurrent branch.
+docs/architecture/adr/records.md
+docs/architecture/changes/records.md
