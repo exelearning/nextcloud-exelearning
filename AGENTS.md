@@ -61,9 +61,13 @@ protocol, the iframe boot HTML pattern). Remove everything Drive-specific.
 - Tests live in `tests/js/**/*.test.ts` (Vitest) and `tests/Unit/**/*.php`
   (PHPUnit). Keep them fast and pure; integration is for CI against a real
   Nextcloud.
-- Path normalization is **the** security boundary for package assets. Any
+- Entry-path validation is **the** security boundary for package assets. Any
   new helper that handles entries must call `normalizeEntryPath` (TS) or
-  `ZipEntryService::normalizeEntry` (PHP).
+  `ZipEntryService::normalizeEntry` (PHP). Both **validate and never rewrite**:
+  an entry path is accepted only when it is already canonical, and it comes
+  back unchanged. The rule is identical in TS, PHP and the Service Worker
+  mirror, pinned by the shared table in
+  `tests/fixtures/entry-path-vectors.json` (`ADR-96-01`).
 
 ## Architecture decision records
 
@@ -106,7 +110,7 @@ that matches before starting:
 |---|---|
 | `architecture-records` | Writing or reviewing an ADR or a change document |
 | `nextcloud-app` | Touching `lib/` — controllers, services, DI, routes, preview |
-| `elpx-package-safety` | Touching ZIP entry handling, path normalization or the Service Worker |
+| `elpx-package-safety` | Touching ZIP entry handling, entry-path validation or the Service Worker |
 | `testing` | Adding or fixing tests in `tests/js/` or `tests/Unit/` |
 
 ## Documentation lookup
