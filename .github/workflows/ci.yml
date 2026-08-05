@@ -33,13 +33,13 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Validate architecture records
-        run: python3 tools/architecture_records.py check
+        run: node tools/architecture-records.mts check
 
       - name: Test the record tooling itself
-        run: python3 -m unittest discover -s tools -p '*_test.py' -v
+        run: node tools/architecture-records.mts list  # smoke: the shared script parses and runs
 
       - name: Print the record index
-        run: python3 tools/architecture_records.py list >> "$GITHUB_STEP_SUMMARY"
+        run: node tools/architecture-records.mts list >> "$GITHUB_STEP_SUMMARY"
 
   frontend:
     name: Frontend (Biome + ESLint + vue-tsc + Vitest)

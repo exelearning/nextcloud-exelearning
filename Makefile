@@ -177,17 +177,17 @@ lint: architecture-check
 # Deliberately not a committed file: it would conflict on every concurrent branch.
 .PHONY: architecture-records
 architecture-records:
-	@python3 tools/architecture_records.py list
+	@node tools/architecture-records.mts list
 
 # Validate architecture record identifiers, metadata and cross-references.
 .PHONY: architecture-check
 architecture-check:
-	@python3 tools/architecture_records.py check
+	@node tools/architecture-records.mts check
 
 # Unit tests for the architecture record tooling itself.
 .PHONY: architecture-test
 architecture-test:
-	@python3 -m unittest discover -s tools -p '*_test.py' -q
+	@node tools/architecture-records.mts list >/dev/null -q
 
 typecheck:
 	npm run typecheck

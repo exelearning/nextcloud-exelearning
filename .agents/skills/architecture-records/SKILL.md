@@ -1,7 +1,7 @@
 ---
 name: architecture-records
 description: "Use when writing, renaming or reviewing an ADR or change document in this repository: how the tracking-number identifier works when issues are disabled, what the validator enforces, and why the index is never committed."
-compatibility: "Python 3 standard library only. No network, no dependencies. Run with `make architecture-check`."
+compatibility: "One shared TypeScript file, run with the Node that ships on the CI image. No build step, no dependencies. Run with `make architecture-check`."
 ---
 
 # Architecture records in this repository
@@ -59,7 +59,7 @@ second decision later never renames the first one, so inbound links stay valid.
 
 ## What the validator enforces
 
-`make architecture-check` runs `tools/architecture_records.py`. It fails on:
+`make architecture-check` runs `tools/architecture-records.mts`. It fails on:
 
 | Category | Examples |
 |---|---|
@@ -72,8 +72,12 @@ second decision later never renames the first one, so inbound links stay valid.
 | Supersession | one-sided `supersedes`/`superseded_by`; a superseded record not set to `Superseded` |
 | Hygiene | a retired identifier anywhere in the tree; a committed `records.md` |
 
-Run its own tests with `make architecture-test` (Python `unittest`, no
-dependency).
+`tools/architecture-records.mts` is a **verbatim copy** of the canonical file in
+`exelearning/exelearning`, where it is covered by `bun test`. Do not edit it
+here: fix it in core and re-copy, or the copies drift apart — which is the whole
+failure mode this convention exists to prevent. Running `check` in CI exercises
+the file under Node on every pull request, so a runtime-specific breakage still
+surfaces here.
 
 ## The index is not a file
 

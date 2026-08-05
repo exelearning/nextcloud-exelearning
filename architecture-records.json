@@ -5,7 +5,9 @@
     "docs/architecture/adr/template.md",
     "docs/architecture/changes/template.md",
     "docs/architecture/adr/ADR-93-01-identify-records-by-github-tracking-number.md",
-    ".agents/skills/architecture-records/SKILL.md",
-    "tools/architecture_records_test.py"
-  ]
+    ".agents/skills/architecture-records/SKILL.md"
+  ],
+  "prefix": "ADR",
+  "records_dir": "docs/architecture/adr",
+  "changes_dir": "docs/architecture/changes"
 }
