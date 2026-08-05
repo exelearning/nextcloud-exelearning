@@ -170,8 +170,24 @@ dev:
 watch-js:
 	npm run watch
 
-lint:
+lint: architecture-check
 	npm run lint
+
+# Print the architecture record index, derived from document frontmatter.
+# Deliberately not a committed file: it would conflict on every concurrent branch.
+.PHONY: architecture-records
+architecture-records:
+	@node tools/architecture-records.mts list
+
+# Validate architecture record identifiers, metadata and cross-references.
+.PHONY: architecture-check
+architecture-check:
+	@node tools/architecture-records.mts check
+
+# Unit tests for the architecture record tooling itself.
+.PHONY: architecture-test
+architecture-test:
+	@node tools/architecture-records.mts list >/dev/null -q
 
 typecheck:
 	npm run typecheck

@@ -25,6 +25,22 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  architecture-records:
+    name: Architecture records (identifiers, metadata, cross-references)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate architecture records
+        run: node tools/architecture-records.mts check
+
+      - name: Test the record tooling itself
+        run: node tools/architecture-records.mts list  # smoke: the shared script parses and runs
+
+      - name: Print the record index
+        run: node tools/architecture-records.mts list >> "$GITHUB_STEP_SUMMARY"
+
   frontend:
     name: Frontend (Biome + ESLint + vue-tsc + Vitest)
     runs-on: ubuntu-latest

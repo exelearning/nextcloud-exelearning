@@ -85,6 +85,9 @@ exelearning
 
 # --- Project documentation (kept in the repo only) ----------------------
 AGENTS.md
+CLAUDE.md
+docs
+.agents
 CHANGELOG.md
 CONTRIBUTING.md
 DEVELOPMENT.md
