@@ -29,6 +29,9 @@ jobs:
     name: Architecture records (identifiers, metadata, cross-references)
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
       - name: Architecture validator matches core
         run: |
           # The validator is a verbatim copy of the canonical file in
@@ -43,9 +46,6 @@ jobs:
             exit 1
           fi
           echo "In sync with core ($(shasum -a 256 tools/architecture-records.mts | cut -c1-16)…)."
-      - name: Checkout
-        uses: actions/checkout@v7
-
       - name: Validate architecture records
         run: node tools/architecture-records.mts check
 
