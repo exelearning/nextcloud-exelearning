@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Controller;
 
+use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCP\AppFramework\Controller;
@@ -39,6 +40,7 @@ class EditorController extends Controller {
 		private readonly ElpxPackageService $packageService,
 		private readonly IInitialState $initialState,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly CsrfTokenManager $csrfTokenManager,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -205,7 +207,9 @@ class EditorController extends Controller {
 	 *    asset paths (`./libs/...`, `./style/...`) resolve correctly even
 	 *    when the app is mounted under `/custom_apps/`.
 	 *  - `window.__EXE_EMBEDDING_CONFIG__` populated before any editor
-	 *    script runs (the editor's RuntimeConfig reads it during bootstrap).
+	 *    script runs (the editor's RuntimeConfig reads it during bootstrap),
+	 *    including the `previewSnapshot` block that wires the opaque preview —
+	 *    see {@see previewSnapshotConfig()}.
 	 *  - A small bridge that forwards Ctrl/Cmd+S to the parent and patches
 	 *    `EmbeddingBridge.handleSaveRequest` for the v4.0.0 export quirk.
 	 *  - A permissive CSP — eXeLearning has many inline scripts and styles;
@@ -249,11 +253,13 @@ class EditorController extends Controller {
 			],
 		], JSON_UNESCAPED_SLASHES);
 
+		$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
+
 		$configScript = '<script>(function(){'
 			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
 			. 'var origin=window.location.origin;'
 			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
-			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin]});'
+			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin],previewSnapshot:' . $previewSnapshot . '});'
 			. '})();</script>';
 
 		// The resilience shim must be installed before any editor script
@@ -290,6 +296,74 @@ class EditorController extends Controller {
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
 		$response->addHeader('Cache-Control', 'private, no-cache');
 		return $response;
+	}
+
+	/**
+	 * The `previewSnapshot` block handed to the embedded editor so it can publish
+	 * opaque previews: `{ managementUrl, servingBaseUrl, deleteUrlTemplate,
+	 * managementHeaders }`.
+	 *
+	 *  - Both URLs are generated server-side through the router so they carry the
+	 *    correct webroot and front-controller prefix under a sub-path install,
+	 *    mirroring the client's `@nextcloud/router` `generateUrl`. The serving
+	 *    routes are parameterised, so the base is derived by generating the bare
+	 *    capability-root URL for a placeholder id and stripping that id segment.
+	 *  - `managementHeaders.requesttoken` is the current Nextcloud CSRF token —
+	 *    the same encrypted value the standard template layer exposes as
+	 *    `data-requesttoken`. It is required because the management routes keep
+	 *    CSRF ON (they are NOT `#[NoCSRFRequired]`); the editor replays it on every
+	 *    management request.
+	 *
+	 * Token lifetime (audited — the injected-token approach is durable, no
+	 * refresh path needed now): a Nextcloud CSRF token is bound to a per-session
+	 * secret. `getEncryptedValue()` returns a per-call randomized encoding, but
+	 * every value minted from the same session validates against that one secret
+	 * (`isTokenValid()` decrypts and compares), so the injected value stays valid
+	 * for the whole editing session — hours — not just one request. The secret is
+	 * regenerated only when the session id itself is regenerated (login / logout /
+	 * re-auth), never on ordinary navigation; and whenever that happens the parent
+	 * Nextcloud page hosting this iframe is itself invalidated and reloads, which
+	 * re-runs iframe() and injects a fresh token. The parent page also keeps the
+	 * session (and `OC.requestToken`) alive with its keepalive heartbeat. The only
+	 * residual staleness — the parent's token rotating without a reload — cannot
+	 * happen in practice, so a postMessage CONFIGURE refresh into the iframe is a
+	 * future nicety, not a correctness requirement.
+	 *
+	 * @return array{managementUrl:string,servingBaseUrl:string,deleteUrlTemplate:string,managementHeaders:object}
+	 */
+	private function previewSnapshotConfig(): array {
+		$sampleId = '00000000-0000-4000-8000-000000000000';
+
+		// The serving routes take a `previewId` (and `path`); generate the bare
+		// capability-root URL for a placeholder id, then strip the trailing
+		// `/{id}` so the client can append `/{previewId}/index.html` itself.
+		$sampleUrl = $this->urlGenerator->linkToRoute(
+			Application::APP_ID . '.preview.serveRoot',
+			['previewId' => $sampleId],
+		);
+		$servingBaseUrl = str_ends_with($sampleUrl, '/' . $sampleId)
+			? substr($sampleUrl, 0, -(strlen($sampleId) + 1))
+			: $sampleUrl;
+
+		// The delete route is templated rather than derived by concatenation, so
+		// the client never has to know how this app spells a capability URL.
+		$deleteUrlTemplate = str_replace(
+			$sampleId,
+			'{previewId}',
+			$this->urlGenerator->linkToRoute(
+				Application::APP_ID . '.previewSession.delete',
+				['previewId' => $sampleId],
+			),
+		);
+
+		return [
+			'managementUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.previewSession.create'),
+			'servingBaseUrl' => $servingBaseUrl,
+			'deleteUrlTemplate' => $deleteUrlTemplate,
+			'managementHeaders' => (object)[
+				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
+			],
+		];
 	}
 
 	/**

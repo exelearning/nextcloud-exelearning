@@ -71,6 +71,19 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Verify the vendored external-media artifact
+        # eXeLearning core is canonical (exelearning/exelearning ADR-2199-12): this repo holds the BYTES and
+        # verifies them against the manifest core published, rather than a copy of the
+        # logic that could drift. --build-hash makes it a PROVENANCE check and not merely
+        # an integrity one: without it a locally rebuilt-and-resigned copy would pass.
+        #
+        # The expected hash is PINNED HERE, deliberately, and not read from the vendored
+        # manifest. A hash taken from the copy under test cannot say anything about that
+        # copy: file, digest and buildHash can all be rewritten together, and a check that
+        # trusted them would pass a consistent forgery. Bump it in the same commit that
+        # re-vendors the artifact.
+        run: node src/embed/exe_external_media/verify.mjs src/embed/exe_external_media --build-hash "43c776daa551fd770b6dade520629362e5a8ca8745e4245c359447c4689b34d6"
+
       # Biome lints .ts/.js under src/. Vue single-file components stay
       # with ESLint (better Vue support); see biome.json for scope.
       - name: Biome lint
@@ -207,3 +220,94 @@ jobs:
           # that the file actually got staged into the app tree.
           test -f apps/exelearning/src/sw/exelearning-sw.js \
             || test -f custom_apps/exelearning/src/sw/exelearning-sw.js
+
+  preview-e2e:
+    name: Editor-preview API E2E (real Nextcloud)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: pdo_sqlite, gd, zip, intl, mbstring, ctype, curl, dom, fileinfo, simplexml, xml, xmlreader, xmlwriter
+          coverage: none
+
+      - name: Install Composer dependencies
+        run: composer install --prefer-dist --no-progress
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Set up Nextcloud server
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud@main
+        with:
+          version: stable33
+          database-type: sqlite
+          cron: false
+
+      - name: Install eXeLearning app into the running Nextcloud
+        uses: SMillerDev/nextcloud-actions/setup-nextcloud-app@main
+        with:
+          app: exelearning
+          check-code: false
+
+      # Serve the installed Nextcloud over HTTP (the built-in PHP server routes
+      # everything through the front controller, `/index.php/...`), enable the
+      # app, create the owner + a second user, then drive the real management
+      # and serving routes end to end. Cookie/session auth is used on purpose so
+      # the CSRF middleware is genuinely exercised.
+      - name: Preview API end-to-end against the running Nextcloud
+        working-directory: ../server
+        env:
+          WORKSPACE: ${{ github.workspace }}
+        run: |
+          set -euo pipefail
+          php occ app:enable exelearning
+          php occ config:system:set trusted_domains 1 --value=127.0.0.1
+          # Treat the origin as plain HTTP end-to-end so the login session cookie
+          # and the SameSite cookies are NOT marked Secure — curl over http never
+          # sends a Secure cookie back, which silently breaks the login POST's
+          # own CSRF/strict-cookie check and leaves every request unauthenticated.
+          # Use a webroot WITHOUT /index.php so cookies get Path=/ (routing still
+          # goes through the /index.php front controller under php -S).
+          php occ config:system:set overwrite.cli.url --value="http://127.0.0.1:8080"
+          php occ config:system:set overwriteprotocol --value=http
+          php occ config:system:delete forcessl 2>/dev/null || true
+          php occ config:system:delete overwritehost 2>/dev/null || true
+
+          export OC_PASS='Preview-e2e-owner-1!'
+          php occ user:add --password-from-env previewe2e1
+          export OC_PASS='Preview-e2e-other-2!'
+          php occ user:add --password-from-env previewe2e2
+
+          # The built-in server's document root is the Nextcloud tree, so the
+          # top-level status.php is served directly (routed app URLs go through
+          # /index.php/... instead).
+          php -S 127.0.0.1:8080 >"${RUNNER_TEMP}/nc-server.log" 2>&1 &
+          echo $! > "${RUNNER_TEMP}/nc-server.pid"
+          ready=
+          for _ in $(seq 1 30); do
+            if curl -sf "http://127.0.0.1:8080/status.php" | grep -q '"installed":true'; then ready=1; break; fi
+            sleep 1
+          done
+          [ "$ready" = "1" ] || { echo "Nextcloud did not come up"; curl -s "http://127.0.0.1:8080/status.php" || true; cat "${RUNNER_TEMP}/nc-server.log"; exit 1; }
+
+          EXE_E2E_BASE="http://127.0.0.1:8080/index.php" \
+          EXE_E2E_USER1=previewe2e1 EXE_E2E_PASS1='Preview-e2e-owner-1!' \
+          EXE_E2E_USER2=previewe2e2 EXE_E2E_PASS2='Preview-e2e-other-2!' \
+            bash "${WORKSPACE}/tests/e2e/preview-api-e2e.sh" \
+            || { echo '--- nextcloud.log (tail) ---'; tail -n 80 data/nextcloud.log 2>/dev/null || true; exit 1; }
+
+          kill "$(cat "${RUNNER_TEMP}/nc-server.pid")" 2>/dev/null || true
