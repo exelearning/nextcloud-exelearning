@@ -29,7 +29,6 @@ export default [
 			'import-extensions/ban-inline-type-imports': 'off',
 			'import-extensions/extensions': 'off',
 			'jsdoc/tag-lines': 'off',
-			'no-console': 'off',
 			'perfectionist/sort-imports': 'off',
 			'perfectionist/sort-named-imports': 'off',
 			'vue/attribute-hyphenation': 'off',
@@ -45,6 +44,14 @@ export default [
 			// paths, intentionally swallowed catch bindings). Banning it would
 			// force a less explicit alternative.
 			'no-void': 'off',
+		},
+	},
+	{
+		files: ['src/viewer/ElpxViewer.vue'],
+		rules: {
+			// The legacy TypeScript-only preset did not report this Vue console
+			// call. Keep that behavior for the migration and review it separately.
+			'no-console': 'off',
 		},
 	},
 ]
