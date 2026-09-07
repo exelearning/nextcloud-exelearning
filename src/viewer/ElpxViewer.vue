@@ -50,7 +50,7 @@ import { clearOverlays, type EmbedRelayConfig, pingEmbeds, reflowOverlays, start
 
 /**
  * Reads a server-provided initial-state value, falling back on any error so the
- * viewer still boots (e.g. in the @nextcloud/viewer modal, where the /view
+ * viewer still boots (e.g. in the `@nextcloud/viewer` modal, where the /view
  * ViewController never ran and these keys are absent → legacy path).
  * @param key The initial-state key registered server-side.
  * @param fallback Value to return when the key is missing or invalid.
