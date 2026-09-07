@@ -17,9 +17,6 @@
  * SwController so the response can set Content-Type and Service-Worker-Allowed.
  */
 
-/* eslint-env serviceworker */
-/* global self */
-
 const sessions = new Map()
 
 const RUNTIME_TAIL = '/apps/exelearning/runtime/'
