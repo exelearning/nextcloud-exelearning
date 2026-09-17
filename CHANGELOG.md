@@ -33,7 +33,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - CI matrix (`.github/workflows/ci.yml`) covering NC 31/32/33 × PHP
   8.2/8.3/8.4 with rotated databases (sqlite/mysql/pgsql), plus an
   experimental PHP 8.5 cell. Each cell installs the app into a real
-  Nextcloud server and verifies the Service Worker route responds.
+  Nextcloud server and verifies it enables cleanly, and an API-level
+  end-to-end job exercises the editor-preview management and serving routes
+  against a live Nextcloud (CSRF enforcement, ownership, revision publish,
+  sandbox CSP, session deletion).
 - `make ci-matrix` reproduces the matrix locally with Docker.
 - README "Compatibility" table backed by the CI matrix and a CI badge.
 - Initial Nextcloud app scaffold (`appinfo/info.xml`, routes, bootstrap).

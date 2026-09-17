@@ -33,12 +33,24 @@ playground link (posted as a PR comment) built from that branch — see
 When a user clicks a `.elpx` file in Nextcloud Files:
 
 1. A Nextcloud Viewer modal opens.
-2. The package is downloaded for the current user.
-3. The browser extracts the ZIP archive in memory.
-4. The internal `index.html` renders inside a **sandboxed iframe**.
-5. Relative assets (`html/`, `content/`, `libs/`, `theme/`, `idevices/`,
-   images, CSS, JS, audio, video, …) are served by a scoped Service Worker
-   from the in-memory extraction — no second request to the server.
+2. The package is downloaded and validated for the current user.
+3. The internal `index.html` and its relative assets (`html/`, `content/`,
+   `libs/`, `theme/`, `idevices/`, images, CSS, JS, audio, video, …) render
+   inside an **opaque-origin sandboxed iframe** — a sandbox **without**
+   `allow-same-origin`, so the untrusted author scripts cannot reach the
+   Nextcloud session. The bytes are served over real HTTP from a cookieless,
+   capability-token route (`/content/{token}/{path}`), because a Service Worker
+   cannot back an opaque origin. External media (YouTube/Vimeo/PDF/…) is relayed
+   to the trusted parent page. See [docs/secure-iframe-viewer.md](docs/secure-iframe-viewer.md).
+
+The bundled static editor ("Edit with eXeLearning") renders its live **editor
+preview** the same way — an opaque-origin iframe served over the HTTP preview
+transport (serving contract v2), never the Service Worker. See
+[docs/preview-serving-contract.md](docs/preview-serving-contract.md).
+
+> The legacy Service Worker viewer remains only as an explicit, dev-only opt-in
+> (a trusted-content compatibility mode, **not** a security boundary); the opaque
+> HTTP path is the default.
 
 Optional features:
 
@@ -84,8 +96,9 @@ maintenance ends mid-2026; NC 32 and 33 are the reference targets.
 | npm             | 10 or 11                               |
 | Bun (optional)  | latest stable, only for `build-editor` |
 
-Browsers must support Service Workers in the Nextcloud origin. The viewer
-will refuse to start otherwise.
+The default opaque-origin viewer and the HTTP editor preview are served over
+plain HTTP and do **not** require Service Workers. Only the legacy, opt-in
+Service Worker viewer needs Service Worker support in the Nextcloud origin.
 
 ## Quick start with Docker
 
