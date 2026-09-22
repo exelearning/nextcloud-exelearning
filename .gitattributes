@@ -38,7 +38,7 @@ package.json                export-ignore
 package-lock.json           export-ignore
 composer.json               export-ignore
 composer.lock               export-ignore
-vite.config.ts              export-ignore
+vite.config.mts              export-ignore
 tsconfig.json               export-ignore
 vitest.config.ts            export-ignore
 biome.json                  export-ignore
