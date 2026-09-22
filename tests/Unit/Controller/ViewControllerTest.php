@@ -114,6 +114,7 @@ final class ViewControllerTest extends TestCase {
 		self::assertArrayNotHasKey('file', $this->initialState->states);
 
 		$this->initialState->states = [];
+		Util::reset();
 		$empty = $this->controller->index(path: '');
 		$this->assertPageStateAndPolicy($empty, 'preview');
 	}
