@@ -52,6 +52,23 @@ if (!interface_exists('OCP\\IUser', false)) {
 if (!interface_exists('OCP\\IUserSession', false)) {
 	eval('namespace OCP; interface IUserSession { public function getUser(); }');
 }
+if (!interface_exists('OCP\\IURLGenerator', false)) {
+	eval('
+		namespace OCP;
+		interface IURLGenerator {
+			public function linkTo(string $app, string $file);
+			public function linkToRoute(string $routeName, array $arguments = []);
+		}
+	');
+}
+if (!interface_exists('OCP\\AppFramework\\Services\\IInitialState', false)) {
+	eval('
+		namespace OCP\\AppFramework\\Services;
+		interface IInitialState {
+			public function provideInitialState(string $key, mixed $value): void;
+		}
+	');
+}
 if (!class_exists('OCP\\AppFramework\\Controller', false)) {
 	eval('
 		namespace OCP\\AppFramework;
@@ -77,6 +94,21 @@ if (!class_exists('OCP\\AppFramework\\Http', false)) {
 		}
 	');
 }
+if (!class_exists('OCP\\AppFramework\\Http\\ContentSecurityPolicy', false)) {
+	eval('
+		namespace OCP\\AppFramework\\Http;
+		class ContentSecurityPolicy {
+			public array $workerSrc = [];
+			public array $scriptDomains = [];
+			public array $connectDomains = [];
+			public array $frameDomains = [];
+			public function addAllowedWorkerSrcDomain(string $domain): void { $this->workerSrc[] = $domain; }
+			public function addAllowedScriptDomain(string $domain): void { $this->scriptDomains[] = $domain; }
+			public function addAllowedConnectDomain(string $domain): void { $this->connectDomains[] = $domain; }
+			public function addAllowedFrameDomain(string $domain): void { $this->frameDomains[] = $domain; }
+		}
+	');
+}
 if (!class_exists('OCP\\AppFramework\\Http\\DataResponse', false)) {
 	eval('
 		namespace OCP\\AppFramework\\Http;
@@ -93,6 +125,18 @@ if (!class_exists('OCP\\AppFramework\\Http\\DataResponse', false)) {
 			public function getHeaders(): array { return $this->headers; }
 		}
 		class DataDisplayResponse extends DataResponse {}
+		class TemplateResponse extends DataResponse {
+			public const RENDER_AS_USER = "user";
+			public ?ContentSecurityPolicy $contentSecurityPolicy = null;
+			public function __construct(
+				public string $appName,
+				public string $templateName,
+				array $params = [],
+				public string $renderAs = self::RENDER_AS_USER,
+			) { parent::__construct($params, 200); }
+			public function setContentSecurityPolicy(ContentSecurityPolicy $policy): void { $this->contentSecurityPolicy = $policy; }
+			public function getContentSecurityPolicy(): ?ContentSecurityPolicy { return $this->contentSecurityPolicy; }
+		}
 		class StreamResponse extends DataResponse {
 			public function __construct($stream) { parent::__construct($stream, 200); }
 			public function getStream() { return $this->data; }
@@ -130,6 +174,11 @@ if (!interface_exists('OCP\\Files\\File', false)) {
 			public function getInternalPath();
 			public function fopen($mode);
 			public function getSize();
+			public function getId();
+			public function getPath();
+			public function getMTime();
+			public function getEtag();
+			public function isUpdateable();
 		}
 	');
 }
