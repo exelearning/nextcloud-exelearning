@@ -22,6 +22,7 @@ final class ElpxPreviewProviderTest extends TestCase {
 
 	protected function setUp(): void {
 		Image::$lastInstance = null;
+		Image::$validOverride = null;
 		$this->zipEntries = $this->createMock(ZipEntryService::class);
 		$this->permissions = $this->createMock(PermissionService::class);
 		$this->logger = $this->createMock(LoggerInterface::class);
@@ -86,6 +87,14 @@ final class ElpxPreviewProviderTest extends TestCase {
 		$invalid = $this->provider->getThumbnail($file, 120, 80);
 		self::assertNotNull($invalid);
 		self::assertSame([120, 80], Image::$lastInstance?->scaledTo);
+	}
+
+	public function testReturnsNullWhenFallbackImageIsInvalid(): void {
+		$file = $this->createMock(File::class);
+		$this->zipEntries->method('readEntry')->willReturn(null);
+		Image::$validOverride = false;
+
+		self::assertNull($this->provider->getThumbnail($file, 100, 100));
 	}
 
 	public function testLogsPackageReadErrorsAndUsesFallback(): void {
