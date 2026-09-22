@@ -37,6 +37,49 @@ describe('buildSandboxedIframe', () => {
 		const iframe = buildSandboxedIframe('/apps/exelearning/runtime/s/index.html', 'pkg', false)
 		expect(iframe.getAttribute('sandbox')).toContain('allow-same-origin')
 	})
+
+	it('rewires external links on the legacy same-origin path after load', () => {
+		const iframe = buildSandboxedIframe('/apps/exelearning/runtime/s/index.html', 'pkg', false)
+		Object.defineProperty(iframe, 'contentDocument', {
+			configurable: true,
+			value: document,
+		})
+		const host = document.createElement('div')
+		document.body.appendChild(host)
+
+		const external = document.createElement('a')
+		external.setAttribute('href', 'https://example.com/resource')
+		const child = document.createElement('span')
+		child.textContent = 'External'
+		external.appendChild(child)
+		host.appendChild(external)
+
+		const internal = document.createElement('a')
+		internal.setAttribute('href', 'page.html')
+		internal.textContent = 'Internal'
+		host.appendChild(internal)
+
+		iframe.dispatchEvent(new Event('load'))
+		child.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		internal.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+		expect(external.getAttribute('target')).toBe('_blank')
+		expect(external.getAttribute('rel')).toBe('noopener noreferrer')
+		expect(internal.getAttribute('target')).toBeNull()
+		host.remove()
+	})
+
+	it('swallows content-document access errors on the legacy path', () => {
+		const iframe = buildSandboxedIframe('/apps/exelearning/runtime/s/index.html', 'pkg', false)
+		Object.defineProperty(iframe, 'contentDocument', {
+			configurable: true,
+			get() {
+				throw new Error('cross-origin')
+			},
+		})
+
+		expect(() => iframe.dispatchEvent(new Event('load'))).not.toThrow()
+	})
 })
 
 describe('createContentIframe', () => {
