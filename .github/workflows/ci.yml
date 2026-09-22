@@ -98,6 +98,73 @@ jobs:
       - name: Unit tests (Vitest)
         run: npm test
 
+  coverage:
+    name: Coverage (Vitest + PHPUnit)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Set up PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.4'
+          extensions: zip, mbstring, dom, xml
+          tools: composer:v2
+          coverage: pcov
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          composer install --prefer-dist --no-progress
+
+      - name: Run frontend coverage
+        run: npm run test:coverage
+
+      - name: Run backend coverage
+        run: |
+          mkdir -p coverage
+          php -d pcov.directory=lib vendor/bin/phpunit \
+            --configuration tests/phpunit.xml \
+            --coverage-clover coverage/php-clover.xml \
+            --coverage-text
+
+      - name: Enforce backend coverage threshold
+        run: |
+          php -r '
+          $xml = simplexml_load_file("coverage/php-clover.xml");
+          if ($xml === false) {
+              fwrite(STDERR, "Could not read Clover coverage report.\n");
+              exit(1);
+          }
+          $metrics = $xml->project->metrics;
+          $statements = (int) $metrics["statements"];
+          $covered = (int) $metrics["coveredstatements"];
+          $coverage = $statements > 0 ? ($covered / $statements) * 100 : 0;
+          printf("Backend line coverage: %.2f%%\n", $coverage);
+          if ($coverage < 90) {
+              fwrite(STDERR, "Backend coverage is below the required 90%.\n");
+              exit(1);
+          }
+          '
+
+      - name: Upload coverage to Codecov
+        uses: codecov/codecov-action@v7
+        with:
+          use_oidc: true
+          files: coverage/js/lcov.info,coverage/php-clover.xml
+          disable_search: true
+          fail_ci_if_error: true
+
   validate-info-xml:
     name: Validate appinfo/info.xml against the appstore schema
     runs-on: ubuntu-latest
@@ -239,9 +306,9 @@ jobs:
         run: composer install --prefer-dist --no-progress
 
       - name: Set up Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
-          node-version: 22
+          node-version: 24
           cache: npm
 
       - name: Install JS dependencies

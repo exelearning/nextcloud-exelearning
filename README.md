@@ -1,6 +1,7 @@
 # nextcloud-exelearning
 
 [![CI](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml/badge.svg)](https://github.com/exelearning/nextcloud-exelearning/actions/workflows/ci.yml)
+[![codecov](https://codecov.io/gh/exelearning/nextcloud-exelearning/branch/main/graph/badge.svg)](https://codecov.io/gh/exelearning/nextcloud-exelearning)
 
 <a href="https://ateeducacion.github.io/nextcloud-playground/?blueprint-url=https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/blueprint.json" target="_blank" rel="noopener noreferrer"><img src="https://raw.githubusercontent.com/ateeducacion/nextcloud-playground/refs/heads/main/assets/playground-preview-button.svg" alt="Open in Nextcloud Playground" width="224"></a>
 

@@ -46,6 +46,29 @@ describe('readPackage', () => {
 		await expect(readPackage(buffer)).rejects.toBeInstanceOf(ZipReadError)
 	})
 
+	it('enforces the compressed-size limit before decoding', async () => {
+		const buffer = buildPackage({ 'index.html': '<html></html>' })
+		await expect(
+			readPackage(buffer, { ...DEFAULT_LIMITS, maxCompressedBytes: buffer.byteLength - 1 }),
+		).rejects.toMatchObject({ code: 'PACKAGE_TOO_LARGE' })
+	})
+
+	it('reports corrupt archives that still have a ZIP signature', async () => {
+		const buffer = new Uint8Array([0x50, 0x4b, 0x03, 0x04, 0, 0, 0, 0]).buffer
+		await expect(readPackage(buffer)).rejects.toMatchObject({ code: 'CORRUPT' })
+	})
+
+	it('skips explicit directory entries', async () => {
+		const buffer = buildPackage({
+			'folder/': new Uint8Array(),
+			'folder/page.html': '<p>ok</p>',
+		})
+		const result = await readPackage(buffer)
+
+		expect(result.entries.has('folder/')).toBe(false)
+		expect(result.entries.has('folder/page.html')).toBe(true)
+	})
+
 	it('rejects entries with parent traversal', async () => {
 		const buffer = buildPackage({ '../escape.html': '<html></html>' })
 		try {

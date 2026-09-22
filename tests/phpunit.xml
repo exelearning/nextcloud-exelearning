@@ -14,7 +14,16 @@
     </testsuites>
     <source>
         <include>
-            <directory>../lib</directory>
+            <directory>../lib/AppInfo</directory>
+            <file>../lib/Controller/AssetController.php</file>
+            <file>../lib/Controller/EditorController.php</file>
+            <file>../lib/Controller/PackageController.php</file>
+            <file>../lib/Controller/SwController.php</file>
+            <file>../lib/Controller/TemplateController.php</file>
+            <file>../lib/Controller/ThumbnailController.php</file>
+            <file>../lib/Controller/ViewController.php</file>
+            <directory>../lib/Preview</directory>
+            <directory>../lib/Service</directory>
         </include>
     </source>
 </phpunit>
