@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\Tests\Unit\Controller;
 
 use OCA\ExeLearning\Controller\AssetController;
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\PackageMimeService;
 use OCA\ExeLearning\Service\ZipEntryService;
 use OCP\AppFramework\Http;
 use OCP\Files\File;
@@ -20,18 +21,21 @@ final class AssetControllerTest extends TestCase {
 	private IUserSession $userSession;
 	private ElpxPackageService $packages;
 	private ZipEntryService $zipEntries;
+	private PackageMimeService $mime;
 	private AssetController $controller;
 
 	protected function setUp(): void {
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->zipEntries = $this->createMock(ZipEntryService::class);
+		$this->mime = new PackageMimeService();
 		$this->controller = new AssetController(
 			'exelearning',
 			$this->createMock(IRequest::class),
 			$this->userSession,
 			$this->packages,
 			$this->zipEntries,
+			$this->mime,
 		);
 	}
 
