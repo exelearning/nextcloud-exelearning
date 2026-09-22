@@ -174,6 +174,68 @@ final class ZipEntryServiceTest extends TestCase {
 		self::assertNull($service->readEntry($file, 'index.html'));
 	}
 
+
+	public function testReadEntryUsesLocalPathAndReturnsNullForMissingEntry(): void {
+		$archive = $this->createTestArchive('index.html', '<h1>Local</h1>');
+		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
+		self::assertNotFalse($archivePath);
+		file_put_contents($archivePath, $archive);
+		$file = $this->createFakeFile($archive, $archivePath);
+
+		try {
+			self::assertSame('<h1>Local</h1>', $this->service->readEntry($file, 'index.html'));
+			self::assertNull($this->service->readEntry($file, 'missing.html'));
+		} finally {
+			@unlink($archivePath);
+		}
+	}
+
+	public function testListEntriesReturnsNamesUpToConfiguredLimit(): void {
+		$archivePath = $this->createArchiveFile([
+			'index.html' => '<h1>Index</h1>',
+			'content.xml' => '<content/>',
+			'images/logo.svg' => '<svg/>',
+		]);
+		$archive = file_get_contents($archivePath);
+		self::assertIsString($archive);
+		$file = $this->createFakeFile($archive, $archivePath);
+		$service = new ZipEntryService(maxEntries: 2);
+
+		try {
+			self::assertSame(
+				['index.html', 'content.xml'],
+				$service->listEntries($file),
+			);
+		} finally {
+			@unlink($archivePath);
+		}
+	}
+
+	public function testListEntriesReturnsEmptyWithoutUsableLocalArchive(): void {
+		$archive = $this->createTestArchive('index.html', '<h1>Index</h1>');
+
+		self::assertSame([], $this->service->listEntries($this->createFakeFile($archive, false)));
+		self::assertSame([], $this->service->listEntries($this->createFakeFile($archive, null)));
+		self::assertSame([], $this->service->listEntries($this->createFakeFile($archive, '/missing/package.elpx')));
+	}
+
+	/**
+	 * Builds a ZIP archive at a temporary local path.
+	 *
+	 * @param array<string, string> $entries
+	 */
+	private function createArchiveFile(array $entries): string {
+		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
+		self::assertNotFalse($archivePath);
+		$zip = new \ZipArchive();
+		self::assertTrue($zip->open($archivePath, \ZipArchive::OVERWRITE) === true);
+		foreach ($entries as $name => $contents) {
+			$zip->addFromString($name, $contents);
+		}
+		$zip->close();
+		return $archivePath;
+	}
+
 	/**
 	 * Builds a minimal in-memory ZIP archive and returns its raw bytes.
 	 */
@@ -196,14 +258,14 @@ final class ZipEntryServiceTest extends TestCase {
 	 * directly — e.g. a virtual path or an empty string) and whose
 	 * `fopen()` streams the given archive bytes.
 	 */
-	private function createFakeFile(string $archive, string $localPath): \OCP\Files\File {
+	private function createFakeFile(string $archive, string|false|null $localPath): \OCP\Files\File {
 		$storage = new class($localPath) {
 			public function __construct(
-				private readonly string $localPath,
+				private readonly string|false|null $localPath,
 			) {
 			}
 
-			public function getLocalFile(string $path): string {
+			public function getLocalFile(string $path): string|false|null {
 				return $this->localPath;
 			}
 		};
