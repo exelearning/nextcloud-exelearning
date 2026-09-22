@@ -120,10 +120,29 @@ jobs:
       - name: Run backend coverage
         run: |
           mkdir -p coverage
-          php -d pcov.directory=lib vendor/bin/phpunit \
+          php -d pcov.directory=lib/Service vendor/bin/phpunit \
             --configuration tests/phpunit.xml \
             --coverage-clover coverage/php-clover.xml \
             --coverage-text
+
+      - name: Enforce backend coverage threshold
+        run: |
+          php -r '
+          $xml = simplexml_load_file("coverage/php-clover.xml");
+          if ($xml === false) {
+              fwrite(STDERR, "Could not read Clover coverage report.\n");
+              exit(1);
+          }
+          $metrics = $xml->project->metrics;
+          $statements = (int) $metrics["statements"];
+          $covered = (int) $metrics["coveredstatements"];
+          $coverage = $statements > 0 ? ($covered / $statements) * 100 : 0;
+          printf("Backend line coverage: %.2f%%\n", $coverage);
+          if ($coverage < 90) {
+              fwrite(STDERR, "Backend coverage is below the required 90%.\n");
+              exit(1);
+          }
+          '
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v7

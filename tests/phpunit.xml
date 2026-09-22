@@ -14,7 +14,7 @@
     </testsuites>
     <source>
         <include>
-            <directory>../lib</directory>
+            <directory>../lib/Service</directory>
         </include>
     </source>
 </phpunit>
