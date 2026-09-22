@@ -30,35 +30,39 @@ describe('buildSandboxedIframe', () => {
 
 	it('rewires external links after the iframe loads', () => {
 		const iframe = buildSandboxedIframe('/apps/exelearning/asset/42/index.html', 'pkg')
-		document.body.appendChild(iframe)
-		const doc = iframe.contentDocument
-		expect(doc).not.toBeNull()
+		Object.defineProperty(iframe, 'contentDocument', {
+			configurable: true,
+			value: document,
+		})
+		const host = document.createElement('div')
+		document.body.appendChild(host)
 
-		const external = doc!.createElement('a')
+		const external = document.createElement('a')
 		external.setAttribute('href', 'https://example.com/resource')
-		const child = doc!.createElement('span')
+		const child = document.createElement('span')
 		child.textContent = 'External'
 		external.appendChild(child)
-		doc!.body.appendChild(external)
+		host.appendChild(external)
 
-		const internal = doc!.createElement('a')
+		const internal = document.createElement('a')
 		internal.setAttribute('href', 'page.html')
 		internal.textContent = 'Internal'
-		doc!.body.appendChild(internal)
+		host.appendChild(internal)
 
-		const noHref = doc!.createElement('a')
+		const noHref = document.createElement('a')
 		noHref.textContent = 'No href'
-		doc!.body.appendChild(noHref)
+		host.appendChild(noHref)
 
 		iframe.dispatchEvent(new Event('load'))
 		child.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 		internal.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 		noHref.dispatchEvent(new MouseEvent('click', { bubbles: true }))
-		doc!.body.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		host.dispatchEvent(new MouseEvent('click', { bubbles: true }))
 
 		expect(external.getAttribute('target')).toBe('_blank')
 		expect(external.getAttribute('rel')).toBe('noopener noreferrer')
 		expect(internal.getAttribute('target')).toBeNull()
+		host.remove()
 	})
 
 	it('swallows content-document access errors on load', () => {
