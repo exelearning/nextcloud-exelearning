@@ -106,6 +106,20 @@ final class SnapshotArchiveTest extends TestCase {
 		}
 	}
 
+	public function testExtractEnforcesActualByteBudgetWhileStreaming(): void {
+		$path = $this->zip(['index.html' => '12345678']);
+		$target = $this->tempDir();
+		$zip = $this->open($path);
+
+		$this->expectException(RuntimeException::class);
+		$this->expectExceptionMessage('Preview archive is too large');
+		try {
+			SnapshotArchive::extract($zip, $target, new PreviewSnapshotLimits(maxBytesPerSnapshot: 4));
+		} finally {
+			$zip->close();
+		}
+	}
+
 	public function testExtractFailsWhenTargetDirectoryCannotBeCreated(): void {
 		$path = $this->zip(['index.html' => 'ok']);
 		$zip = $this->open($path);
