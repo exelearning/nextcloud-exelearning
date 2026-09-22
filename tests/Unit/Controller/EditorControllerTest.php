@@ -220,6 +220,47 @@ final class EditorControllerTest extends TestCase {
 		self::assertSame('private, no-cache', $response->getHeaders()['Cache-Control']);
 	}
 
+	public function testIframeAcceptsServingRootThatDoesNotEndWithPlaceholderId(): void {
+		$this->authenticate();
+		$this->writeEditorIndex('<html><head></head><body>Editor</body></html>');
+
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkTo')->willReturn('/custom_apps/exelearning/');
+		$urlGenerator->method('linkToRoute')->willReturnCallback(
+			static function (string $routeName, array $arguments = []): string {
+				$previewId = $arguments['previewId'] ?? null;
+				return match ($routeName) {
+					Application::APP_ID . '.preview.serveRoot' => '/apps/exelearning/custom-preview-root',
+					Application::APP_ID . '.previewSession.delete' => '/apps/exelearning/api/preview-session/' . $previewId,
+					Application::APP_ID . '.previewSession.create' => '/apps/exelearning/api/preview-session',
+					default => '/apps/exelearning/editor/iframe',
+				};
+			},
+		);
+
+		$this->editorHtml->expects(self::once())
+			->method('prepare')
+			->with(
+				self::callback(static fn (string $html): bool => str_contains($html, 'custom-preview-root')),
+				'/custom_apps/exelearning/js/editor/',
+			)
+			->willReturn('<html>prepared</html>');
+
+		$controller = new EditorController(
+			'exelearning',
+			$this->request,
+			$this->session,
+			$this->packages,
+			$this->legacyMigration,
+			$this->editorHtml,
+			$this->initialState,
+			$urlGenerator,
+			$this->csrfTokenManager,
+		);
+
+		self::assertSame(Http::STATUS_OK, $controller->iframe()->getStatus());
+	}
+
 	private function authenticate(): IUser {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn('alice');
