@@ -131,45 +131,50 @@ final class EditorControllerTest extends TestCase {
 		self::assertSame(Http::STATUS_OK, $this->controller->index(fileId: 43)->getStatus());
 	}
 
-	public function testSaveRejectsAuthenticationLookupReadOnlyAndMissingUpload(): void {
+	public function testSaveRequiresAuthentication(): void {
 		$this->session->method('getUser')->willReturn(null);
-		self::assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->save(42)->getStatus());
 
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->save(42)->getStatus());
+	}
+
+	public function testSaveMapsLookupErrors(): void {
 		$user = $this->authenticate();
-		$this->packages->expects(self::exactly(3))
+		$this->packages->expects(self::exactly(2))
 			->method('getForUserById')
 			->with($user->getUID(), 42)
 			->willReturnOnConsecutiveCalls(
 				self::throwException(new NotFoundException('missing')),
 				self::throwException(new NotPermittedException('denied')),
-				$this->packageFile(updateable: false),
 			);
+
 		self::assertSame(Http::STATUS_NOT_FOUND, $this->controller->save(42)->getStatus());
 		self::assertSame(Http::STATUS_FORBIDDEN, $this->controller->save(42)->getStatus());
-		self::assertSame(Http::STATUS_FORBIDDEN, $this->controller->save(42)->getStatus());
+	}
 
-		$file = $this->packageFile();
-		$this->packages = $this->createMock(ElpxPackageService::class);
-		$this->packages->method('getForUserById')->willReturn($file);
+	public function testSaveRejectsReadOnlyFile(): void {
+		$this->authenticate();
+		$this->packages->method('getForUserById')->willReturn($this->packageFile(updateable: false));
+
+		self::assertSame(Http::STATUS_FORBIDDEN, $this->controller->save(42)->getStatus());
+	}
+
+	public function testSaveRejectsMissingUpload(): void {
+		$this->authenticate();
+		$this->packages->method('getForUserById')->willReturn($this->packageFile());
 		$this->request->method('getUploadedFile')->with('package')->willReturn(null);
-		$this->controller = new EditorController(
-			'exelearning',
-			$this->request,
-			$this->session,
-			$this->packages,
-			$this->legacyMigration,
-			$this->editorHtml,
-			$this->initialState,
-			$this->urlGenerator,
-		);
+
 		self::assertSame(Http::STATUS_BAD_REQUEST, $this->controller->save(42)->getStatus());
 	}
 
-	public function testIframeRequiresAuthenticationAndReportsMissingEditor(): void {
+	public function testIframeRequiresAuthentication(): void {
 		$this->session->method('getUser')->willReturn(null);
-		self::assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->iframe()->getStatus());
 
+		self::assertSame(Http::STATUS_UNAUTHORIZED, $this->controller->iframe()->getStatus());
+	}
+
+	public function testIframeReportsMissingEditor(): void {
 		$this->authenticate();
+
 		self::assertSame(Http::STATUS_NOT_FOUND, $this->controller->iframe()->getStatus());
 	}
 
