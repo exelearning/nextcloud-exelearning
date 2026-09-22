@@ -92,7 +92,7 @@ maintenance ends mid-2026; NC 32 and 33 are the reference targets.
 |-----------------|----------------------------------------|
 | Nextcloud       | 31, 32 or 33                           |
 | PHP             | 8.2 – 8.5 (8.5 experimental)           |
-| Node            | 20, 22 or 24 LTS                       |
+| Node            | 24 LTS                                 |
 | npm             | 10 or 11                               |
 | Bun (optional)  | latest stable, only for `build-editor` |
 

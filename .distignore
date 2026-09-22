@@ -49,7 +49,7 @@ package.json
 package-lock.json
 composer.json
 composer.lock
-webpack.config.js
+vite.config.mts
 tsconfig.json
 vitest.config.ts
 biome.json
@@ -84,11 +84,12 @@ exelearning
 .editor-version
 
 # --- Project documentation (kept in the repo only) ----------------------
+# CHANGELOG.md is NOT excluded: the appstore reads it out of the tarball and
+# shows the section whose heading matches the released version.
 AGENTS.md
 CLAUDE.md
 docs
 .agents
-CHANGELOG.md
 CONTRIBUTING.md
 DEVELOPMENT.md
 Makefile
