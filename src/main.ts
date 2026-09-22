@@ -1,10 +1,3 @@
-// IMPORTANT: this block must stay first, before any other module-level
-// statement (and before the imports above resolve their side effects).
-// Nextcloud installs may serve apps from `/apps/<id>/` or `/custom_apps/<id>/`
-// depending on the admin's `apps_paths` config. Webpack's static
-// publicPath only knows about the first; for any chunk webpack loads at
-// runtime we redirect it through OC.appswebroots, which Nextcloud
-// guarantees is correct for the current install.
 /**
  * Entry point loaded by Nextcloud as an init script (see
  * {@link \OCA\ExeLearning\AppInfo\Application::boot}). It runs before the
@@ -18,17 +11,6 @@
 
 import { registerFileActions } from './files/actions'
 import { registerNewMenuEntry } from './files/new-menu'
-
-declare let __webpack_public_path__: string
-declare global {
-	interface Window {
-		OC?: { appswebroots?: Record<string, string> }
-	}
-}
-if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
-}
 
 /**
  *
