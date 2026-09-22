@@ -179,6 +179,9 @@ if (!interface_exists('OCP\\Files\\File', false)) {
 			public function getMTime();
 			public function getEtag();
 			public function isUpdateable();
+			public function getParent();
+			public function move($target);
+			public function putContent($data);
 		}
 	');
 }
@@ -188,6 +191,8 @@ if (!interface_exists('OCP\\Files\\Folder', false)) {
 		interface Folder extends Node {
 			public function getById($fileId);
 			public function get($path);
+			public function nodeExists($path);
+			public function getPath();
 		}
 	');
 }
@@ -204,6 +209,9 @@ if (!class_exists('OCP\\Files\\NotFoundException', false)) {
 }
 if (!class_exists('OCP\\Files\\NotPermittedException', false)) {
 	eval('namespace OCP\\Files; class NotPermittedException extends \\Exception {}');
+}
+if (!class_exists('OCP\\Files\\InvalidPathException', false)) {
+	eval('namespace OCP\\Files; class InvalidPathException extends \\Exception {}');
 }
 if (!class_exists('OCP\\Constants', false)) {
 	eval('namespace OCP; class Constants { public const PERMISSION_READ = 1; }');
