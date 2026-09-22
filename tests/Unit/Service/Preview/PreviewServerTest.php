@@ -121,6 +121,30 @@ final class PreviewServerTest extends TestCase {
 		self::assertNotSame($before, $response->headers['ETag']);
 	}
 
+	public function testSuffixRangeReturnsLastBytes(): void {
+		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=-3');
+
+		self::assertSame(206, $response->status);
+		self::assertSame('789', $response->body);
+		self::assertSame('bytes 7-9/10', $response->headers['Content-Range']);
+	}
+
+	public function testOpenEndedRangeRunsToEnd(): void {
+		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=7-');
+
+		self::assertSame(206, $response->status);
+		self::assertSame('789', $response->body);
+		self::assertSame('bytes 7-9/10', $response->headers['Content-Range']);
+	}
+
+	public function testRangeEndIsClampedToEntitySize(): void {
+		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=8-999');
+
+		self::assertSame(206, $response->status);
+		self::assertSame('89', $response->body);
+		self::assertSame('bytes 8-9/10', $response->headers['Content-Range']);
+	}
+
 	public function testSingleRangeReturns206(): void {
 		$response = $this->server()->serve($this->previewId, 'media/clip.mp4', null, 'bytes=2-4');
 		self::assertSame(206, $response->status);
