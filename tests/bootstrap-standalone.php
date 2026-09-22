@@ -35,11 +35,23 @@ if (!interface_exists('OCP\\AppFramework\\Bootstrap\\IBootstrap', false)) {
 		namespace OCP\\AppFramework\\Bootstrap;
 		interface IRegistrationContext {
 			public function registerPreviewProvider(string $class, string $mimeType): void;
+			public function registerService(string $name, callable $factory): void;
 		}
 		interface IBootContext { public function getServerContainer(); public function getAppContainer(); }
 		interface IBootstrap {
 			public function register(IRegistrationContext $context): void;
 			public function boot(IBootContext $context): void;
+		}
+	');
+}
+if (!class_exists('OC\\Security\\CSRF\\CsrfTokenManager', false)) {
+	eval('
+		namespace OC\\Security\\CSRF;
+		class CsrfToken {
+			public function getEncryptedValue(): string { return "test-request-token"; }
+		}
+		class CsrfTokenManager {
+			public function getToken(): CsrfToken { return new CsrfToken(); }
 		}
 	');
 }
