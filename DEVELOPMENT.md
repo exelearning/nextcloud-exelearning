@@ -9,7 +9,7 @@ For the rules coding agents must follow, see [`AGENTS.md`](AGENTS.md).
 ```sh
 composer install
 npm install
-npm run build      # writes js/exelearning-main.js + chunks
+npm run build      # writes js/exelearning-main.mjs + chunks
 npm run typecheck
 npm test
 ```
@@ -290,7 +290,7 @@ The Service Worker was unregistered or restarted between the page handing
 over the bytes and the iframe asking for them. Close and reopen the file
 in the Viewer; the bytes are re-extracted on every open.
 
-### `nextcloud-exelearning-main.js` is missing
+### `exelearning-main.mjs` is missing
 
 `js/` is build output. Run `npm install && npm run build`. The Service
 Worker source lives at `src/sw/exelearning-sw.js` and is served by
