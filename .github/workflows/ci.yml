@@ -120,7 +120,7 @@ jobs:
       - name: Run backend coverage
         run: |
           mkdir -p coverage
-          php -d pcov.directory=lib/Service vendor/bin/phpunit \
+          php -d pcov.directory=lib vendor/bin/phpunit \
             --configuration tests/phpunit.xml \
             --coverage-clover coverage/php-clover.xml \
             --coverage-text
