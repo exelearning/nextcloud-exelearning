@@ -126,6 +126,22 @@ if (!interface_exists('OCP\\Preview\\IProviderV2', false)) {
 if (!interface_exists('OCP\\Files\\SimpleFS\\ISimpleFile', false)) {
 	eval('namespace OCP\\Files\\SimpleFS; interface ISimpleFile {}');
 }
+if (!interface_exists('Psr\\Log\\LoggerInterface', false)) {
+	eval('
+		namespace Psr\\Log;
+		interface LoggerInterface {
+			public function emergency(string|\\Stringable $message, array $context = []): void;
+			public function alert(string|\\Stringable $message, array $context = []): void;
+			public function critical(string|\\Stringable $message, array $context = []): void;
+			public function error(string|\\Stringable $message, array $context = []): void;
+			public function warning(string|\\Stringable $message, array $context = []): void;
+			public function notice(string|\\Stringable $message, array $context = []): void;
+			public function info(string|\\Stringable $message, array $context = []): void;
+			public function debug(string|\\Stringable $message, array $context = []): void;
+			public function log($level, string|\\Stringable $message, array $context = []): void;
+		}
+	');
+}
 if (!class_exists('OCP\\Util', false)) {
 	eval('
 		namespace OCP;
