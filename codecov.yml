@@ -15,7 +15,6 @@ ignore:
   - "js/**/*"
   - "tests/**/*"
   - "vendor/**/*"
-  - "lib/Controller/**/*"
   - "src/main.ts"
   - "src/editor/editor-frame.ts"
   - "src/editor/editor-page.ts"
