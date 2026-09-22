@@ -44,7 +44,7 @@ class EditorController extends Controller {
 		private readonly EditorHtmlService $editorHtml,
 		private readonly IInitialState $initialState,
 		private readonly IURLGenerator $urlGenerator,
-		private readonly ?CsrfTokenManager $csrfTokenManager = null,
+		private readonly CsrfTokenManager $csrfTokenManager,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -203,20 +203,16 @@ class EditorController extends Controller {
 		// save. Deriving from `document.baseURI` (which equals the scoped
 		// `<base href>` at runtime) keeps it correct in both a normal install and
 		// under a scoped path.
-		// The editor preview management API keeps CSRF protection enabled. When
-		// Nextcloud injects the token manager, add the preview transport before
-		// EditorHtmlService prepends the common embedding config. The standalone
-		// unit tests instantiate this controller without Nextcloud's container,
-		// hence the nullable constructor default.
-		if ($this->csrfTokenManager !== null) {
-			$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
-			$previewScript = '<script>window.__EXE_EMBEDDING_CONFIG__=Object.assign('
-				. 'window.__EXE_EMBEDDING_CONFIG__||{},'
-				. '{previewSnapshot:' . $previewSnapshot . '});</script>';
-			if (preg_match('/<head[^>]*>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
-				$position = $match[0][1] + strlen($match[0][0]);
-				$html = substr($html, 0, $position) . $previewScript . substr($html, $position);
-			}
+		// The editor preview management API keeps CSRF protection enabled. Add
+		// its transport config before EditorHtmlService prepends the common
+		// embedding config, so both scripts execute before the editor bundle.
+		$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
+		$previewScript = '<script>window.__EXE_EMBEDDING_CONFIG__=Object.assign('
+			. 'window.__EXE_EMBEDDING_CONFIG__||{},'
+			. '{previewSnapshot:' . $previewSnapshot . '});</script>';
+		if (preg_match('/<head[^>]*>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
+			$position = $match[0][1] + strlen($match[0][0]);
+			$html = substr($html, 0, $position) . $previewScript . substr($html, $position);
 		}
 
 		$html = $this->editorHtml->prepare($html, $editorBaseHref);
@@ -278,7 +274,7 @@ class EditorController extends Controller {
 			'servingBaseUrl' => $servingBaseUrl,
 			'deleteUrlTemplate' => $deleteUrlTemplate,
 			'managementHeaders' => (object)[
-				'requesttoken' => $this->csrfTokenManager?->getToken()->getEncryptedValue() ?? '',
+				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
 			],
 		];
 	}
