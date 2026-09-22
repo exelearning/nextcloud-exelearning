@@ -174,7 +174,6 @@ final class ZipEntryServiceTest extends TestCase {
 		self::assertNull($service->readEntry($file, 'index.html'));
 	}
 
-
 	public function testReadEntryUsesLocalPathAndReturnsNullForMissingEntry(): void {
 		$archive = $this->createTestArchive('index.html', '<h1>Local</h1>');
 		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');
