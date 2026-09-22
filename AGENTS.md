@@ -175,7 +175,7 @@ nextcloud-exelearning/
 ├── .agents/skills/         # task-specific agent guidance
 ├── composer.json
 ├── package.json
-├── webpack.config.js
+├── vite.config.ts
 ├── tsconfig.json
 ├── Makefile
 ├── README.md
