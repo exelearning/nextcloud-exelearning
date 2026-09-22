@@ -44,6 +44,21 @@ final class ContentTokenServiceTest extends TestCase {
 		self::assertSame([42, 'alice'], $this->service(1050)->verify($token));
 	}
 
+	public function testSignedPayloadWithWrongShapeIsRejected(): void {
+		self::assertNull($this->service()->verify($this->signedToken('42.2000')));
+	}
+
+	public function testSignedPayloadRequiresNumericFileAndExpiry(): void {
+		$encodedUser = $this->b64('alice');
+
+		self::assertNull($this->service()->verify($this->signedToken('file.2000.' . $encodedUser)));
+		self::assertNull($this->service()->verify($this->signedToken('42.expiry.' . $encodedUser)));
+	}
+
+	public function testSignedPayloadRejectsEmptyUser(): void {
+		self::assertNull($this->service()->verify($this->signedToken('42.2000.')));
+	}
+
 	public function testGarbageRejected(): void {
 		$svc = $this->service();
 		self::assertNull($svc->verify(''));
@@ -51,4 +66,19 @@ final class ContentTokenServiceTest extends TestCase {
 		self::assertNull($svc->verify('a.b.c'));
 		self::assertNull($svc->verify('@@@.@@@'));
 	}
+
+	private function signedToken(string $payload): string {
+		$signature = hash_hmac(
+			'sha256',
+			$payload,
+			'test-secret-value|exelearning-content-v1',
+			true,
+		);
+		return $this->b64($payload) . '.' . $this->b64($signature);
+	}
+
+	private function b64(string $raw): string {
+		return rtrim(strtr(base64_encode($raw), '+/', '-_'), '=');
+	}
+
 }
