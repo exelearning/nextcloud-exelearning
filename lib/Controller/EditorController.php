@@ -245,7 +245,6 @@ class EditorController extends Controller {
 		return $response;
 	}
 
-
 	/**
 	 * Builds the editor's opaque-preview transport configuration.
 	 *
