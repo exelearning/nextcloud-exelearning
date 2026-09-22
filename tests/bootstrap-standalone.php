@@ -55,6 +55,15 @@ if (!class_exists('OC\\Security\\CSRF\\CsrfTokenManager', false)) {
 		}
 	');
 }
+if (!interface_exists('OCP\\IConfig', false)) {
+	eval('
+		namespace OCP;
+		interface IConfig {
+			public function getSystemValue(string $key, mixed $default = null);
+			public function getAppValue(string $app, string $key, string $default = "");
+		}
+	');
+}
 if (!interface_exists('OCP\\IRequest', false)) {
 	eval('
 		namespace OCP;
