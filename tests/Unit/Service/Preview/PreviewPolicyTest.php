@@ -137,6 +137,7 @@ final class PreviewPolicyTest extends TestCase {
 		yield 'bare dotdot' => ['..'];
 		yield 'trailing parent collapses to empty root' => ['foo/..'];
 		yield 'nul byte' => ["a\0b"];
+		yield 'only dot and empty segments' => ['./'];
 	}
 
 	public function testPreviewIdValidation(): void {
