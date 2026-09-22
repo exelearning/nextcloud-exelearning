@@ -43,6 +43,62 @@ if (!interface_exists('OCP\\AppFramework\\Bootstrap\\IBootstrap', false)) {
 		}
 	');
 }
+if (!interface_exists('OCP\\IRequest', false)) {
+	eval('namespace OCP; interface IRequest {}');
+}
+if (!interface_exists('OCP\\IUser', false)) {
+	eval('namespace OCP; interface IUser { public function getUID(); }');
+}
+if (!interface_exists('OCP\\IUserSession', false)) {
+	eval('namespace OCP; interface IUserSession { public function getUser(); }');
+}
+if (!class_exists('OCP\\AppFramework\\Controller', false)) {
+	eval('
+		namespace OCP\\AppFramework;
+		class Controller {
+			protected \\OCP\\IRequest $request;
+			public function __construct(string $appName, \\OCP\\IRequest $request) {
+				$this->request = $request;
+			}
+		}
+	');
+}
+if (!class_exists('OCP\\AppFramework\\Http', false)) {
+	eval('
+		namespace OCP\\AppFramework;
+		class Http {
+			public const STATUS_OK = 200;
+			public const STATUS_BAD_REQUEST = 400;
+			public const STATUS_UNAUTHORIZED = 401;
+			public const STATUS_FORBIDDEN = 403;
+			public const STATUS_NOT_FOUND = 404;
+			public const STATUS_PRECONDITION_FAILED = 412;
+			public const STATUS_INTERNAL_SERVER_ERROR = 500;
+		}
+	');
+}
+if (!class_exists('OCP\\AppFramework\\Http\\DataResponse', false)) {
+	eval('
+		namespace OCP\\AppFramework\\Http;
+		class DataResponse {
+			protected array $headers;
+			public function __construct(
+				protected mixed $data = null,
+				protected int $status = 200,
+				array $headers = [],
+			) { $this->headers = $headers; }
+			public function getData(): mixed { return $this->data; }
+			public function getStatus(): int { return $this->status; }
+			public function addHeader(string $name, string $value): void { $this->headers[$name] = $value; }
+			public function getHeaders(): array { return $this->headers; }
+		}
+		class DataDisplayResponse extends DataResponse {}
+		class StreamResponse extends DataResponse {
+			public function __construct($stream) { parent::__construct($stream, 200); }
+			public function getStream() { return $this->data; }
+		}
+	');
+}
 if (!interface_exists('OCP\\IPreview', false)) {
 	eval('namespace OCP; interface IPreview {}');
 }
