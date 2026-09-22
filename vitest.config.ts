@@ -6,6 +6,27 @@ export default defineConfig({
 		globals: true,
 		environment: 'happy-dom',
 		include: ['tests/js/**/*.test.ts', 'src/**/*.test.ts'],
+		coverage: {
+			provider: 'v8',
+			reporter: ['text', 'lcov'],
+			reportsDirectory: 'coverage/js',
+			include: [
+				'src/editor/editor-messages.ts',
+				'src/elpx/asset-map.ts',
+				'src/elpx/iframe-renderer.ts',
+				'src/elpx/package-validator.ts',
+				'src/elpx/paths.ts',
+				'src/elpx/viewer-session.ts',
+				'src/elpx/zip-reader.ts',
+				'src/files/mime.ts',
+			],
+			thresholds: {
+				lines: 90,
+				functions: 90,
+				branches: 90,
+				statements: 90,
+			},
+		},
 	},
 	resolve: {
 		alias: {

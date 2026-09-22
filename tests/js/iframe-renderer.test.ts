@@ -27,6 +27,55 @@ describe('buildSandboxedIframe', () => {
 		expect(iframe.getAttribute('sandbox')).toContain('allow-scripts')
 		expect(iframe.title).toBe('My package')
 	})
+
+	it('rewires external links after the iframe loads', () => {
+		const iframe = buildSandboxedIframe('/apps/exelearning/asset/42/index.html', 'pkg')
+		Object.defineProperty(iframe, 'contentDocument', {
+			configurable: true,
+			value: document,
+		})
+		const host = document.createElement('div')
+		document.body.appendChild(host)
+
+		const external = document.createElement('a')
+		external.setAttribute('href', 'https://example.com/resource')
+		const child = document.createElement('span')
+		child.textContent = 'External'
+		external.appendChild(child)
+		host.appendChild(external)
+
+		const internal = document.createElement('a')
+		internal.setAttribute('href', 'page.html')
+		internal.textContent = 'Internal'
+		host.appendChild(internal)
+
+		const noHref = document.createElement('a')
+		noHref.textContent = 'No href'
+		host.appendChild(noHref)
+
+		iframe.dispatchEvent(new Event('load'))
+		child.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		internal.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		noHref.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+		host.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+
+		expect(external.getAttribute('target')).toBe('_blank')
+		expect(external.getAttribute('rel')).toBe('noopener noreferrer')
+		expect(internal.getAttribute('target')).toBeNull()
+		host.remove()
+	})
+
+	it('swallows content-document access errors on load', () => {
+		const iframe = buildSandboxedIframe('/apps/exelearning/asset/42/index.html', 'pkg')
+		Object.defineProperty(iframe, 'contentDocument', {
+			configurable: true,
+			get() {
+				throw new Error('cross-origin')
+			},
+		})
+
+		expect(() => iframe.dispatchEvent(new Event('load'))).not.toThrow()
+	})
 })
 
 describe('createPackageIframe', () => {

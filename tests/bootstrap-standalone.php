@@ -44,18 +44,55 @@ if (!interface_exists('OCP\\AppFramework\\Bootstrap\\IBootstrap', false)) {
 if (!interface_exists('OCP\\IPreview', false)) {
 	eval('namespace OCP; interface IPreview {}');
 }
+if (!interface_exists('OCP\\Files\\Node', false)) {
+	eval('
+		namespace OCP\\Files;
+		interface Node {
+			public function getName();
+			public function getMimeType();
+			public function getPermissions();
+		}
+	');
+}
 if (!interface_exists('OCP\\Files\\File', false)) {
 	// Like the real OCP\Files\File (an interface extending Node), but reduced
 	// to the members our code touches. Methods stay untyped as in the real
 	// API so PHPUnit mocks can implement them freely.
 	eval('
 		namespace OCP\\Files;
-		interface File {
+		interface File extends Node {
 			public function getStorage();
 			public function getInternalPath();
 			public function fopen($mode);
+			public function getSize();
 		}
 	');
+}
+if (!interface_exists('OCP\\Files\\Folder', false)) {
+	eval('
+		namespace OCP\\Files;
+		interface Folder extends Node {
+			public function getById($fileId);
+			public function get($path);
+		}
+	');
+}
+if (!interface_exists('OCP\\Files\\IRootFolder', false)) {
+	eval('
+		namespace OCP\\Files;
+		interface IRootFolder {
+			public function getUserFolder($userId);
+		}
+	');
+}
+if (!class_exists('OCP\\Files\\NotFoundException', false)) {
+	eval('namespace OCP\\Files; class NotFoundException extends \\Exception {}');
+}
+if (!class_exists('OCP\\Files\\NotPermittedException', false)) {
+	eval('namespace OCP\\Files; class NotPermittedException extends \\Exception {}');
+}
+if (!class_exists('OCP\\Constants', false)) {
+	eval('namespace OCP; class Constants { public const PERMISSION_READ = 1; }');
 }
 if (!class_exists('OCP\\Util', false)) {
 	eval('namespace OCP; class Util { public static function addInitScript(string $app, string $script): void {} public static function addScript(string $app, string $script): void {} }');

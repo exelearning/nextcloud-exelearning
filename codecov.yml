@@ -1,0 +1,31 @@
+coverage:
+  status:
+    project:
+      default:
+        target: 90%
+        threshold: 0%
+    patch:
+      default:
+        target: 90%
+        threshold: 0%
+
+ignore:
+  - "build/**/*"
+  - "coverage/**/*"
+  - "js/**/*"
+  - "tests/**/*"
+  - "vendor/**/*"
+  - "lib/AppInfo/**/*"
+  - "lib/Controller/**/*"
+  - "lib/Preview/**/*"
+  - "src/main.ts"
+  - "src/editor/editor-frame.ts"
+  - "src/editor/editor-page.ts"
+  - "src/elpx/elpx-loader.ts"
+  - "src/elpx/service-worker-client.ts"
+  - "src/files/actions.ts"
+  - "src/files/new-menu.ts"
+  - "src/sw/**/*"
+  - "src/types/**/*"
+  - "src/view/**/*"
+  - "src/viewer/**/*"

@@ -42,6 +42,7 @@ vite.config.mts              export-ignore
 tsconfig.json               export-ignore
 vitest.config.ts            export-ignore
 biome.json                  export-ignore
+codecov.yml                 export-ignore
 .eslintrc.cjs               export-ignore
 .php-cs-fixer.dist.php      export-ignore
 .php-cs-fixer.cache         export-ignore
