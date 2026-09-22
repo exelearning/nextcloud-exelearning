@@ -7,9 +7,11 @@ name: Auto-release on upstream editor bump
 #   1. downloads the matching prebuilt static editor,
 #   2. runs `make package PACKAGE_VERSION=<version>` to produce a
 #      Nextcloud appstore-ready `exelearning-<version>.tar.gz`,
-#   3. creates a GitHub Release tagged with the upstream editor tag and
+#   3. signs the tarball with the app's code signing certificate,
+#   4. creates a GitHub Release tagged with the upstream editor tag and
 #      attaches the tarball,
-#   4. commits the new tag into `.editor-version` so the next cron run
+#   5. publishes that release to the Nextcloud appstore,
+#   6. commits the new tag into `.editor-version` so the next cron run
 #      sees the repo as up to date.
 #
 # Mirrors wp-exelearning's `check-editor-releases.yml`. The Nextcloud
@@ -77,9 +79,14 @@ jobs:
         if: steps.compare.outputs.needs_update == 'true'
         run: |
           set -euo pipefail
+          APP_ID=$(sed -n 's:.*<id>\(.*\)</id>.*:\1:p' appinfo/info.xml | head -n1)
           PHP_MIN=$(sed -n 's:.*<php[^>]*min-version="\([0-9.]*\)".*:\1:p' appinfo/info.xml | head -n1)
+          echo "app_id=$APP_ID" >> "$GITHUB_OUTPUT"
           echo "php_version=${PHP_MIN:-8.2}" >> "$GITHUB_OUTPUT"
 
+      # The app version IS the editor version, always. Consequence to know
+      # about: the appstore refuses a version it already has, so an app-only
+      # fix cannot be published until upstream cuts a new editor tag.
       - name: Compute package version
         id: version
         if: steps.compare.outputs.needs_update == 'true'
@@ -120,6 +127,25 @@ jobs:
           EXELEARNING_EDITOR_REF: ${{ steps.latest.outputs.tag }}
         run: make download-editor
 
+      # The appstore shows the CHANGELOG section whose heading matches the
+      # released version, so the section has to exist *before* `make package`
+      # stages the tree. Inserting the heading right under `## [Unreleased]`
+      # moves whatever accumulated there into the released section and leaves
+      # Unreleased empty — plain Keep a Changelog release bookkeeping.
+      - name: Close the CHANGELOG section for this version
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          if grep -q "^## \[${VERSION}\]" CHANGELOG.md; then
+            echo "CHANGELOG already has a section for ${VERSION}."
+            exit 0
+          fi
+          DATE=$(date -u +%F)
+          sed -i -E "0,/^## \[Unreleased\]/s//## [Unreleased]\n\n## [${VERSION}] - ${DATE}/" CHANGELOG.md
+          sed -n '1,20p' CHANGELOG.md
+
       - name: Build the Nextcloud distribution tarball
         if: steps.compare.outputs.needs_update == 'true'
         run: make package PACKAGE_VERSION=${{ steps.version.outputs.version }}
@@ -136,6 +162,39 @@ jobs:
           echo "path=${PATH_REL}" >> "$GITHUB_OUTPUT"
           echo "Tarball size: $(du -h "${PATH_REL}" | cut -f1)"
 
+      # Same two secrets as release.yml: without them the GitHub release
+      # still happens, only the appstore publish is skipped.
+      - name: Check appstore credentials
+        id: credentials
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${APP_PRIVATE_KEY:-}" ] && [ -n "${APPSTORE_TOKEN:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::APP_PRIVATE_KEY/APPSTORE_TOKEN not set - skipping the appstore publish."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Signs in place, so the tarball attached to the release below is the
+      # signed one the appstore will hand to servers.
+      - name: Sign the app code
+        if: steps.credentials.outputs.ready == 'true'
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_ID: ${{ steps.meta.outputs.app_id }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$APP_PRIVATE_KEY" > "${RUNNER_TEMP}/${APP_ID}.key"
+          curl -fsSL -o "${RUNNER_TEMP}/${APP_ID}.crt" \
+            "https://raw.githubusercontent.com/nextcloud/app-certificate-requests/master/${APP_ID}/${APP_ID}.crt"
+          tools/sign-app.sh "${{ steps.artefact.outputs.path }}" \
+            "${RUNNER_TEMP}/${APP_ID}.key" "${RUNNER_TEMP}/${APP_ID}.crt"
+          rm -f "${RUNNER_TEMP}/${APP_ID}.key"
+
       - name: Create GitHub Release
         if: steps.compare.outputs.needs_update == 'true'
         uses: softprops/action-gh-release@v3
@@ -150,6 +209,19 @@ jobs:
             App version: `${{ steps.version.outputs.version }}` (stamped into `appinfo/info.xml` at package time).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The appstore downloads the tarball from the GitHub release, so this
+      # runs after the asset exists. It stays before the `.editor-version`
+      # commit on purpose: if the publish fails the marker is not bumped and
+      # tomorrow's run retries.
+      - name: Publish to the Nextcloud appstore
+        if: steps.credentials.outputs.ready == 'true'
+        uses: nextcloud-libraries/nextcloud-appstore-push-action@v1.0.3
+        with:
+          app_name: ${{ steps.meta.outputs.app_id }}
+          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          download_url: https://github.com/${{ github.repository }}/releases/download/${{ steps.latest.outputs.tag }}/${{ steps.meta.outputs.app_id }}-${{ steps.version.outputs.version }}.tar.gz
 
       - name: Update `.editor-version` marker
         if: steps.compare.outputs.needs_update == 'true'
@@ -168,6 +240,6 @@ jobs:
             blueprint.json
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add .editor-version blueprint.json
+          git add .editor-version blueprint.json CHANGELOG.md
           git commit -m "chore: bump bundled eXeLearning editor to ${TAG}"
           git push
