@@ -4,6 +4,8 @@ js/*.js
 js/*.js.map
 js/*.mjs
 js/*.mjs.map
+js/*.mjs
+js/*.mjs.map
 js/*.js.LICENSE.txt
 js/*.css
 js/*.css.map
