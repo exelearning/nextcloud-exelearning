@@ -275,6 +275,86 @@ final class PreviewSnapshotStoreTest extends TestCase {
 		self::assertSame('alice', $store->ownerOf($id));
 	}
 
+	public function testInvalidZipIsRejectedWithoutPublishing(): void {
+		$path = tempnam(sys_get_temp_dir(), 'exe-invalid-preview-');
+		self::assertNotFalse($path);
+		file_put_contents($path, 'not a zip');
+
+		try {
+			$result = $this->store()->replace('alice', $path);
+			self::assertSame(400, $result['status']);
+			self::assertSame('Invalid preview archive.', $result['error']);
+		} finally {
+			@unlink($path);
+		}
+	}
+
+	public function testMissingAccessMarkerFallsBackToCreatedAt(): void {
+		$store = $this->store();
+		$limits = new PreviewSnapshotLimits();
+		$id = $store->replace('alice', $this->zip(['index.html' => 'ok']))['previewId'];
+		$marker = $this->root . '/' . $id . '/.accessed';
+		self::assertTrue(unlink($marker));
+
+		self::assertFalse($store->isExpired($id));
+		$this->time += $limits->ttlSeconds + 1;
+		self::assertTrue($store->isExpired($id));
+	}
+
+	public function testMissingAccessMarkerAndCorruptMetadataExpireSnapshot(): void {
+		$store = $this->store();
+		$id = $store->replace('alice', $this->zip(['index.html' => 'ok']))['previewId'];
+		self::assertTrue(unlink($this->root . '/' . $id . '/.accessed'));
+		file_put_contents($this->root . '/' . $id . '/meta.json', '{broken');
+
+		self::assertTrue($store->isExpired($id));
+		self::assertNull($store->ownerOf($id));
+	}
+
+	public function testSweepExpiredOnMissingRootIsANoOp(): void {
+		self::assertSame(0, $this->store()->sweepExpired());
+	}
+
+	public function testGlobalBudgetEvictsOtherSnapshotsLeastRecentlyUsed(): void {
+		$store = $this->store(new PreviewSnapshotLimits(globalMaxBytes: 10));
+		$first = $store->replace('alice', $this->zip(['index.html' => 'aaaa']))['previewId'];
+		$this->time += 10;
+		$second = $store->replace('bob', $this->zip(['index.html' => 'bbbb']))['previewId'];
+		$this->time += 10;
+
+		$third = $store->replace('carol', $this->zip(['index.html' => 'cccc']))['previewId'];
+
+		self::assertNull($store->resolve($first, 'index.html'));
+		self::assertNotNull($store->resolve($second, 'index.html'));
+		self::assertNotNull($store->resolve($third, 'index.html'));
+	}
+
+	public function testReplacingSnapshotDoesNotDoubleCountItsOldBytes(): void {
+		$store = $this->store(new PreviewSnapshotLimits(globalMaxBytes: 5));
+		$id = $store->replace('alice', $this->zip(['index.html' => '1234']))['previewId'];
+
+		$result = $store->replace('alice', $this->zip(['index.html' => '12345']), $id);
+
+		self::assertSame($id, $result['previewId']);
+		self::assertSame('12345', $store->resolve($id, 'index.html')['bytes']);
+	}
+
+	public function testAssetResolutionReturnsStableServingMetadata(): void {
+		$store = $this->store();
+		$id = $store->replace('alice', $this->zip([
+			'index.html' => 'ok',
+			'assets/image.png' => 'PNGDATA',
+		]))['previewId'];
+
+		$asset = $store->resolve($id, 'assets/image.png');
+
+		self::assertSame('asset', $asset['kind']);
+		self::assertSame('image/png', $asset['contentType']);
+		self::assertSame(7, $asset['size']);
+		self::assertFileExists($asset['filePath']);
+		self::assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $asset['etag']);
+	}
+
 	private function removeTree(string $dir): void {
 		if (!is_dir($dir)) {
 			@unlink($dir);
