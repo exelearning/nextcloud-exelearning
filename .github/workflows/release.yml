@@ -148,6 +148,41 @@ jobs:
           echo "path=${PATH_REL}" >> "$GITHUB_OUTPUT"
           echo "Tarball size: $(du -h "${PATH_REL}" | cut -f1)"
 
+      # Publishing needs two secrets: APP_PRIVATE_KEY (the key whose CSR
+      # was approved in nextcloud/app-certificate-requests) and
+      # APPSTORE_TOKEN (apps.nextcloud.com account token). Until both are
+      # set the release still builds and ships on GitHub, it just does not
+      # reach the appstore.
+      - name: Check appstore credentials
+        id: credentials
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APPSTORE_TOKEN: ${{ secrets.APPSTORE_TOKEN }}
+        run: |
+          set -euo pipefail
+          if [ -n "${APP_PRIVATE_KEY:-}" ] && [ -n "${APPSTORE_TOKEN:-}" ]; then
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "::warning::APP_PRIVATE_KEY/APPSTORE_TOKEN not set - skipping the appstore publish."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Signs in place, so the tarball attached to the release below is the
+      # signed one the appstore will hand to servers.
+      - name: Sign the app code
+        if: steps.credentials.outputs.ready == 'true'
+        env:
+          APP_PRIVATE_KEY: ${{ secrets.APP_PRIVATE_KEY }}
+          APP_ID: ${{ steps.meta.outputs.app_id }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$APP_PRIVATE_KEY" > "${RUNNER_TEMP}/${APP_ID}.key"
+          curl -fsSL -o "${RUNNER_TEMP}/${APP_ID}.crt" \
+            "https://raw.githubusercontent.com/nextcloud/app-certificate-requests/master/${APP_ID}/${APP_ID}.crt"
+          tools/sign-app.sh "${{ steps.artefact.outputs.path }}" \
+            "${RUNNER_TEMP}/${APP_ID}.key" "${RUNNER_TEMP}/${APP_ID}.crt"
+          rm -f "${RUNNER_TEMP}/${APP_ID}.key"
+
       - name: Upload tarball as workflow artefact
         uses: actions/upload-artifact@v7
         with:
@@ -172,3 +207,14 @@ jobs:
             `appinfo/info.xml`: `${{ steps.meta.outputs.info_version }}`).
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # The appstore only stores the URL: it downloads the tarball from the
+      # GitHub release, so this must run after the release asset exists.
+      - name: Publish to the Nextcloud appstore
+        if: steps.credentials.outputs.ready == 'true'
+        uses: nextcloud-libraries/nextcloud-appstore-push-action@v1.0.3
+        with:
+          app_name: ${{ steps.meta.outputs.app_id }}
+          appstore_token: ${{ secrets.APPSTORE_TOKEN }}
+          app_private_key: ${{ secrets.APP_PRIVATE_KEY }}
+          download_url: https://github.com/${{ github.repository }}/releases/download/${{ steps.tag.outputs.name }}/${{ steps.artefact.outputs.name }}
