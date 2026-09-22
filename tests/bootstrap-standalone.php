@@ -22,6 +22,15 @@ spl_autoload_register(static function (string $class): void {
 	}
 });
 
+if (!interface_exists('Psr\\Container\\ContainerInterface', false)) {
+	eval('
+		namespace Psr\\Container;
+		interface ContainerInterface {
+			public function get(string $id);
+			public function has(string $id): bool;
+		}
+	');
+}
 if (!class_exists('OCP\\AppFramework\\App', false)) {
 	eval('
 		namespace OCP\\AppFramework;
