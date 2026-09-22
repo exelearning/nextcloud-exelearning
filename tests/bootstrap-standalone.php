@@ -44,7 +44,13 @@ if (!interface_exists('OCP\\AppFramework\\Bootstrap\\IBootstrap', false)) {
 	');
 }
 if (!interface_exists('OCP\\IRequest', false)) {
-	eval('namespace OCP; interface IRequest {}');
+	eval('
+		namespace OCP;
+		interface IRequest {
+			public function getUploadedFile(string $key);
+			public function getHeader(string $key);
+		}
+	');
 }
 if (!interface_exists('OCP\\IUser', false)) {
 	eval('namespace OCP; interface IUser { public function getUID(); }');
