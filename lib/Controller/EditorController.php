@@ -6,7 +6,9 @@ namespace OCA\ExeLearning\Controller;
 
 use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
+use OCA\ExeLearning\Service\EditorHtmlService;
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\LegacyFileMigrationService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -38,9 +40,11 @@ class EditorController extends Controller {
 		IRequest $request,
 		private readonly IUserSession $userSession,
 		private readonly ElpxPackageService $packageService,
+		private readonly LegacyFileMigrationService $legacyFileMigration,
+		private readonly EditorHtmlService $editorHtml,
 		private readonly IInitialState $initialState,
 		private readonly IURLGenerator $urlGenerator,
-		private readonly CsrfTokenManager $csrfTokenManager,
+		private readonly ?CsrfTokenManager $csrfTokenManager = null,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -148,7 +152,7 @@ class EditorController extends Controller {
 		// #20). Best-effort: if the rename fails (no permission, name
 		// collision we can't resolve, …) we keep the original extension
 		// rather than failing the save.
-		$file = $this->migrateLegacyExtensionIfNeeded($file, $user->getUID(), $fileId);
+		$file = $this->legacyFileMigration->migrate($file, $user->getUID(), $fileId);
 
 		return new DataResponse([
 			'id' => $file->getId(),
@@ -159,48 +163,6 @@ class EditorController extends Controller {
 	}
 
 	/**
-	 * Renames a `.elp` file to `.elpx` after a successful save so the
-	 * Files-app shows the modern extension going forward. Picks
-	 * `<base>.elpx`, falling back to `<base> (2).elpx`, `<base> (3).elpx`,
-	 * … if a sibling already exists. Returns the (possibly renamed)
-	 * file, re-fetched by id since `Node::move` invalidates the cached
-	 * handle.
-	 */
-	private function migrateLegacyExtensionIfNeeded(
-		\OCP\Files\File $file,
-		string $userId,
-		int $fileId,
-	): \OCP\Files\File {
-		$name = $file->getName();
-		if (!str_ends_with(strtolower($name), '.elp') || str_ends_with(strtolower($name), '.elpx')) {
-			return $file;
-		}
-		$base = substr($name, 0, -4); // strip '.elp'
-		try {
-			$parent = $file->getParent();
-		} catch (NotFoundException|NotPermittedException) {
-			return $file;
-		}
-		$candidate = $base . '.elpx';
-		for ($i = 2; $i < 100 && $parent->nodeExists($candidate); $i++) {
-			$candidate = sprintf('%s (%d).elpx', $base, $i);
-		}
-		if ($parent->nodeExists($candidate)) {
-			return $file;
-		}
-		try {
-			$file->move($parent->getPath() . '/' . $candidate);
-		} catch (NotPermittedException|\OCP\Files\InvalidPathException) {
-			return $file;
-		}
-		try {
-			return $this->packageService->getForUserById($userId, $fileId);
-		} catch (NotFoundException|NotPermittedException) {
-			return $file;
-		}
-	}
-
-	/**
 	 * Serves the static eXeLearning editor HTML inside an iframe, with:
 	 *
 	 *  - `<base href>` pointing at the editor's apps_paths URL so relative
@@ -208,8 +170,7 @@ class EditorController extends Controller {
 	 *    when the app is mounted under `/custom_apps/`.
 	 *  - `window.__EXE_EMBEDDING_CONFIG__` populated before any editor
 	 *    script runs (the editor's RuntimeConfig reads it during bootstrap),
-	 *    including the `previewSnapshot` block that wires the opaque preview —
-	 *    see {@see previewSnapshotConfig()}.
+	 *    including the `previewSnapshot` transport used by the opaque preview.
 	 *  - A small bridge that forwards Ctrl/Cmd+S to the parent and patches
 	 *    `EmbeddingBridge.handleSaveRequest` for the v4.0.0 export quirk.
 	 *  - A permissive CSP — eXeLearning has many inline scripts and styles;
@@ -242,37 +203,23 @@ class EditorController extends Controller {
 		// save. Deriving from `document.baseURI` (which equals the scoped
 		// `<base href>` at runtime) keeps it correct in both a normal install and
 		// under a scoped path.
-		$staticConfig = json_encode([
-			'hideUI' => (object)[
-				'fileMenu' => true,
-				'saveButton' => true,
-				'shareButton' => false,
-				'userMenu' => true,
-				'downloadButton' => false,
-				'helpMenu' => false,
-			],
-		], JSON_UNESCAPED_SLASHES);
-
-		$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
-
-		$configScript = '<script>(function(){'
-			. 'var base=new URL(".",document.baseURI).href.replace(/\\/+$/,"");'
-			. 'var origin=window.location.origin;'
-			. 'window.__EXE_EMBEDDING_CONFIG__=Object.assign(' . $staticConfig . ','
-			. '{basePath:base,parentOrigin:origin,trustedOrigins:[origin],previewSnapshot:' . $previewSnapshot . '});'
-			. '})();</script>';
-
-		// The resilience shim must be installed before any editor script
-		// runs (it wraps fetch / jQuery.ajax / serviceWorker.register), so it
-		// goes right after <base> and before the embedding config.
-		$resilienceScript = '<script>' . $this->resilienceScript() . '</script>';
-		$headInject = '<base href="' . htmlspecialchars($editorBaseHref, ENT_QUOTES) . '">' . $resilienceScript . $configScript;
-		if (preg_match('/<head[^>]*>/i', $html, $m, PREG_OFFSET_CAPTURE)) {
-			$pos = $m[0][1] + strlen($m[0][0]);
-			$html = substr($html, 0, $pos) . $headInject . substr($html, $pos);
+		// The editor preview management API keeps CSRF protection enabled. When
+		// Nextcloud injects the token manager, add the preview transport before
+		// EditorHtmlService prepends the common embedding config. The standalone
+		// unit tests instantiate this controller without Nextcloud's container,
+		// hence the nullable constructor default.
+		if ($this->csrfTokenManager !== null) {
+			$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
+			$previewScript = '<script>window.__EXE_EMBEDDING_CONFIG__=Object.assign('
+				. 'window.__EXE_EMBEDDING_CONFIG__||{},'
+				. '{previewSnapshot:' . $previewSnapshot . '});</script>';
+			if (preg_match('/<head[^>]*>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
+				$position = $match[0][1] + strlen($match[0][0]);
+				$html = substr($html, 0, $position) . $previewScript . substr($html, $position);
+			}
 		}
-		$bridge = '<script>' . $this->bridgeScript() . '</script>';
-		$html = str_ireplace('</body>', $bridge . '</body>', $html);
+
+		$html = $this->editorHtml->prepare($html, $editorBaseHref);
 
 		$response = new DataDisplayResponse($html, Http::STATUS_OK, [
 			'Content-Type' => 'text/html; charset=utf-8',
@@ -298,45 +245,18 @@ class EditorController extends Controller {
 		return $response;
 	}
 
+
 	/**
-	 * The `previewSnapshot` block handed to the embedded editor so it can publish
-	 * opaque previews: `{ managementUrl, servingBaseUrl, deleteUrlTemplate,
-	 * managementHeaders }`.
+	 * Builds the editor's opaque-preview transport configuration.
 	 *
-	 *  - Both URLs are generated server-side through the router so they carry the
-	 *    correct webroot and front-controller prefix under a sub-path install,
-	 *    mirroring the client's `@nextcloud/router` `generateUrl`. The serving
-	 *    routes are parameterised, so the base is derived by generating the bare
-	 *    capability-root URL for a placeholder id and stripping that id segment.
-	 *  - `managementHeaders.requesttoken` is the current Nextcloud CSRF token —
-	 *    the same encrypted value the standard template layer exposes as
-	 *    `data-requesttoken`. It is required because the management routes keep
-	 *    CSRF ON (they are NOT `#[NoCSRFRequired]`); the editor replays it on every
-	 *    management request.
-	 *
-	 * Token lifetime (audited — the injected-token approach is durable, no
-	 * refresh path needed now): a Nextcloud CSRF token is bound to a per-session
-	 * secret. `getEncryptedValue()` returns a per-call randomized encoding, but
-	 * every value minted from the same session validates against that one secret
-	 * (`isTokenValid()` decrypts and compares), so the injected value stays valid
-	 * for the whole editing session — hours — not just one request. The secret is
-	 * regenerated only when the session id itself is regenerated (login / logout /
-	 * re-auth), never on ordinary navigation; and whenever that happens the parent
-	 * Nextcloud page hosting this iframe is itself invalidated and reloads, which
-	 * re-runs iframe() and injects a fresh token. The parent page also keeps the
-	 * session (and `OC.requestToken`) alive with its keepalive heartbeat. The only
-	 * residual staleness — the parent's token rotating without a reload — cannot
-	 * happen in practice, so a postMessage CONFIGURE refresh into the iframe is a
-	 * future nicety, not a correctness requirement.
+	 * The management routes remain authenticated and CSRF-protected, while the
+	 * serving URL is an authless capability path consumed from the opaque iframe.
 	 *
 	 * @return array{managementUrl:string,servingBaseUrl:string,deleteUrlTemplate:string,managementHeaders:object}
 	 */
 	private function previewSnapshotConfig(): array {
 		$sampleId = '00000000-0000-4000-8000-000000000000';
 
-		// The serving routes take a `previewId` (and `path`); generate the bare
-		// capability-root URL for a placeholder id, then strip the trailing
-		// `/{id}` so the client can append `/{previewId}/index.html` itself.
 		$sampleUrl = $this->urlGenerator->linkToRoute(
 			Application::APP_ID . '.preview.serveRoot',
 			['previewId' => $sampleId],
@@ -345,8 +265,6 @@ class EditorController extends Controller {
 			? substr($sampleUrl, 0, -(strlen($sampleId) + 1))
 			: $sampleUrl;
 
-		// The delete route is templated rather than derived by concatenation, so
-		// the client never has to know how this app spells a capability URL.
 		$deleteUrlTemplate = str_replace(
 			$sampleId,
 			'{previewId}',
@@ -361,164 +279,9 @@ class EditorController extends Controller {
 			'servingBaseUrl' => $servingBaseUrl,
 			'deleteUrlTemplate' => $deleteUrlTemplate,
 			'managementHeaders' => (object)[
-				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
+				'requesttoken' => $this->csrfTokenManager?->getToken()->getEncryptedValue() ?? '',
 			],
 		];
 	}
 
-	/**
-	 * Resilience shim injected into the editor <head> before any editor
-	 * script runs. The static eXeLearning editor's ResourceFetcher rejects
-	 * on missing CSS / iDevice resources; under the php-wasm Playground
-	 * those `files/perm/...` paths 404 (even though they ship in the bundle)
-	 * and the unhandled rejection aborts the Yjs theme bind, leaving the
-	 * page blank. mod_exelearning, wp-exelearning and omeka-s-exelearning
-	 * all ship the same workaround:
-	 *
-	 *  - swallow 404s on .css / idevices URLs (fetch + jQuery ajax) and
-	 *    return an empty stylesheet so the editor keeps booting;
-	 *  - neutralize preview-sw.js service-worker registration with a full
-	 *    ServiceWorkerRegistration-like stub (a bare `{scope:''}` makes the
-	 *    v4 editor throw on `reg.addEventListener` and aborts the hidden
-	 *    export iframe used for Web/SCORM/ePub export).
-	 */
-	private function resilienceScript(): string {
-		return <<<'JS'
-(function () {
-    if ("serviceWorker" in navigator) {
-        try {
-            navigator.serviceWorker.register = function () {
-                return Promise.resolve({
-                    scope: "", installing: null, waiting: null, active: null,
-                    addEventListener: function () {}, removeEventListener: function () {},
-                    update: function () { return Promise.resolve(); },
-                    unregister: function () { return Promise.resolve(true); }
-                });
-            };
-        } catch (e) { void e; }
-    }
-
-    var originalFetch = window.fetch;
-    if (originalFetch) {
-        window.fetch = function (input, init) {
-            var url = typeof input === "string" ? input : (input && input.url) || "";
-            return originalFetch.apply(this, arguments).then(function (response) {
-                if (!response.ok && (url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1)) {
-                    console.warn("[Nextcloud] Fetch 404 fallback:", url);
-                    return new Response("/* empty fallback */", { status: 200, headers: { "Content-Type": "text/css" } });
-                }
-                return response;
-            }).catch(function (error) {
-                if (url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1) {
-                    console.warn("[Nextcloud] Fetch error fallback:", url);
-                    return new Response("/* empty fallback */", { status: 200, headers: { "Content-Type": "text/css" } });
-                }
-                throw error;
-            });
-        };
-    }
-
-    var patchJQuery = function ($) {
-        if (!$ || !$.ajaxTransport) return;
-        $.ajaxTransport("+*", function (options) {
-            var url = options.url || "";
-            if (!(url.indexOf(".css") !== -1 || url.indexOf("idevices") !== -1)) return;
-            return {
-                send: function (headers, completeCallback) {
-                    var xhr = new XMLHttpRequest();
-                    xhr.open(options.type || "GET", url, true);
-                    xhr.onload = function () {
-                        if (xhr.status >= 200 && xhr.status < 300) {
-                            completeCallback(xhr.status, xhr.statusText, { text: xhr.responseText });
-                        } else {
-                            console.warn("[Nextcloud] jQuery 404 fallback:", url);
-                            completeCallback(200, "OK", { text: "/* empty fallback */" });
-                        }
-                    };
-                    xhr.onerror = function () {
-                        console.warn("[Nextcloud] jQuery error fallback:", url);
-                        completeCallback(200, "OK", { text: "/* empty fallback */" });
-                    };
-                    xhr.send();
-                },
-                abort: function () {}
-            };
-        });
-    };
-    if (window.jQuery) {
-        patchJQuery(window.jQuery);
-    } else {
-        try {
-            Object.defineProperty(window, "jQuery", {
-                configurable: true,
-                set: function (val) {
-                    Object.defineProperty(window, "jQuery", {
-                        configurable: true, writable: true, enumerable: true, value: val
-                    });
-                    patchJQuery(val);
-                },
-                get: function () { return undefined; }
-            });
-        } catch (e) { void e; }
-    }
-})();
-JS;
-	}
-
-	private function bridgeScript(): string {
-		return <<<'JS'
-(() => {
-    const send = (msg) => { try { window.parent.postMessage(msg, '*'); } catch (e) { void e; } };
-    window.addEventListener('keydown', (event) => {
-        if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
-            event.preventDefault();
-            send({ type: 'REQUEST_SAVE', requestId: 'nextcloud-exelearning-shortcut-' + Date.now() });
-        }
-    }, true);
-
-    const waitForReady = () => new Promise((resolve) => {
-        const tick = () => {
-            const ready = window.eXeLearning && window.eXeLearning.ready;
-            if (ready && typeof ready.then === 'function') ready.then(resolve);
-            else setTimeout(tick, 50);
-        };
-        tick();
-    });
-    waitForReady().then(() => {
-        const bridge = window.eXeLearning && window.eXeLearning.app && window.eXeLearning.app.embeddingBridge;
-        if (!bridge) return;
-        bridge.handleSaveRequest = async function (requestId) {
-            const project = this.app.project;
-            const yjsBridge = project && project._yjsBridge;
-            const documentManager = yjsBridge && yjsBridge.documentManager;
-            if (!window.SharedExporters || !documentManager) {
-                throw new Error('Exporter unavailable');
-            }
-            if (typeof documentManager._updateVersionMetadata === 'function') {
-                try { await documentManager._updateVersionMetadata(); } catch (_e) { void _e; }
-            }
-            const exporter = window.SharedExporters.createExporter(
-                'elpx', documentManager,
-                yjsBridge.assetCache, yjsBridge.resourceFetcher, yjsBridge.assetManager
-            );
-            const result = await exporter.export({});
-            if (!result || !result.success || !result.data) {
-                throw new Error((result && result.error) || 'Export failed');
-            }
-            const data = result.data;
-            const bytes = data instanceof ArrayBuffer
-                ? data
-                : (ArrayBuffer.isView(data)
-                    ? data.buffer.slice(data.byteOffset, data.byteOffset + data.byteLength)
-                    : data);
-            this.postToParent({
-                type: 'SAVE_FILE', requestId,
-                bytes, filename: result.filename || 'project.elpx',
-                size: bytes.byteLength,
-            });
-        };
-    });
-})();
-JS;
-	}
 }
