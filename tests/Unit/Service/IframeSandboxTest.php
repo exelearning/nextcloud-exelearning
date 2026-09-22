@@ -19,6 +19,17 @@ final class IframeSandboxTest extends TestCase {
 		return new IframeSandbox(static fn (string $name): ?string => $env[$name] ?? null);
 	}
 
+	public function testDefaultEnvironmentReaderHonoursProcessEnvironment(): void {
+		$name = 'EXELEARNING_UNSAFE_LEGACY_IFRAME';
+		$old = getenv($name);
+		putenv($name . '=1');
+		try {
+			self::assertSame(IframeSandbox::MODE_LEGACY, (new IframeSandbox())->resolveMode());
+		} finally {
+			$old === false ? putenv($name) : putenv($name . '=' . $old);
+		}
+	}
+
 	public function testDefaultsToSecureMode(): void {
 		self::assertSame(IframeSandbox::MODE_SECURE, $this->service()->resolveMode());
 	}
