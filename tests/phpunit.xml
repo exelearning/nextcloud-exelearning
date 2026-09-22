@@ -16,6 +16,7 @@
         <include>
             <directory>../lib/AppInfo</directory>
             <file>../lib/Controller/AssetController.php</file>
+            <file>../lib/Controller/EditorController.php</file>
             <file>../lib/Controller/PackageController.php</file>
             <file>../lib/Controller/SwController.php</file>
             <file>../lib/Controller/TemplateController.php</file>
