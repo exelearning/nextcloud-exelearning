@@ -355,6 +355,43 @@ final class PreviewSnapshotStoreTest extends TestCase {
 		self::assertMatchesRegularExpression('/^[0-9a-f]{40}$/', $asset['etag']);
 	}
 
+	public function testOwnerOfRejectsMalformedCapability(): void {
+		self::assertNull($this->store()->ownerOf('not-a-preview-id'));
+	}
+
+	public function testResolveReturnsNullWhenContentDirectoryDisappears(): void {
+		$store = $this->store();
+		$id = $store->replace('alice', $this->zip(['index.html' => 'ok']))['previewId'];
+		$this->removeTree($this->root . '/' . $id . '/content');
+
+		self::assertNull($store->resolve($id, 'index.html'));
+	}
+
+	public function testUnreadableDocumentFailsClosed(): void {
+		$store = $this->store();
+		$id = $store->replace('alice', $this->zip(['index.html' => 'secret']))['previewId'];
+		$path = $this->root . '/' . $id . '/content/index.html';
+		chmod($path, 0000);
+		try {
+			self::assertNull($store->resolve($id, 'index.html'));
+		} finally {
+			chmod($path, 0600);
+		}
+	}
+
+	public function testTouchFallbackDoesNotBreakServingWhenMarkerCannotBeCreated(): void {
+		$store = $this->store();
+		$id = $store->replace('alice', $this->zip(['index.html' => 'ok']))['previewId'];
+		$snapshotDir = $this->root . '/' . $id;
+		self::assertTrue(unlink($snapshotDir . '/.accessed'));
+		chmod($snapshotDir, 0500);
+		try {
+			self::assertSame('ok', $store->resolve($id, 'index.html')['bytes']);
+		} finally {
+			chmod($snapshotDir, 0770);
+		}
+	}
+
 	private function removeTree(string $dir): void {
 		if (!is_dir($dir)) {
 			@unlink($dir);
