@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Tests\Unit\Controller;
 
+use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Controller\EditorController;
 use OCA\ExeLearning\Service\EditorHtmlService;
@@ -29,6 +30,7 @@ final class EditorControllerTest extends TestCase {
 	private EditorHtmlService $editorHtml;
 	private EditorInitialStateRecorder $initialState;
 	private IURLGenerator $urlGenerator;
+	private CsrfTokenManager $csrfTokenManager;
 	private EditorController $controller;
 	private string $editorIndexPath;
 	private ?string $originalEditorIndex = null;
@@ -44,7 +46,19 @@ final class EditorControllerTest extends TestCase {
 		$this->initialState = new EditorInitialStateRecorder();
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->urlGenerator->method('linkTo')->willReturn('/custom_apps/exelearning/');
-		$this->urlGenerator->method('linkToRoute')->willReturn('/apps/exelearning/editor/iframe');
+		$this->urlGenerator->method('linkToRoute')->willReturnCallback(
+			static function (string $routeName, array $arguments = []): string {
+				$previewId = $arguments['previewId'] ?? null;
+				return match ($routeName) {
+					Application::APP_ID . '.editor.iframe' => '/apps/exelearning/editor/iframe',
+					Application::APP_ID . '.preview.serveRoot' => '/apps/exelearning/preview/' . $previewId,
+					Application::APP_ID . '.previewSession.delete' => '/apps/exelearning/api/preview-session/' . $previewId,
+					Application::APP_ID . '.previewSession.create' => '/apps/exelearning/api/preview-session',
+					default => '/unknown',
+				};
+			},
+		);
+		$this->csrfTokenManager = new CsrfTokenManager();
 		$this->controller = new EditorController(
 			'exelearning',
 			$this->request,
@@ -54,6 +68,7 @@ final class EditorControllerTest extends TestCase {
 			$this->editorHtml,
 			$this->initialState,
 			$this->urlGenerator,
+			$this->csrfTokenManager,
 		);
 		$this->editorIndexPath = dirname(__DIR__, 3) . '/js/editor/index.html';
 		$this->editorIndexExisted = is_file($this->editorIndexPath);
@@ -184,7 +199,11 @@ final class EditorControllerTest extends TestCase {
 		$this->editorHtml->expects(self::once())
 			->method('prepare')
 			->with(
-				'<html><head></head><body>Editor</body></html>',
+				self::callback(static function (string $html): bool {
+					return str_contains($html, 'previewSnapshot')
+						&& str_contains($html, '/apps/exelearning/api/preview-session')
+						&& str_contains($html, 'test-request-token');
+				}),
 				'/custom_apps/exelearning/js/editor/',
 			)
 			->willReturn('<html>prepared</html>');
