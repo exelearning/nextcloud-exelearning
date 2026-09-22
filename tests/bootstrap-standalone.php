@@ -111,11 +111,12 @@ if (!class_exists('OCP\\Image', false)) {
 		namespace OCP;
 		class Image implements IImage {
 			public static ?self $lastInstance = null;
+			public static ?bool $validOverride = null;
 			public string $data = "";
 			public ?array $scaledTo = null;
 			public function __construct() { self::$lastInstance = $this; }
 			public function loadFromData(string $data): void { $this->data = $data; }
-			public function valid(): bool { return $this->data !== "" && $this->data !== "invalid"; }
+			public function valid(): bool { return self::$validOverride ?? ($this->data !== "" && $this->data !== "invalid"); }
 			public function scaleDownToFit(int $maxX, int $maxY): void { $this->scaledTo = [$maxX, $maxY]; }
 		}
 	');
