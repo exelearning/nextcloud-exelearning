@@ -14,6 +14,8 @@
     </testsuites>
     <source>
         <include>
+            <directory>../lib/AppInfo</directory>
+            <directory>../lib/Preview</directory>
             <directory>../lib/Service</directory>
         </include>
     </source>
