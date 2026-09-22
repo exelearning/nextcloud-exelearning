@@ -284,7 +284,7 @@ clean-editor:
 
 # --- Packaging -----------------------------------------------------------
 clean:
-	rm -rf $(BUILD_DIR) js/*.js js/*.js.map js/*.css js/*.css.map dist coverage
+	rm -rf $(BUILD_DIR) js/*.js js/*.js.map js/*.mjs js/*.mjs.map js/*.css js/*.css.map js/*.license dist coverage
 
 # Produce build/artifacts/$(APP_NAME)-$(PACKAGE_VERSION).tar.gz with
 # `$(APP_NAME)/` as the single top-level directory, as required by the
@@ -391,8 +391,8 @@ up: check-docker
 	fi
 	@echo ">> npm run build"
 	@npm run build
-	@if [ ! -f js/$(APP_NAME)-main.js ]; then \
-		echo "ERROR: js/$(APP_NAME)-main.js missing after build."; exit 1; \
+	@if [ ! -f js/$(APP_NAME)-main.mjs ]; then \
+		echo "ERROR: js/$(APP_NAME)-main.mjs missing after build."; exit 1; \
 	fi
 	@# Make sure the optional eXeLearning static editor is present so the
 	@# /apps/exelearning/editor route works inside the container. Skip the

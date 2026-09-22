@@ -45,7 +45,7 @@ package.json
 package-lock.json
 composer.json
 composer.lock
-webpack.config.js
+vite.config.mts
 tsconfig.json
 vitest.config.ts
 biome.json

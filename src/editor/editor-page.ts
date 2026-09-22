@@ -6,8 +6,6 @@
  * detection.
  */
 
-// Same publicPath fix as main.ts — installs that put apps under
-// /custom_apps/<id>/ would otherwise 404 on any webpack-emitted chunk.
 import axios from '@nextcloud/axios'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
@@ -15,17 +13,6 @@ import { translate as t } from '@nextcloud/l10n'
 
 import { loadElpx } from '../elpx/elpx-loader'
 import { EditorFrame } from './editor-frame'
-
-declare let __webpack_public_path__: string
-declare global {
-	interface Window {
-		OC?: { appswebroots?: Record<string, string> }
-	}
-}
-if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
-}
 
 interface InitialFile {
 	id: number

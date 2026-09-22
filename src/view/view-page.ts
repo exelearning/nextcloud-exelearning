@@ -1,20 +1,8 @@
-// Same publicPath fix as main.ts.
 import { createApp } from 'vue'
 import { loadState } from '@nextcloud/initial-state'
 import { generateUrl } from '@nextcloud/router'
 
 import ElpxViewPage from './ElpxViewPage.vue'
-
-declare let __webpack_public_path__: string
-declare global {
-	interface Window {
-		OC?: { appswebroots?: Record<string, string> }
-	}
-}
-if (typeof window !== 'undefined' && window.OC?.appswebroots?.exelearning) {
-	// eslint-disable-next-line @typescript-eslint/no-unused-vars
-	__webpack_public_path__ = `${window.OC.appswebroots.exelearning}/js/`
-}
 
 interface InitialFile {
 	id: number
