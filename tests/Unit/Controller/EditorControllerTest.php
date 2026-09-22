@@ -201,7 +201,9 @@ final class EditorControllerTest extends TestCase {
 			->with(
 				self::callback(static function (string $html): bool {
 					return str_contains($html, 'previewSnapshot')
-						&& str_contains($html, '/apps/exelearning/api/preview-session')
+						&& str_contains($html, 'managementUrl')
+						&& str_contains($html, 'servingBaseUrl')
+						&& str_contains($html, 'deleteUrlTemplate')
 						&& str_contains($html, 'test-request-token');
 				}),
 				'/custom_apps/exelearning/js/editor/',
