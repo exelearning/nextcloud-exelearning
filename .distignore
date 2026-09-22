@@ -49,6 +49,7 @@ vite.config.mts
 tsconfig.json
 vitest.config.ts
 biome.json
+codecov.yml
 .eslintrc.cjs
 .php-cs-fixer.dist.php
 .php-cs-fixer.cache
