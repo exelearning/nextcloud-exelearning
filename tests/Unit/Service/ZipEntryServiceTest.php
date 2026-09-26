@@ -157,6 +157,15 @@ final class ZipEntryServiceTest extends TestCase {
 		}
 	}
 
+	public function testPerReadCapTightensTheUncompressedSizeLimit(): void {
+		$archive = $this->createTestArchive('screenshot.png', '0123456789');
+		$file = $this->createFakeFile($archive, '');
+
+		self::assertSame('0123456789', $this->service->readEntry($file, 'screenshot.png', 10));
+		$this->expectException(RuntimeException::class);
+		$this->service->readEntry($file, 'screenshot.png', 9);
+	}
+
 	public function testStreamFallbackReturnsNullWhenArchiveHasTooManyEntries(): void {
 		$service = new ZipEntryService(maxEntries: 1);
 		$archivePath = tempnam(sys_get_temp_dir(), 'elpx_test_');

@@ -17,18 +17,20 @@ use OCP\IUserSession;
 use PHPUnit\Framework\TestCase;
 
 final class AssetControllerTest extends TestCase {
+	private IRequest $request;
 	private IUserSession $userSession;
 	private ElpxPackageService $packages;
 	private ZipEntryService $zipEntries;
 	private AssetController $controller;
 
 	protected function setUp(): void {
+		$this->request = $this->createMock(IRequest::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->zipEntries = $this->createMock(ZipEntryService::class);
 		$this->controller = new AssetController(
 			'exelearning',
-			$this->createMock(IRequest::class),
+			$this->request,
 			$this->userSession,
 			$this->packages,
 			$this->zipEntries,
@@ -42,6 +44,16 @@ final class AssetControllerTest extends TestCase {
 
 		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		self::assertSame(['error' => 'Not authenticated'], $response->getData());
+	}
+
+	public function testRefusesTopLevelNavigation(): void {
+		$this->authenticate();
+		$this->request->method('getHeader')->with('Sec-Fetch-Dest')->willReturn('document');
+		$this->packages->expects(self::never())->method('getForUserById');
+
+		$response = $this->controller->fetch('42', 'index.html');
+
+		self::assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
 	}
 
 	public function testRejectsInvalidSessionId(): void {
