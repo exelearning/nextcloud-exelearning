@@ -53,7 +53,8 @@
 				:key="'editor-' + file.id"
 				:file="file"
 				:editor-iframe-url="editorIframeUrl"
-				@file-renamed="onFileRenamed" />
+				@file-renamed="onFileRenamed"
+				@save-requested="canShowSaveButton && !saving && save()" />
 			<div v-else class="exelearning-view-page__missing">
 				<p>{{ t('exelearning', 'No file selected.') }}</p>
 				<a :href="filesUrl">{{ t('exelearning', 'Back to Files') }}</a>
