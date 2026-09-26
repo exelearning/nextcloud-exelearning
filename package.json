@@ -31,6 +31,8 @@
     "@nextcloud/eslint-config": "^9.0.1",
     "@nextcloud/vite-config": "^2.5.4",
     "@types/node": "^26.6.1",
+    "@vitejs/plugin-vue": "^6.0.9",
+    "@vitest/coverage-v8": "^5.0.1",
     "@vue/compiler-sfc": "^3.5.0",
     "@vue/test-utils": "^2.5.1",
     "eslint": "^10.11.0",
@@ -39,8 +41,7 @@
     "typescript": "^6.0.3",
     "vite": "^7.3.6",
     "vitest": "^5.0.1",
-    "vue-tsc": "^3.3.11",
-    "@vitest/coverage-v8": "^5.0.1"
+    "vue-tsc": "^3.3.11"
   },
   "browserslist": [
     "extends @nextcloud/browserslist-config"

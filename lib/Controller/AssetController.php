@@ -46,6 +46,13 @@ class AssetController extends Controller {
 		if ($user === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
+		// Package HTML may only render inside the viewer iframe. Opened as a
+		// top-level page it would run author scripts on the Nextcloud origin.
+		// ponytail: browsers without Fetch Metadata pass; the opaque-origin
+		// sandbox is the real fix.
+		if ($this->request->getHeader('Sec-Fetch-Dest') === 'document') {
+			return new DataResponse(['error' => 'Not embeddable here'], Http::STATUS_FORBIDDEN);
+		}
 		$fileId = (int)$sessionId;
 		if ($fileId <= 0) {
 			return new DataResponse(['error' => 'Invalid session'], Http::STATUS_BAD_REQUEST);

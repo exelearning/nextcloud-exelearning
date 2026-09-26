@@ -59,7 +59,7 @@ class ElpxPreviewProvider implements IProviderV2 {
 
 	public function getThumbnail(File $file, int $maxX, int $maxY): ?IImage {
 		try {
-			$bytes = $this->zipEntries->readEntry($file, 'screenshot.png');
+			$bytes = $this->zipEntries->readEntry($file, 'screenshot.png', ZipEntryService::MAX_SCREENSHOT_BYTES);
 			if ($bytes !== null) {
 				$image = new Image();
 				$image->loadFromData($bytes);

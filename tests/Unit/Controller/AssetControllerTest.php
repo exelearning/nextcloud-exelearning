@@ -18,6 +18,7 @@ use OCP\IUserSession;
 use PHPUnit\Framework\TestCase;
 
 final class AssetControllerTest extends TestCase {
+	private IRequest $request;
 	private IUserSession $userSession;
 	private ElpxPackageService $packages;
 	private ZipEntryService $zipEntries;
@@ -25,13 +26,14 @@ final class AssetControllerTest extends TestCase {
 	private AssetController $controller;
 
 	protected function setUp(): void {
+		$this->request = $this->createMock(IRequest::class);
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->zipEntries = $this->createMock(ZipEntryService::class);
 		$this->mime = new PackageMimeService();
 		$this->controller = new AssetController(
 			'exelearning',
-			$this->createMock(IRequest::class),
+			$this->request,
 			$this->userSession,
 			$this->packages,
 			$this->zipEntries,
@@ -46,6 +48,16 @@ final class AssetControllerTest extends TestCase {
 
 		self::assertSame(Http::STATUS_UNAUTHORIZED, $response->getStatus());
 		self::assertSame(['error' => 'Not authenticated'], $response->getData());
+	}
+
+	public function testRefusesTopLevelNavigation(): void {
+		$this->authenticate();
+		$this->request->method('getHeader')->with('Sec-Fetch-Dest')->willReturn('document');
+		$this->packages->expects(self::never())->method('getForUserById');
+
+		$response = $this->controller->fetch('42', 'index.html');
+
+		self::assertSame(Http::STATUS_FORBIDDEN, $response->getStatus());
 	}
 
 	public function testRejectsInvalidSessionId(): void {
@@ -127,6 +139,16 @@ final class AssetControllerTest extends TestCase {
 		$response = $this->controller->fetch('42', 'data/custom.bin');
 
 		self::assertSame('application/octet-stream', $response->getHeaders()['Content-Type']);
+	}
+
+	public function testMimeMapMatchesTheServiceWorkerMap(): void {
+		$source = file_get_contents(__DIR__ . '/../../../src/elpx/asset-map.ts');
+		self::assertIsString($source);
+		preg_match_all("/^\t(\w+): '([^']+)',$/m", $source, $matches);
+		$tsMap = array_combine($matches[1], $matches[2]);
+
+		self::assertNotEmpty($tsMap);
+		self::assertSame($tsMap, (new \ReflectionClassConstant(PackageMimeService::class, 'MIME_MAP'))->getValue());
 	}
 
 	private function authenticate(): IUser {

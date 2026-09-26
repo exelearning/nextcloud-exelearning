@@ -1,7 +1,9 @@
 import { defineConfig } from 'vitest/config'
+import vue from '@vitejs/plugin-vue'
 import path from 'node:path'
 
 export default defineConfig({
+	plugins: [vue()],
 	test: {
 		globals: true,
 		environment: 'happy-dom',
@@ -11,11 +13,14 @@ export default defineConfig({
 			reporter: ['text', 'lcov'],
 			reportsDirectory: 'coverage/js',
 			include: [
+				'src/editor/editor-frame.ts',
 				'src/editor/editor-messages.ts',
 				'src/elpx/asset-map.ts',
+				'src/elpx/elpx-loader.ts',
 				'src/elpx/iframe-renderer.ts',
 				'src/elpx/package-validator.ts',
 				'src/elpx/paths.ts',
+				'src/elpx/service-worker-client.ts',
 				'src/elpx/viewer-session.ts',
 				'src/elpx/zip-reader.ts',
 				'src/files/mime.ts',

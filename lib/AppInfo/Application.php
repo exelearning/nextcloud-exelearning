@@ -146,9 +146,9 @@ class Application extends App implements IBootstrap {
 	}
 
 	public function boot(IBootContext $context): void {
-		// Register the Viewer handler as an init script. Init scripts are
-		// emitted by the server in <head>, so the handler is available before
-		// the Viewer app probes for MIME associations.
+		// Register the Files actions as an init script. Init scripts are
+		// emitted by the server in <head>, so they exist before the Files app
+		// collects actions.
 		unset($context);
 		Util::addInitScript(self::APP_ID, 'exelearning-main');
 	}

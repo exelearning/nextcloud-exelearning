@@ -16,6 +16,7 @@ use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IRequest;
 use OCP\IUserSession;
+use RuntimeException;
 
 /**
  * Returns the `screenshot.png` from inside an `.elpx` package, suitable for
@@ -49,7 +50,11 @@ class ThumbnailController extends Controller {
 			return new DataResponse(['error' => $e->getMessage()], Http::STATUS_FORBIDDEN);
 		}
 
-		$bytes = $this->zipEntries->readEntry($file, 'screenshot.png');
+		try {
+			$bytes = $this->zipEntries->readEntry($file, 'screenshot.png', ZipEntryService::MAX_SCREENSHOT_BYTES);
+		} catch (RuntimeException) {
+			$bytes = null;
+		}
 		if ($bytes === null) {
 			return new DataResponse(['error' => 'No screenshot'], Http::STATUS_NOT_FOUND);
 		}

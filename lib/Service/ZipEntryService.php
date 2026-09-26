@@ -18,6 +18,12 @@ use ZipArchive;
 class ZipEntryService {
 	public const MAX_ENTRIES = 5000;
 	public const MAX_UNCOMPRESSED_SIZE_BYTES = 500 * 1024 * 1024;
+	/**
+	 * Cap for `screenshot.png`. Thumbnails run in cron and the Files grid, so
+	 * a package declaring a huge screenshot must not reserve a buffer anywhere
+	 * near `memory_limit`.
+	 */
+	public const MAX_SCREENSHOT_BYTES = 10 * 1024 * 1024;
 
 	/**
 	 * The limits are injectable so tests can exercise them with small
@@ -36,8 +42,10 @@ class ZipEntryService {
 	 * Entry names that are not already canonical — traversal, absolute paths,
 	 * dot segments, doubled slashes, backslashes — are rejected outright by
 	 * {@see self::normalizeEntry()} rather than repaired.
+	 *
+	 * `$maxBytes` tightens the uncompressed-size limit for this one read.
 	 */
-	public function readEntry(File $file, string $entry): ?string {
+	public function readEntry(File $file, string $entry, ?int $maxBytes = null): ?string {
 		$normalized = $this->normalizeEntry($entry);
 		if ($normalized === null) {
 			return null;
@@ -45,7 +53,7 @@ class ZipEntryService {
 
 		$localPath = $file->getStorage()->getLocalFile($file->getInternalPath());
 		if (!is_string($localPath) || $localPath === '') {
-			return $this->readEntryFromStream($file, $normalized);
+			return $this->readEntryFromStream($file, $normalized, $maxBytes);
 		}
 
 		$zip = new ZipArchive();
@@ -54,10 +62,10 @@ class ZipEntryService {
 			// Playground filesystem) expose a nominal local path that native
 			// ZipArchive still cannot open. Treat it like any other non-local
 			// storage and retry through the portable File::fopen() path.
-			return $this->readEntryFromStream($file, $normalized);
+			return $this->readEntryFromStream($file, $normalized, $maxBytes);
 		}
 		try {
-			return $this->extractEntry($zip, $normalized);
+			return $this->extractEntry($zip, $normalized, $maxBytes);
 		} finally {
 			$zip->close();
 		}
@@ -68,7 +76,7 @@ class ZipEntryService {
 	 * the stream fallback go through here so they enforce identical limits
 	 * and agree on returning null for missing entries.
 	 */
-	private function extractEntry(ZipArchive $zip, string $entry): ?string {
+	private function extractEntry(ZipArchive $zip, string $entry, ?int $maxBytes): ?string {
 		if ($zip->numFiles > $this->maxEntries) {
 			return null;
 		}
@@ -77,7 +85,7 @@ class ZipEntryService {
 			return null;
 		}
 		$declaredSize = $stat['size'];
-		if ($declaredSize > $this->maxUncompressedSizeBytes) {
+		if ($declaredSize > min($this->maxUncompressedSizeBytes, $maxBytes ?? PHP_INT_MAX)) {
 			throw new RuntimeException('Uncompressed entry exceeds limit');
 		}
 		// getFromName() allocates its whole $len buffer up front, so the read
@@ -161,7 +169,7 @@ class ZipEntryService {
 	 * Fallback for storages that cannot expose a local file (object storage,
 	 * external mounts). Copies the package to a temp file first.
 	 */
-	private function readEntryFromStream(File $file, string $entry): ?string {
+	private function readEntryFromStream(File $file, string $entry, ?int $maxBytes): ?string {
 		$tmp = tempnam(sys_get_temp_dir(), 'elpx_');
 		if ($tmp === false) {
 			return null;
@@ -183,7 +191,7 @@ class ZipEntryService {
 				return null;
 			}
 			try {
-				return $this->extractEntry($zip, $entry);
+				return $this->extractEntry($zip, $entry, $maxBytes);
 			} finally {
 				$zip->close();
 			}

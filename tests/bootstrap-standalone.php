@@ -173,6 +173,10 @@ if (!class_exists('OCP\\AppFramework\\Http\\DataResponse', false)) {
 			public function setContentSecurityPolicy(ContentSecurityPolicy $policy): void { $this->contentSecurityPolicy = $policy; }
 			public function getContentSecurityPolicy(): ?ContentSecurityPolicy { return $this->contentSecurityPolicy; }
 		}
+		class RedirectResponse extends DataResponse {
+			public function __construct(private string $redirectURL) { parent::__construct(null, 303); }
+			public function getRedirectURL(): string { return $this->redirectURL; }
+		}
 		class StreamResponse extends DataResponse {
 			public function __construct($stream) { parent::__construct($stream, 200); }
 			public function getStream() { return $this->data; }

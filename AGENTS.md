@@ -40,8 +40,8 @@ protocol, the iframe boot HTML pattern). Remove everything Drive-specific.
 - **Do not add a non-Nextcloud backend.** Anything server-side runs as a
   Nextcloud controller, service, or preview provider. CSRF protection,
   authentication and permissions go through Nextcloud's APIs.
-- **Use `@nextcloud/viewer`, `@nextcloud/files`, `@nextcloud/axios`,
-  `@nextcloud/router`, `@nextcloud/l10n`**. Do not introduce React, Angular,
+- **Use `@nextcloud/files`, `@nextcloud/axios`, `@nextcloud/router`,
+  `@nextcloud/l10n`**. Do not introduce React, Angular,
   or alternative HTTP clients.
 - **Service Worker scope must stay narrow.** Only
   `/apps/exelearning/runtime/` may be intercepted. The SW must never see
@@ -109,7 +109,7 @@ that matches before starting:
 | Skill | When |
 |---|---|
 | `architecture-records` | Writing or reviewing an ADR or a change document |
-| `nextcloud-app` | Touching `lib/` — controllers, services, DI, routes, preview |
+| `nextcloud-app-development` | Touching `lib/` — controllers, services, DI, routes, preview |
 | `elpx-package-safety` | Touching ZIP entry handling, entry-path validation or the Service Worker |
 | `testing` | Adding or fixing tests in `tests/js/` or `tests/Unit/` |
 
@@ -147,13 +147,16 @@ seen them pass.
 
 ## Where to look
 
-- `src/main.ts` — registers the Viewer handler and Files actions.
-- `src/viewer/ElpxViewer.vue` — the Viewer modal component.
+- `src/main.ts` — registers the Files actions and New-menu entry.
+- `src/view/*` — the full-page view (`ElpxViewPage.vue`) with its preview
+  and embedded-editor (`EditorEmbed.vue`) modes.
+- `src/viewer/ElpxViewer.vue` — the package preview component.
 - `src/elpx/*` — pure-TS extraction, validation, session, SW client, paths.
 - `src/files/*` — Files-app integration: MIME helpers and actions.
 - `src/editor/*` — optional editor scaffold using the upstream embedding
   protocol; safe to ignore unless touching the editor.
-- `js/exelearning-sw.js` — the Service Worker itself, hand-written.
+- `src/sw/exelearning-sw.js` — the Service Worker itself, hand-written and
+  served as-is by `SwController`.
 - `lib/AppInfo/Application.php` — app bootstrap, init script, preview
   provider registration.
 - `lib/Controller/*` — HTTP boundary, one controller per concern.

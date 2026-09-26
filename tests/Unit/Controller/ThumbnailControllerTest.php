@@ -60,12 +60,22 @@ final class ThumbnailControllerTest extends TestCase {
 		$this->authenticate();
 		$file = $this->createMock(File::class);
 		$this->packages->method('getForUserById')->willReturn($file);
-		$this->zipEntries->method('readEntry')->with($file, 'screenshot.png')->willReturn(null);
+		$this->zipEntries->method('readEntry')->with($file, 'screenshot.png', ZipEntryService::MAX_SCREENSHOT_BYTES)->willReturn(null);
 
 		$response = $this->controller->byFileId(42);
 
 		self::assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 		self::assertSame(['error' => 'No screenshot'], $response->getData());
+	}
+
+	public function testTreatsOversizedScreenshotAsMissing(): void {
+		$this->authenticate();
+		$this->packages->method('getForUserById')->willReturn($this->createMock(File::class));
+		$this->zipEntries->method('readEntry')->willThrowException(new \RuntimeException('too big'));
+
+		$response = $this->controller->byFileId(42);
+
+		self::assertSame(Http::STATUS_NOT_FOUND, $response->getStatus());
 	}
 
 	public function testReturnsPngWithPrivateCacheHeaders(): void {

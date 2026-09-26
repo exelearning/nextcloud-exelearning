@@ -15,7 +15,6 @@ use OCP\Files\File;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
 use OCP\Util;
@@ -25,7 +24,6 @@ final class ViewControllerTest extends TestCase {
 	private IUserSession $session;
 	private ElpxPackageService $packages;
 	private InitialStateRecorder $initialState;
-	private IURLGenerator $urlGenerator;
 	private ContentTokenService $contentTokens;
 	private IframeSandbox $sandbox;
 	private ViewController $controller;
@@ -35,9 +33,6 @@ final class ViewControllerTest extends TestCase {
 		$this->session = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->initialState = new InitialStateRecorder();
-		$this->urlGenerator = $this->createMock(IURLGenerator::class);
-		$this->urlGenerator->method('linkToRoute')
-			->willReturn('/apps/exelearning/editor/iframe');
 		$this->contentTokens = new ContentTokenService('unit-test-secret', static fn (): int => 1_700_000_000);
 		$this->sandbox = new IframeSandbox(static fn (string $name): ?string => null);
 		$this->controller = new ViewController(
@@ -46,7 +41,6 @@ final class ViewControllerTest extends TestCase {
 			$this->session,
 			$this->packages,
 			$this->initialState,
-			$this->urlGenerator,
 			$this->contentTokens,
 			$this->sandbox,
 		);
@@ -150,7 +144,6 @@ final class ViewControllerTest extends TestCase {
 		self::assertSame('strict', $this->initialState->states['embedRelay']['mode']);
 		self::assertContains('www.youtube.com', $this->initialState->states['embedRelay']['whitelist']);
 		self::assertSame(false, $this->initialState->states['editorAvailable']);
-		self::assertSame('/apps/exelearning/editor/iframe', $this->initialState->states['editorIframeUrl']);
 		self::assertSame($mode, $this->initialState->states['initialMode']);
 		self::assertSame([[Application::APP_ID, 'exelearning-view']], Util::$scripts);
 
