@@ -6,11 +6,18 @@
     <summary>Preview and edit eXeLearning .elpx packages in Nextcloud</summary>
     <description><![CDATA[
 Provides a Nextcloud Files viewer for eXeLearning `.elpx` packages by
-rendering the internal `index.html` inside a sandboxed iframe.
+rendering the internal `index.html` inside an opaque-origin sandboxed iframe.
 
 The app registers a Nextcloud Viewer handler so `.elpx` files open in a modal
 with the package fully navigable: HTML pages, CSS, JavaScript, images, audio
-and video resolve from the package contents through a scoped Service Worker.
+and video resolve from the package contents. Because the rendered author
+content is untrusted, it is served from a cookieless, capability-token HTTP
+route into a sandbox without `allow-same-origin` — a browser-enforced opaque
+origin isolated from the Nextcloud session — rather than same-origin. External
+media (YouTube, Vimeo, PDF, …) is relayed to the trusted parent page. The
+bundled static editor renders its live preview the same way, over the HTTP
+editor-preview transport (serving contract v2). A legacy Service Worker viewer
+survives only as an explicit, dev-only opt-in.
 
 Optional features:
 
@@ -37,4 +44,8 @@ This app is Nextcloud-native and does not depend on Google Drive.
         <php min-version="8.2" max-version="8.5"/>
         <nextcloud min-version="31" max-version="33"/>
     </dependencies>
+
+    <background-jobs>
+        <job>OCA\ExeLearning\BackgroundJob\PreviewCleanupJob</job>
+    </background-jobs>
 </info>
