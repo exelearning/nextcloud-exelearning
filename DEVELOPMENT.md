@@ -160,7 +160,7 @@ elpx/package-validator.ts    → require index.html
    ↓
 elpx/viewer-session.ts       → session id + per-entry map
    ↓
-elpx/service-worker-client.ts → POST session into js/exelearning-sw.js
+elpx/service-worker-client.ts → POST session into src/sw/exelearning-sw.js
    ↓
 elpx/iframe-renderer.ts      → sandboxed iframe at
                                /apps/exelearning/runtime/{session}/index.html
@@ -202,8 +202,9 @@ appear in the Files row menu.
 Save flow:
 
 1. The editor iframe posts `SAVE_FILE` with the new bytes.
-2. `editor-page.ts` POSTs them to `/apps/exelearning/editor/save` with the
-   open-file `If-Match` ETag.
+2. `EditorEmbed.vue` POSTs them to `/apps/exelearning/editor/save` with the
+   open-file `If-Match` ETag. The Save button and Ctrl/Cmd+S inside the
+   editor both go through this path.
 3. The PHP controller refuses the write if the file changed on disk
    (`HTTP 412`).
 
@@ -211,7 +212,9 @@ Save flow:
 
 - `.elpx` HTML never runs in the parent Nextcloud window.
 - The iframe uses
-  `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads"`.
+  `sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-downloads allow-popups-to-escape-sandbox"`.
+- The server-side asset fallback refuses top-level navigations
+  (`Sec-Fetch-Dest: document`), so package HTML only renders framed.
 - The Service Worker only intercepts URLs under
   `/apps/exelearning/runtime/`.
 - All ZIP paths are normalized; `..`, absolute paths and NUL-tainted entries

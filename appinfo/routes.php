@@ -19,7 +19,7 @@ return [
 			'name' => 'asset#fetch',
 			'url' => '/asset/{sessionId}/{path}',
 			'verb' => 'GET',
-			'requirements' => ['path' => '.+'],
+			'requirements' => ['sessionId' => '\d+', 'path' => '.+'],
 		],
 		[
 			'name' => 'thumbnail#byFileId',
