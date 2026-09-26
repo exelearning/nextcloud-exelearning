@@ -24,21 +24,38 @@
 				</svg>
 				<span>{{ t('exelearning', 'Edit') }}</span>
 			</button>
-			<button v-else-if="canShowSaveButton"
-				type="button"
-				class="exelearning-view-page__action"
-				:disabled="saving"
-				:title="t('exelearning', 'Save to Nextcloud')"
-				@click="save">
-				<svg xmlns="http://www.w3.org/2000/svg"
-					viewBox="0 0 24 24"
-					width="20"
-					height="20"
-					fill="currentColor">
-					<path d="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z" />
-				</svg>
-				<span>{{ saving ? t('exelearning', 'Saving…') : t('exelearning', 'Save') }}</span>
-			</button>
+			<template v-else-if="canShowSaveButton">
+				<button type="button"
+					class="exelearning-view-page__action"
+					data-action="save"
+					:disabled="saving"
+					:title="t('exelearning', 'Save to Nextcloud')"
+					@click="save">
+					<svg xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						width="20"
+						height="20"
+						fill="currentColor">
+						<path d="M15,9H5V5H15M12,19A3,3 0 0,1 9,16A3,3 0 0,1 12,13A3,3 0 0,1 15,16A3,3 0 0,1 12,19M17,3H5C3.89,3 3,3.9 3,5V19A2,2 0 0,0 5,21H19A2,2 0 0,0 21,19V7L17,3Z" />
+					</svg>
+					<span>{{ saving ? t('exelearning', 'Saving…') : t('exelearning', 'Save') }}</span>
+				</button>
+				<button type="button"
+					class="exelearning-view-page__action exelearning-view-page__action--secondary"
+					data-action="save-and-close"
+					:disabled="saving"
+					:title="t('exelearning', 'Save to Nextcloud and go back to Files')"
+					@click="saveAndClose">
+					<svg xmlns="http://www.w3.org/2000/svg"
+						viewBox="0 0 24 24"
+						width="20"
+						height="20"
+						fill="currentColor">
+						<path d="M17 7L15.59 8.41L18.17 11H8V13H18.17L15.59 15.58L17 17L22 12M4 5H12V3H4C2.9 3 2 3.9 2 5V19C2 20.1 2.9 21 4 21H12V19H4V5Z" />
+					</svg>
+					<span>{{ t('exelearning', 'Save & Close') }}</span>
+				</button>
+			</template>
 		</header>
 		<div class="exelearning-view-page__body">
 			<ElpxViewer v-if="file && mode === 'preview'"
@@ -150,9 +167,13 @@ export default defineComponent({
 				}
 			}, 4000)
 		},
-		async save(): Promise<void> {
+		/**
+		 * Saves the open package. Resolves `true` only when the write
+		 * succeeded; a call while another save is in flight is ignored.
+		 */
+		async save(): Promise<boolean> {
 			const embed = this.$refs.editor as InstanceType<typeof EditorEmbed> | undefined
-			if (!embed) return
+			if (!embed || this.saving) return false
 			this.saving = true
 			this.saveStatus = t('exelearning', 'Saving…')
 			try {
@@ -163,12 +184,21 @@ export default defineComponent({
 						this.saveStatus = ''
 					}
 				}, 3000)
+				return true
 			} catch (error) {
 				this.saveStatus = ''
 				const message = error instanceof Error ? error.message : String(error)
 				window.alert(t('exelearning', 'Save failed: {error}', { error: message }))
+				return false
 			} finally {
 				this.saving = false
+			}
+		},
+		async saveAndClose(): Promise<void> {
+			// Leave only after a confirmed write; a failed save keeps the
+			// editor open so nothing is lost.
+			if (await this.save()) {
+				window.location.assign(this.filesUrl)
 			}
 		},
 	},
@@ -242,6 +272,10 @@ export default defineComponent({
 	cursor: not-allowed;
 }
 .exelearning-view-page__action:hover:not([disabled]) { filter: brightness(1.05); }
+.exelearning-view-page__action--secondary {
+	background: transparent;
+	color: var(--color-primary-element, #0a629a);
+}
 .exelearning-view-page__body {
 	flex: 1;
 	display: flex;
