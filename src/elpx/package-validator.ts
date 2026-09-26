@@ -15,15 +15,11 @@
  */
 
 const ROOT_INDEX_CANDIDATES = ['index.html', 'index.htm']
-const DIR_HINTS = ['html/', 'content/', 'libs/', 'theme/', 'idevices/']
 // `contentv3.xml`, `contentv2.foo`, `contentv1.bar`, etc., at root.
 const LEGACY_MARKER_REGEX = /^contentv\d+(?:\.|$)/
 
 export interface PackageShape {
 	indexEntry: string | null
-	hasContentXml: boolean
-	hasScreenshot: boolean
-	hintCount: number
 	legacyMarker: string | null
 }
 
@@ -36,10 +32,7 @@ export interface PackageValidation {
 
 /**
  * Walks the decompressed entry map and reports the shape of an eXeLearning
- * project: which root index file (if any) is present, whether helper
- * artefacts like `content.xml` / `screenshot.png` are there, how many
- * familiar directory hints (`html/`, `idevices/`, …) appear, and which
- * (if any) `contentv\d+` file at the archive root marks it as a legacy
+ * project: which root index file (if any) is present, and which (if any) `contentv\d+` file at the archive root marks it as a legacy
  * pre-`.elpx` project.
  * @param entries Normalised entry path → bytes from `readPackage()`.
  */
@@ -51,24 +44,14 @@ export function inspectPackage(entries: ReadonlyMap<string, Uint8Array>): Packag
 			break
 		}
 	}
-	let hintCount = 0
 	let legacyMarker: string | null = null
 	for (const entry of entries.keys()) {
-		for (const dir of DIR_HINTS) {
-			if (entry.startsWith(dir)) {
-				hintCount += 1
-				break
-			}
-		}
 		if (legacyMarker === null && LEGACY_MARKER_REGEX.test(entry)) {
 			legacyMarker = entry
 		}
 	}
 	return {
 		indexEntry,
-		hasContentXml: entries.has('content.xml'),
-		hasScreenshot: entries.has('screenshot.png'),
-		hintCount,
 		legacyMarker,
 	}
 }

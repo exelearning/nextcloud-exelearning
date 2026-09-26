@@ -21,9 +21,6 @@ describe('inspectPackage', () => {
 			'idevices/widget.js',
 		))
 		expect(shape.indexEntry).toBe('index.html')
-		expect(shape.hasContentXml).toBe(true)
-		expect(shape.hasScreenshot).toBe(true)
-		expect(shape.hintCount).toBe(4)
 		expect(shape.legacyMarker).toBeNull()
 	})
 

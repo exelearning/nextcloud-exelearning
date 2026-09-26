@@ -34,7 +34,6 @@ function cleanGeneratedJs(): Plugin {
 export default createAppConfig(
 	{
 		main: resolve('src', 'main.ts'),
-		editor: resolve('src', 'editor', 'editor-page.ts'),
 		view: resolve('src', 'view', 'view-page.ts'),
 	},
 	{

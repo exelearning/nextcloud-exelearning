@@ -17,7 +17,6 @@ use OCP\AppFramework\Services\IInitialState;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 use OCP\IUserSession;
 use OCP\Util;
 
@@ -38,7 +37,6 @@ class ViewController extends Controller {
 		private readonly IUserSession $userSession,
 		private readonly ElpxPackageService $packageService,
 		private readonly IInitialState $initialState,
-		private readonly IURLGenerator $urlGenerator,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -79,10 +77,6 @@ class ViewController extends Controller {
 		$this->initialState->provideInitialState(
 			'editorAvailable',
 			is_file(__DIR__ . '/../../js/editor/index.html'),
-		);
-		$this->initialState->provideInitialState(
-			'editorIframeUrl',
-			$this->urlGenerator->linkToRoute(Application::APP_ID . '.editor.iframe'),
 		);
 		$this->initialState->provideInitialState(
 			'initialMode',
