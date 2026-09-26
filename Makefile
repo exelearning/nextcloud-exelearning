@@ -395,7 +395,7 @@ up: check-docker
 		echo "ERROR: js/$(APP_NAME)-main.mjs missing after build."; exit 1; \
 	fi
 	@# Make sure the optional eXeLearning static editor is present so the
-	@# /apps/exelearning/editor route works inside the container. Skip the
+	@# editor mode of /apps/exelearning/view works in the container. Skip the
 	@# download when js/editor/index.html already exists; refresh the
 	@# bundle explicitly with `make download-editor` (optionally pinning
 	@# EXELEARNING_EDITOR_REF=vX.Y.Z) when a new upstream tag ships.

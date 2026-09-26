@@ -13,7 +13,7 @@
  * Sessions are kept only in this worker's memory. Closing the tab (and the
  * subsequent SW termination) drops them. The page is the source of truth.
  *
- * This file is shipped as-is — not bundled by webpack — and served by
+ * This file is shipped as-is — not bundled by Vite — and served by
  * SwController so the response can set Content-Type and Service-Worker-Allowed.
  */
 
@@ -64,8 +64,8 @@ self.addEventListener('message', (event) => {
 
 /**
  * Stores a new session in the in-memory map. Files arrive as a list of
- * `{ path, mime, bytes }`; the path is normalised here so request matching
- * never has to deal with `..`/`.` segments or backslashes.
+ * `{ path, mime, bytes }`; non-canonical paths are rejected here, so request
+ * matching never has to deal with `..`/`.` segments or backslashes.
  * @param {{ sessionId: string, files: Array<{ path: string, mime?: string, bytes: ArrayBuffer | null }>, indexEntry?: string, filename?: string }} data
  *   `EXELEARNING_REGISTER_SESSION` message payload from the page.
  */
@@ -178,7 +178,7 @@ function safeDecode(value) {
 /**
  * SW-side mirror of `normalizeEntryPath` from src/elpx/paths.ts. Kept
  * inline because the SW must not import from the bundled application
- * code (it is loaded out-of-band by the browser, not by webpack).
+ * code (it is loaded out-of-band by the browser, not by Vite).
  *
  * Validates and returns the input unchanged, or null. A path is accepted
  * only when it is non-empty, free of NUL bytes and backslashes, and made

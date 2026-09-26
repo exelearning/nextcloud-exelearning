@@ -159,7 +159,7 @@ const downloadAction: IFileAction = {
  */
 export function registerFileActions(): void {
 	registerFileAction(viewAction) // default — opens /apps/exelearning/view
-	registerFileAction(editAction) // kebab  — opens /apps/exelearning/editor
+	registerFileAction(editAction) // kebab  — opens /apps/exelearning/view?mode=editor
 	registerFileAction(downloadAction) // kebab  — native download
 	registerFileAction(openAsExeLearningAction) // kebab on plain .zip
 }

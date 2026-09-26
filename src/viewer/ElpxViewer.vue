@@ -63,7 +63,7 @@ export default defineComponent({
 	name: 'ElpxViewer',
 	components: { ViewerError },
 	props: {
-		// @nextcloud/viewer passes these for any registered handler.
+		// File identity, passed by ElpxViewPage.
 		filename: { type: String, default: '' },
 		basename: { type: String, default: '' },
 		source: { type: String, default: '' },
