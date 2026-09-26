@@ -13,7 +13,6 @@ use OCP\Files\File;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IRequest;
-use OCP\IURLGenerator;
 use OCP\IUser;
 use OCP\IUserSession;
 use OCP\Util;
@@ -23,7 +22,6 @@ final class ViewControllerTest extends TestCase {
 	private IUserSession $session;
 	private ElpxPackageService $packages;
 	private InitialStateRecorder $initialState;
-	private IURLGenerator $urlGenerator;
 	private ViewController $controller;
 
 	protected function setUp(): void {
@@ -31,16 +29,12 @@ final class ViewControllerTest extends TestCase {
 		$this->session = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->initialState = new InitialStateRecorder();
-		$this->urlGenerator = $this->createMock(IURLGenerator::class);
-		$this->urlGenerator->method('linkToRoute')
-			->willReturn('/apps/exelearning/editor/iframe');
 		$this->controller = new ViewController(
 			'exelearning',
 			$this->createMock(IRequest::class),
 			$this->session,
 			$this->packages,
 			$this->initialState,
-			$this->urlGenerator,
 		);
 	}
 
@@ -139,7 +133,6 @@ final class ViewControllerTest extends TestCase {
 	private function assertPageStateAndPolicy(object $response, string $mode): void {
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
 		self::assertSame(false, $this->initialState->states['editorAvailable']);
-		self::assertSame('/apps/exelearning/editor/iframe', $this->initialState->states['editorIframeUrl']);
 		self::assertSame($mode, $this->initialState->states['initialMode']);
 		self::assertSame([[Application::APP_ID, 'exelearning-view']], Util::$scripts);
 

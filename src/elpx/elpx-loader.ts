@@ -10,22 +10,20 @@ import { generateUrl } from '@nextcloud/router'
 export interface LoadElpxOptions {
 	fileId?: number
 	path?: string
-	signal?: AbortSignal
 }
 
 export interface LoadedElpx {
 	bytes: ArrayBuffer
 	filename: string
 	etag?: string
-	contentLength?: number
 }
 
 /**
  * Fetches the raw `.elpx` bytes for the current Nextcloud user via
  * `PackageController`. One of `fileId` or `path` is required; everything
- * else (etag, content-length, filename) is best-effort metadata extracted
- * from the response headers.
- * @param options Lookup options — fileId or path, optional AbortSignal.
+ * else (etag, filename) is best-effort metadata extracted from the
+ * response headers.
+ * @param options Lookup options — fileId or path.
  */
 export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	if (options.fileId === undefined && (options.path === undefined || options.path === '')) {
@@ -39,7 +37,6 @@ export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 	const response = await axios.get<ArrayBuffer>(url, {
 		responseType: 'arraybuffer',
 		...(options.path !== undefined ? { params: { path: options.path } } : {}),
-		...(options.signal !== undefined ? { signal: options.signal } : {}),
 	})
 
 	const disposition = response.headers['content-disposition']
@@ -51,9 +48,6 @@ export async function loadElpx(options: LoadElpxOptions): Promise<LoadedElpx> {
 		bytes: response.data,
 		filename,
 		...(typeof etagHeader === 'string' ? { etag: etagHeader } : {}),
-		...(typeof response.data.byteLength === 'number'
-			? { contentLength: response.data.byteLength }
-			: {}),
 	}
 }
 

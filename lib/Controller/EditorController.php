@@ -12,26 +12,20 @@ use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
 use OCP\AppFramework\Http\Attribute\NoCSRFRequired;
-use OCP\AppFramework\Http\ContentSecurityPolicy;
 use OCP\AppFramework\Http\DataDisplayResponse;
 use OCP\AppFramework\Http\DataResponse;
-use OCP\AppFramework\Http\TemplateResponse;
-use OCP\AppFramework\Services\IInitialState;
+use OCP\AppFramework\Http\RedirectResponse;
 use OCP\Files\NotFoundException;
 use OCP\Files\NotPermittedException;
 use OCP\IRequest;
 use OCP\IURLGenerator;
 use OCP\IUserSession;
-use OCP\Util;
 
 /**
- * Hosts the optional static eXeLearning editor inside a Nextcloud page. The
- * editor is only available when its bundle has been downloaded to
- * `js/editor/` (run `make download-editor`).
- *
- * The page itself is a thin shell — the editor is loaded into an iframe via
- * `editor-page.ts` using the same postMessage protocol documented by the
- * upstream eXeLearning project.
+ * Backend for the optional static eXeLearning editor, which is only
+ * available when its bundle has been downloaded to `js/editor/` (run
+ * `make download-editor`). The view page embeds it through `iframe()` and
+ * writes the exported package back through `save()`.
  */
 class EditorController extends Controller {
 	public function __construct(
@@ -41,76 +35,25 @@ class EditorController extends Controller {
 		private readonly ElpxPackageService $packageService,
 		private readonly LegacyFileMigrationService $legacyFileMigration,
 		private readonly EditorHtmlService $editorHtml,
-		private readonly IInitialState $initialState,
 		private readonly IURLGenerator $urlGenerator,
 	) {
 		parent::__construct($appName, $request);
 	}
 
+	/**
+	 * Legacy entry point: the editor now lives inside the view page. Kept as
+	 * a redirect so old bookmarks and links still open the file.
+	 */
 	#[NoAdminRequired]
 	#[NoCSRFRequired]
-	public function index(?int $fileId = null, ?string $path = null): TemplateResponse|DataResponse {
-		$user = $this->userSession->getUser();
-		if ($user === null) {
-			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
-		}
-
-		$editorAvailable = is_file(__DIR__ . '/../../js/editor/index.html');
-
+	public function index(?int $fileId = null, ?string $path = null): RedirectResponse {
+		$params = ['mode' => 'editor'];
 		if ($fileId !== null && $fileId > 0) {
-			try {
-				$file = $this->packageService->getForUserById($user->getUID(), $fileId);
-				$this->initialState->provideInitialState('file', [
-					'id' => $file->getId(),
-					'name' => $file->getName(),
-					'path' => $file->getPath(),
-					'mtime' => $file->getMTime(),
-					'etag' => $file->getEtag(),
-					'writable' => $file->isUpdateable(),
-				]);
-			} catch (NotFoundException|NotPermittedException) {
-				// fall through: editor still opens, just without a preloaded file
-			}
+			$params['fileId'] = $fileId;
 		} elseif ($path !== null && $path !== '') {
-			try {
-				$file = $this->packageService->getForUserByPath($user->getUID(), $path);
-				$this->initialState->provideInitialState('file', [
-					'id' => $file->getId(),
-					'name' => $file->getName(),
-					'path' => $file->getPath(),
-					'mtime' => $file->getMTime(),
-					'etag' => $file->getEtag(),
-					'writable' => $file->isUpdateable(),
-				]);
-			} catch (NotFoundException|NotPermittedException) {
-				// fall through
-			}
+			$params['path'] = $path;
 		}
-
-		// linkTo() returns the right URL whether the app lives at
-		// /apps/<id>/ or /custom_apps/<id>/ (see apps_paths in config).
-		$editorBasePath = rtrim($this->urlGenerator->linkTo(Application::APP_ID, ''), '/') . '/js/editor';
-		// Route URLs always go through Nextcloud's PHP router and live under
-		// /apps/<id>/ regardless of apps_paths.
-		$editorIframeUrl = $this->urlGenerator->linkToRoute(Application::APP_ID . '.editor.iframe');
-
-		$this->initialState->provideInitialState('editorAvailable', $editorAvailable);
-		$this->initialState->provideInitialState('editorBasePath', $editorBasePath);
-		$this->initialState->provideInitialState('editorIframeUrl', $editorIframeUrl);
-
-		Util::addScript(Application::APP_ID, 'exelearning-editor');
-
-		// RENDER_AS_USER keeps Nextcloud's script + initial-state injection
-		// working. The template's CSS positions the editor root with
-		// `position: fixed; inset: 0` so the iframe still uses the whole
-		// viewport while Nextcloud's chrome stays loaded (but covered).
-		$response = new TemplateResponse(Application::APP_ID, 'editor', [], TemplateResponse::RENDER_AS_USER);
-		$csp = new ContentSecurityPolicy();
-		$csp->addAllowedScriptDomain("'self'");
-		$csp->addAllowedConnectDomain("'self'");
-		$csp->addAllowedFrameDomain("'self'");
-		$response->setContentSecurityPolicy($csp);
-		return $response;
+		return new RedirectResponse($this->urlGenerator->linkToRoute(Application::APP_ID . '.view.index', $params));
 	}
 
 	#[NoAdminRequired]

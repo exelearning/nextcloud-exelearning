@@ -17,7 +17,6 @@ ignore:
   - "vendor/**/*"
   - "src/main.ts"
   - "src/editor/editor-frame.ts"
-  - "src/editor/editor-page.ts"
   - "src/elpx/elpx-loader.ts"
   - "src/elpx/service-worker-client.ts"
   - "src/files/actions.ts"
