@@ -133,6 +133,12 @@ export default defineComponent({
 				try {
 					const worker = await ensureRuntimeWorker()
 					await registerSession(worker, session)
+					if (this.$.isUnmounted) {
+						// Closed while loading: teardown already ran without
+						// this session, so release the bytes held by the SW.
+						void unregisterSession(worker, session.id)
+						return
+					}
 
 					this.session = session
 					this.worker = worker
