@@ -37,7 +37,7 @@ export default defineComponent({
 		file: { type: Object as () => FileMeta, required: true },
 		editorIframeUrl: { type: String, required: true },
 	},
-	emits: ['file-renamed'],
+	emits: ['file-renamed', 'save-requested'],
 	data() {
 		return {
 			state: 'loading' as State,
@@ -52,6 +52,11 @@ export default defineComponent({
 		try {
 			const slot = this.$refs.frameSlot as HTMLElement
 			this.frame = new EditorFrame(slot, { editorIframeUrl: this.editorIframeUrl })
+			// Ctrl/Cmd+S inside the editor: the injected bridge swallows the
+			// keystroke and posts REQUEST_SAVE up for the page to handle.
+			this.frame.onMessage((message) => {
+				if (message.type === 'REQUEST_SAVE') this.$emit('save-requested')
+			})
 			this.status = t('exelearning', 'Loading editor…')
 			await this.frame.load()
 
