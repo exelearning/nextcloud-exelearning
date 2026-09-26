@@ -137,6 +137,16 @@ final class AssetControllerTest extends TestCase {
 		self::assertSame('application/octet-stream', $response->getHeaders()['Content-Type']);
 	}
 
+	public function testMimeMapMatchesTheServiceWorkerMap(): void {
+		$source = file_get_contents(__DIR__ . '/../../../src/elpx/asset-map.ts');
+		self::assertIsString($source);
+		preg_match_all("/^\t(\w+): '([^']+)',$/m", $source, $matches);
+		$tsMap = array_combine($matches[1], $matches[2]);
+
+		self::assertNotEmpty($tsMap);
+		self::assertSame($tsMap, (new \ReflectionClassConstant(AssetController::class, 'MIME_MAP'))->getValue());
+	}
+
 	private function authenticate(): IUser {
 		$user = $this->createMock(IUser::class);
 		$user->method('getUID')->willReturn('alice');

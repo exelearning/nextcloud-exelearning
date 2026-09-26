@@ -63,7 +63,7 @@ async function registerRuntimeWorker(): Promise<RuntimeWorker> {
 
 /**
  * Resolves once the registered Service Worker reaches the `activated`
- * state. Resolves immediately when the worker is already controlling the
+ * state, and rejects if it becomes `redundant`. Resolves immediately when the worker is already controlling the
  * page; otherwise listens for `statechange` on the
  * installing/waiting/active worker.
  * @param registration Result of `navigator.serviceWorker.register`.
@@ -72,7 +72,7 @@ function waitForActive(registration: ServiceWorkerRegistration): Promise<void> {
 	if (registration.active && navigator.serviceWorker.controller) {
 		return Promise.resolve()
 	}
-	return new Promise((resolve) => {
+	return new Promise((resolve, reject) => {
 		const sw = registration.installing || registration.waiting || registration.active
 		if (!sw) {
 			resolve()
@@ -85,6 +85,10 @@ function waitForActive(registration: ServiceWorkerRegistration): Promise<void> {
 		sw.addEventListener('statechange', () => {
 			if (sw.state === 'activated') {
 				resolve()
+			} else if (sw.state === 'redundant') {
+				// Install failed or was superseded; without this the viewer
+				// would wait forever instead of using the server fallback.
+				reject(new Error('The eXeLearning Service Worker failed to activate.'))
 			}
 		})
 	})

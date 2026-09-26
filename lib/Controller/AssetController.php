@@ -27,29 +27,40 @@ use OCP\IUserSession;
  * the current user can read the underlying file before serving any bytes.
  */
 class AssetController extends Controller {
+	/** Mirrors `MIME_BY_EXTENSION` in `src/elpx/asset-map.ts` (parity-tested). */
 	private const MIME_MAP = [
 		'html' => 'text/html; charset=utf-8',
 		'htm' => 'text/html; charset=utf-8',
+		'xhtml' => 'application/xhtml+xml; charset=utf-8',
 		'css' => 'text/css; charset=utf-8',
 		'js' => 'text/javascript; charset=utf-8',
 		'mjs' => 'text/javascript; charset=utf-8',
 		'json' => 'application/json; charset=utf-8',
+		'xml' => 'application/xml; charset=utf-8',
+		'txt' => 'text/plain; charset=utf-8',
 		'svg' => 'image/svg+xml',
 		'png' => 'image/png',
 		'jpg' => 'image/jpeg',
 		'jpeg' => 'image/jpeg',
 		'gif' => 'image/gif',
 		'webp' => 'image/webp',
+		'ico' => 'image/x-icon',
 		'mp3' => 'audio/mpeg',
 		'mp4' => 'video/mp4',
+		'm4a' => 'audio/mp4',
+		'm4v' => 'video/mp4',
 		'ogg' => 'audio/ogg',
+		'oga' => 'audio/ogg',
+		'ogv' => 'video/ogg',
 		'wav' => 'audio/wav',
 		'webm' => 'video/webm',
 		'vtt' => 'text/vtt',
 		'woff' => 'font/woff',
 		'woff2' => 'font/woff2',
 		'ttf' => 'font/ttf',
+		'otf' => 'font/otf',
 		'eot' => 'application/vnd.ms-fontobject',
+		'pdf' => 'application/pdf',
 	];
 
 	public function __construct(
