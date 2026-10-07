@@ -27,7 +27,7 @@ describe('buildSandboxedIframe', () => {
 	it('defaults to the secure opaque sandbox with NO allow-same-origin', () => {
 		const iframe = buildSandboxedIframe('/apps/exelearning/content/tok/index.html', 'My package')
 		const sandbox = iframe.getAttribute('sandbox') ?? ''
-		expect(sandbox).toBe('allow-scripts allow-popups allow-forms')
+		expect(sandbox).toBe('allow-scripts allow-popups allow-forms allow-downloads')
 		expect(sandbox).not.toContain('allow-same-origin')
 		expect(sandbox).not.toContain('allow-popups-to-escape-sandbox')
 		expect(iframe.title).toBe('My package')

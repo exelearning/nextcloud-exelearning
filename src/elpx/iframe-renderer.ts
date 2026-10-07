@@ -20,6 +20,8 @@ const SECURE_SANDBOX_FLAGS = [
 	'allow-scripts',
 	'allow-popups',
 	'allow-forms',
+	// Lets the package's own .elpx download button save its file (ADR-68-01).
+	'allow-downloads',
 ] as const
 
 /** Legacy same-origin sandbox for the Service-Worker path only. */

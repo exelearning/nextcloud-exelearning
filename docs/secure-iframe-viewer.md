@@ -23,7 +23,7 @@ the opaque path is served over real HTTP, not the SW.
 | Capability token (fileId-bound, HMAC, short-lived) | `lib/Service/ContentTokenService.php` |
 | Cookieless serving route `/content/{token}/{path}` | `lib/Controller/ContentController.php` |
 | Token minted at view-open (read permission checked here) | `lib/Controller/ViewController.php` |
-| Opaque iframe (`allow-scripts allow-popups allow-forms`) | `src/elpx/iframe-renderer.ts` |
+| Opaque iframe (`allow-scripts allow-popups allow-forms allow-downloads`) | `src/elpx/iframe-renderer.ts` |
 | Relay + media host in the parent page | `src/embed/relay-host.ts` + `src/viewer/ElpxViewer.vue` |
 | eXe-core external-media bundle (vendored) | `src/embed/exe_external_media/exe-external-media-child.min.js`, `exe-external-media-host.min.js` |
 

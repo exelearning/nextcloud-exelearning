@@ -54,7 +54,7 @@ final class IframeSandboxTest extends TestCase {
 
 	public function testSecureSandboxTokensNeverAllowSameOrigin(): void {
 		$tokens = $this->service()->sandboxTokens(IframeSandbox::MODE_SECURE);
-		self::assertSame('allow-scripts allow-popups allow-forms', $tokens);
+		self::assertSame('allow-scripts allow-popups allow-forms allow-downloads', $tokens);
 		self::assertStringNotContainsString('allow-same-origin', $tokens);
 		self::assertStringNotContainsString('allow-popups-to-escape-sandbox', $tokens);
 		self::assertStringNotContainsString('allow-top-navigation', $tokens);
@@ -63,12 +63,15 @@ final class IframeSandboxTest extends TestCase {
 	public function testLegacySandboxTokensReintroduceSameOrigin(): void {
 		$tokens = $this->service()->sandboxTokens(IframeSandbox::MODE_LEGACY);
 		self::assertStringContainsString('allow-same-origin', $tokens);
+		self::assertStringContainsString('allow-downloads', $tokens);
 	}
 
 	public function testStrictPublishedCspShape(): void {
 		$csp = $this->service()->contentSecurityPolicy();
 		// The opaque sandbox rides in the CSP too (keeps the doc opaque if opened top-level).
-		self::assertStringContainsString('sandbox allow-scripts allow-popups allow-forms', $csp);
+		self::assertStringContainsString('sandbox allow-scripts allow-popups allow-forms allow-downloads', $csp);
+		// fflate's blob: workers rebuild the package's own .elpx download (ADR-68-01).
+		self::assertStringContainsString("worker-src 'self' blob:", $csp);
 		self::assertStringContainsString("object-src 'none'", $csp);
 		self::assertStringContainsString("frame-ancestors 'self'", $csp);
 		// Only the maintained providers, never bare https: in frame-src.
@@ -84,7 +87,7 @@ final class IframeSandboxTest extends TestCase {
 		self::assertStringContainsString("script-src 'self' 'unsafe-inline' 'unsafe-eval' https:", $csp);
 		self::assertStringContainsString('frame-src \'self\' https:', $csp);
 		// Sandbox stays even in the weaker profile.
-		self::assertStringContainsString('sandbox allow-scripts allow-popups allow-forms', $csp);
+		self::assertStringContainsString('sandbox allow-scripts allow-popups allow-forms allow-downloads', $csp);
 	}
 
 	public function testSvgCspIsScriptFree(): void {

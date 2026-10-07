@@ -13,8 +13,10 @@ namespace OCA\ExeLearning\Service;
  * Mirrors the ecosystem contract shared with mod_exelearning
  * (\mod_exelearning\local\ui\player_iframe), wp-exelearning
  * (ExeLearning_Iframe_Sandbox) and omeka-s-exelearning (IframeSandbox). The
- * secure token set MUST stay 'allow-scripts allow-popups allow-forms' with NO
- * 'allow-same-origin' — its absence is what makes the document opaque. The only
+ * secure token set MUST stay 'allow-scripts allow-popups allow-forms allow-downloads'
+ * with NO 'allow-same-origin' — its absence is what makes the document opaque.
+ * allow-downloads lets the package's own .elpx download button save the file it
+ * builds and grants no access to the Nextcloud origin (ADR-68-01). The only
  * path back to a same-origin iframe is the dev-only escape hatch
  * EXELEARNING_UNSAFE_LEGACY_IFRAME (off by default, never a UI setting).
  */
@@ -22,8 +24,9 @@ class IframeSandbox {
 	public const MODE_SECURE = 'secure';
 	public const MODE_LEGACY = 'legacy';
 
-	private const SECURE_TOKENS = 'allow-scripts allow-popups allow-forms';
-	private const LEGACY_TOKENS = 'allow-same-origin allow-scripts allow-popups allow-forms allow-popups-to-escape-sandbox';
+	private const SECURE_TOKENS = 'allow-scripts allow-popups allow-forms allow-downloads';
+	private const LEGACY_TOKENS = 'allow-same-origin allow-scripts allow-popups allow-forms allow-downloads'
+		. ' allow-popups-to-escape-sandbox';
 
 	private const LEGACY_ENV = 'EXELEARNING_UNSAFE_LEGACY_IFRAME';
 	private const EMBED_OPEN_ENV = 'EXELEARNING_EMBED_OPEN';
@@ -111,6 +114,12 @@ class IframeSandbox {
 		return implode('; ', [
 			"default-src 'self'",
 			$scriptSrc,
+			// The package's download-source-file button rebuilds the .elpx with
+			// fflate, which compresses in blob: workers. Without worker-src the
+			// browser falls back to script-src, which has no blob:, and the
+			// rebuild hangs. Scripts already run with 'unsafe-inline'/'unsafe-eval',
+			// so this adds no capability (ADR-68-01).
+			"worker-src 'self' blob:",
 			"style-src 'self' 'unsafe-inline'",
 			$imgSrc,
 			$mediaSrc,
