@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Nextcloud 31 and 32: the "New eXeLearning resource" entry, the eXeLearning
+  file actions and the click-to-preview default action were missing, because
+  the app only registered them through `@nextcloud/files` v4, which only the
+  NC 33 Files app reads. The app now registers through
+  `@nextcloud/files-legacy` (v3) on NC 31-32 and through v4 on NC 33+.
+
 ### Changed
 
 - Bump supported range to Nextcloud 31–33 and PHP 8.2–8.5 (was NC 29–31,

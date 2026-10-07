@@ -272,10 +272,10 @@ jobs:
       # `setup-nextcloud-app` only stages the app; we still need to call
       # `occ app:enable` ourselves. A failure here catches missing OCP
       # classes, broken DI, info.xml dependencies that no longer apply,
-      # and migrations that fail under the matrix DB. The matching
-      # browser-level regression (Files API v3↔v4 scope mismatch) is
-      # caught upstream of this step by `npm run build` against
-      # `@nextcloud/files@^4`.
+      # and migrations that fail under the matrix DB. It does not load the
+      # Files app in a browser, so it cannot catch a Files API v3/v4
+      # registration mismatch (NC 31-32 read v3, NC 33 reads v4); the
+      # version gate is covered by tests/js/files-registration.test.ts.
       - name: Smoke test — app enables cleanly
         working-directory: ../server
         run: |

@@ -9,19 +9,28 @@
  *   - `exelearning-download` — kebab item that triggers a download via the
  *                            node's WebDAV `source` URL.
  *
- * Built against `@nextcloud/files@^4` (NC 33+ scope `v4_0`). NC 31-32 also
- * accept v4-built actions during the upstream transition.
+ * Written against `@nextcloud/files@^4` (NC 33+ scope `v4_0`). NC 31-32 read
+ * only the v3 registry, so there the same actions are adapted and registered
+ * through `@nextcloud/files-legacy` (see ./files-api.ts).
  */
 
 import {
+	type ActionContext,
+	type ActionContextSingle,
 	DefaultType,
 	type IFileAction,
 	type Node,
 	registerFileAction,
 } from '@nextcloud/files'
+import {
+	FileAction as LegacyFileAction,
+	type FileActionData as LegacyFileActionData,
+	registerFileAction as registerLegacyFileAction,
+} from '@nextcloud/files-legacy'
 import { generateUrl } from '@nextcloud/router'
 import { translate as t } from '@nextcloud/l10n'
 
+import { usesLegacyFilesApi } from './files-api'
 import { hasElpxExtension, isElpxFile } from './mime'
 
 const APP_ID = 'exelearning'
@@ -154,12 +163,42 @@ const downloadAction: IFileAction = {
 	},
 }
 
+const actions: IFileAction[] = [
+	viewAction, // default — opens /apps/exelearning/view
+	editAction, // kebab  — opens /apps/exelearning/view?mode=editor
+	downloadAction, // kebab  — native download
+	openAsExeLearningAction, // kebab on plain .zip
+]
+
 /**
- *
+ * Adapts a v4 action to the v3 API: v3 calls back with positional
+ * `(nodes, view)` / `(node, view, dir)`, v4 with one context object.
+ * Our callbacks only read `nodes`.
+ * @param action v4 action definition.
+ */
+export function toLegacyFileAction(action: IFileAction): LegacyFileAction {
+	const context = (nodes: unknown[], view: unknown) => ({ nodes, view }) as unknown as ActionContext
+	return new LegacyFileAction({
+		id: action.id,
+		// Same string values ('default' / 'hidden'); v3 types them as an enum.
+		default: action.default as LegacyFileActionData['default'],
+		displayName: (nodes, view) => action.displayName(context(nodes, view)),
+		iconSvgInline: (nodes, view) => action.iconSvgInline(context(nodes, view)),
+		enabled: (nodes, view) => action.enabled?.(context(nodes, view)) ?? true,
+		exec: (node, view) => action.exec(context([node], view) as ActionContextSingle),
+	})
+}
+
+/**
+ * Registers the actions through the Files API the running server reads.
  */
 export function registerFileActions(): void {
-	registerFileAction(viewAction) // default — opens /apps/exelearning/view
-	registerFileAction(editAction) // kebab  — opens /apps/exelearning/view?mode=editor
-	registerFileAction(downloadAction) // kebab  — native download
-	registerFileAction(openAsExeLearningAction) // kebab on plain .zip
+	const legacy = usesLegacyFilesApi()
+	for (const action of actions) {
+		if (legacy) {
+			registerLegacyFileAction(toLegacyFileAction(action))
+		} else {
+			registerFileAction(action)
+		}
+	}
 }
