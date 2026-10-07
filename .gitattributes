@@ -44,9 +44,12 @@ vitest.config.ts            export-ignore
 biome.json                  export-ignore
 codecov.yml                 export-ignore
 .eslintrc.cjs               export-ignore
+eslint.config.mjs           export-ignore
 .php-cs-fixer.dist.php      export-ignore
 .php-cs-fixer.cache         export-ignore
 tools                       export-ignore
+blueprint.json              export-ignore
+architecture-records.json   export-ignore
 
 # --- Tests, coverage and caches -----------------------------------------
 tests                       export-ignore
