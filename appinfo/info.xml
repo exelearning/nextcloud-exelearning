@@ -15,8 +15,9 @@ and video resolve from the package contents through a scoped Service Worker.
 Optional features:
 
 - `screenshot.png` thumbnails as Nextcloud previews.
-- "Edit with eXeLearning" action that opens the bundled static eXeLearning
-  editor (must be installed via `make download-editor`).
+- "Edit with eXeLearning" action that opens the static eXeLearning editor
+  bundled in the release package. Only installs from a source checkout need
+  to fetch it with `make download-editor`.
 
 This app is Nextcloud-native and does not depend on Google Drive.
     ]]></description>

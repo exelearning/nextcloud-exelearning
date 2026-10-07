@@ -44,8 +44,9 @@ When a user clicks a `.elpx` file in Nextcloud Files:
 Optional features:
 
 - Thumbnails powered by `screenshot.png` inside the `.elpx` package.
-- "Edit with eXeLearning" action that opens the bundled static eXeLearning
-  editor (requires `make download-editor`).
+- "Edit with eXeLearning" action that opens the static eXeLearning editor.
+  The release package (GitHub release / app store) already bundles it; only a
+  source checkout needs `make download-editor`.
 
 ## How this is different from sibling projects
 

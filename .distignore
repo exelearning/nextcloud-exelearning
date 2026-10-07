@@ -51,9 +51,14 @@ vitest.config.ts
 biome.json
 codecov.yml
 .eslintrc.cjs
+eslint.config.mjs
 .php-cs-fixer.dist.php
 .php-cs-fixer.cache
 tools
+# Playground provisioning (read from GitHub, not from the installed app)
+# and the architecture-records tooling config.
+blueprint.json
+architecture-records.json
 
 # --- Tests, coverage and caches -----------------------------------------
 tests

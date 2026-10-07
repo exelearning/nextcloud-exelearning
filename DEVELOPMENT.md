@@ -187,8 +187,9 @@ for the admin steps that wire it up.
 
 ## Optional editor support
 
-The static eXeLearning editor is not bundled. To enable the "Edit with
-eXeLearning" action:
+Release packages already bundle the static eXeLearning editor. A source
+checkout does not (`js/editor/` is never committed); to enable the "Edit with
+eXeLearning" action there:
 
 ```sh
 make download-editor                     # prebuilt release zip
