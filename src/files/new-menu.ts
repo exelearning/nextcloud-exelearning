@@ -18,8 +18,14 @@ import {
 	type INode,
 	type NewMenuEntry,
 } from '@nextcloud/files'
+import {
+	addNewFileMenuEntry as addLegacyNewFileMenuEntry,
+	type NewMenuEntry as LegacyNewMenuEntry,
+} from '@nextcloud/files-legacy'
 import { translate as t } from '@nextcloud/l10n'
 import { generateUrl } from '@nextcloud/router'
+
+import { usesLegacyFilesApi } from './files-api'
 
 const APP_ID = 'exelearning'
 
@@ -105,8 +111,14 @@ const entry: NewMenuEntry = {
 }
 
 /**
- *
+ * Registers the entry through the Files API the running server reads. The v3
+ * entry shape is the same; only the folder/node classes differ, and the
+ * handler only reads fields both expose (`source`, `permissions`, `basename`).
  */
 export function registerNewMenuEntry(): void {
-	addNewFileMenuEntry(entry)
+	if (usesLegacyFilesApi()) {
+		addLegacyNewFileMenuEntry(entry as unknown as LegacyNewMenuEntry)
+	} else {
+		addNewFileMenuEntry(entry)
+	}
 }

@@ -78,6 +78,12 @@ Older Nextcloud versions (28, 29, 30) are EOL and not part of the matrix.
 NC 31 enters the supported range as best effort because upstream
 maintenance ends mid-2026; NC 32 and 33 are the reference targets.
 
+The CI matrix checks that the app installs and enables on each version. It
+does not drive the Files app in a browser, so the Files integration (New
+menu entry, file actions) is not covered by it: NC 31-32 read those
+registrations through `@nextcloud/files` v3 and NC 33 through v4, and the
+app registers through whichever one the running server reads.
+
 | Component       | Version                                |
 |-----------------|----------------------------------------|
 | Nextcloud       | 31, 32 or 33                           |
