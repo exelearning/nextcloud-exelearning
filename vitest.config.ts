@@ -7,6 +7,10 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: 'happy-dom',
+		// @nextcloud/files@3 (aliased as -legacy) imports a named export from
+		// the CJS-only `cancelable-promise`; let Vite transform it instead of
+		// loading it as native ESM.
+		server: { deps: { inline: ['@nextcloud/files-legacy'] } },
 		include: ['tests/js/**/*.test.ts', 'src/**/*.test.ts'],
 		coverage: {
 			provider: 'v8',
@@ -23,6 +27,7 @@ export default defineConfig({
 				'src/elpx/service-worker-client.ts',
 				'src/elpx/viewer-session.ts',
 				'src/elpx/zip-reader.ts',
+				'src/files/files-api.ts',
 				'src/files/mime.ts',
 			],
 			thresholds: {
