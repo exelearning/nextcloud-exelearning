@@ -12,29 +12,31 @@ namespace OCA\ExeLearning\Service\Preview;
  *
  * This mirrors eXe core (repo `exelearning/exelearning`), which is authoritative:
  *
- *  - CSP / scriptable set / Permissions-Policy → `src/shared/security/previewSandbox.ts`
+ *  - scriptable set / Permissions-Policy       → `src/shared/security/previewSandbox.ts`
+ *  - CSP → `previewCspHeader()` from that file in exelearning/exelearning#1968
+ *    (closed); core's current `previewSnapshotCspHeader()` (#2199) sends only a
+ *    `sandbox` directive whose tokens already include `allow-downloads`
  *  - MIME + path normalization                 → `src/utils/content-path.util.ts`
  *
  * The class is intentionally OCP-free (pure static logic, no Nextcloud
  * dependencies) so every protocol rule is unit-testable without a server and
  * the {@see \OCA\ExeLearning\Controller\PreviewController} stays a thin adapter.
  *
- * WARNING: {@see self::CSP} is `previewCspHeader()` from eXe core plus two
+ * WARNING: {@see self::CSP} is `previewCspHeader()` from eXe's opaque-preview work (exelearning/exelearning#1968) plus two
  * documented additions, `allow-downloads` in the sandbox and
  * `worker-src 'self' blob:` (ADR-68-01; same as mod_exelearning). Apart from
- * those, do not re-order, re-quote, reformat, or add a trailing `;`. Re-sync
- * from core whenever it changes.
+ * those, do not re-order, re-quote, reformat, or add a trailing `;`.
  *
  * Note: this is a DIFFERENT string from {@see \OCA\ExeLearning\Service\IframeSandbox}
  * used for *published* content. Published content pins `frame-src`/`img-src` to
  * the maintained provider hosts (token-exfiltration hardening for a longer-lived
  * capability URL); the editor preview is a short-lived, ephemeral capability and
- * matches core's preview CSP verbatim. The two are deliberately not unified — see
+ * keeps the #1968 preview CSP. The two are deliberately not unified — see
  * docs/preview-serving-contract.md.
  */
 final class PreviewPolicy {
 	/**
-	 * `previewCspHeader()` from eXe core `src/shared/security/previewSandbox.ts`
+	 * `previewCspHeader()` from eXe's opaque-preview work (exelearning/exelearning#1968)
 	 * plus `allow-downloads` and `worker-src 'self' blob:`. The leading `sandbox`
 	 * directive drops the document into an opaque, unique origin even when the
 	 * capability URL is opened top-level (new tab / popup / raw URL); the rest is

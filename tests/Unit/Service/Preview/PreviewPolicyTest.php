@@ -14,9 +14,9 @@ use PHPUnit\Framework\TestCase;
  */
 final class PreviewPolicyTest extends TestCase {
 	/**
-	 * Pinned literal: eXe core `previewCspHeader()` plus `allow-downloads` and
-	 * `worker-src 'self' blob:` (ADR-68-01). If this ever fails the CSP has
-	 * drifted and must be re-synced (no re-order, re-quote, reformat, or
+	 * Pinned literal: `previewCspHeader()` from eXe's opaque-preview work (exelearning/exelearning#1968)
+	 * plus `allow-downloads` and `worker-src 'self' blob:` (ADR-68-01). If this
+	 * ever fails the CSP has drifted (no re-order, re-quote, reformat, or
 	 * trailing `;`).
 	 */
 	public function testCspMatchesCorePlusDownloadAdditions(): void {

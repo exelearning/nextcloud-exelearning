@@ -33,8 +33,8 @@ dropped it from the secure token set, and its published Content-Security-Policy
 has no `worker-src`.
 
 The opaque editor preview has the same gap. Its CSP
-(`lib/Service/Preview/PreviewPolicy.php`) copied eXe core's `previewCspHeader()`,
-whose `sandbox` lacks `allow-downloads` and which has a `child-src` but no
+(`lib/Service/Preview/PreviewPolicy.php`) copied `previewCspHeader()` from eXe's
+opaque-preview work (exelearning/exelearning#1968), whose `sandbox` lacks `allow-downloads` and which has a `child-src` but no
 `worker-src`. The editor's preview iframe already grants `allow-downloads`, but
 the effective sandbox is the intersection of the attribute and the CSP.
 
@@ -95,8 +95,10 @@ whose secure set also feeds the response-level CSP `sandbox` directive), and
 `worker-src 'self' blob:` to the published Content-Security-Policy.
 
 The editor preview CSP (`lib/Service/Preview/PreviewPolicy.php`) gets the same two
-additions on top of eXe core's `previewCspHeader()`, as mod_exelearning does in
-`classes/local/preview/serving.php`. It is otherwise kept verbatim with core.
+additions on top of the #1968 `previewCspHeader()`, as mod_exelearning does in
+`classes/local/preview/serving.php`. It is otherwise kept verbatim. Core's current
+preview (`previewSnapshotCspHeader()`, #2199) sends only a `sandbox` directive
+whose tokens already include `allow-downloads`, so it needs neither addition.
 
 ## Consequences
 
@@ -130,8 +132,8 @@ additions on top of eXe core's `previewCspHeader()`, as mod_exelearning does in
 
 ## Follow-up work
 
-- If eXe core adds `allow-downloads` and `worker-src` to `previewCspHeader()`,
-  drop the local additions note from `PreviewPolicy` and keep it verbatim.
+- If this plugin adopts core's #2199 preview CSP (`previewSnapshotCspHeader()`),
+  the local additions are no longer needed.
 
 ## References
 
