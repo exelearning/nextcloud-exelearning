@@ -19,10 +19,11 @@ namespace OCA\ExeLearning\Service\Preview;
  * dependencies) so every protocol rule is unit-testable without a server and
  * the {@see \OCA\ExeLearning\Controller\PreviewController} stays a thin adapter.
  *
- * WARNING: {@see self::CSP} MUST stay **byte-identical** to `previewCspHeader()`
- * in eXe core. Do not re-order, re-quote, reformat, or add a trailing `;`. This
- * is enforced ecosystem-wide by the `serving-contract` drift-check in core's
- * `scripts/check-embed-sync.mjs`.
+ * WARNING: {@see self::CSP} is `previewCspHeader()` from eXe core plus two
+ * documented additions, `allow-downloads` in the sandbox and
+ * `worker-src 'self' blob:` (ADR-68-01; same as mod_exelearning). Apart from
+ * those, do not re-order, re-quote, reformat, or add a trailing `;`. Re-sync
+ * from core whenever it changes.
  *
  * Note: this is a DIFFERENT string from {@see \OCA\ExeLearning\Service\IframeSandbox}
  * used for *published* content. Published content pins `frame-src`/`img-src` to
@@ -33,13 +34,20 @@ namespace OCA\ExeLearning\Service\Preview;
  */
 final class PreviewPolicy {
 	/**
-	 * Byte-identical to `previewCspHeader()` in eXe core
-	 * `src/shared/security/previewSandbox.ts`. The leading `sandbox` directive
-	 * drops the document into an opaque, unique origin even when the capability
-	 * URL is opened top-level (new tab / popup / raw URL); the rest is
+	 * `previewCspHeader()` from eXe core `src/shared/security/previewSandbox.ts`
+	 * plus `allow-downloads` and `worker-src 'self' blob:`. The leading `sandbox`
+	 * directive drops the document into an opaque, unique origin even when the
+	 * capability URL is opened top-level (new tab / popup / raw URL); the rest is
 	 * defence-in-depth. Emitted verbatim on every scriptable document type.
+	 *
+	 * The two additions let the previewed package's own .elpx download button
+	 * work: fflate compresses in `blob:` workers, which the `child-src` fallback
+	 * blocks without `worker-src`, and a sandboxed document without
+	 * `allow-downloads` cannot save the file (exelearning/exelearning#2488). The
+	 * editor's preview iframe already grants `allow-downloads`; the effective
+	 * sandbox is the intersection, so the CSP was the limiting side.
 	 */
-	public const CSP = 'sandbox allow-scripts allow-popups allow-forms; '
+	public const CSP = 'sandbox allow-scripts allow-popups allow-forms allow-downloads; '
 		. "default-src 'self'; "
 		. "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
 		. "style-src 'self' 'unsafe-inline'; "
@@ -47,6 +55,7 @@ final class PreviewPolicy {
 		. "media-src 'self' data: blob: https:; "
 		. "font-src 'self' data:; "
 		. "connect-src 'self'; "
+		. "worker-src 'self' blob:; "
 		. "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; "
 		. "child-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; "
 		. "object-src 'none'; "

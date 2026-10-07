@@ -32,6 +32,12 @@ Before this PR the viewer iframe carried `allow-downloads`
 dropped it from the secure token set, and its published Content-Security-Policy
 has no `worker-src`.
 
+The opaque editor preview has the same gap. Its CSP
+(`lib/Service/Preview/PreviewPolicy.php`) copied eXe core's `previewCspHeader()`,
+whose `sandbox` lacks `allow-downloads` and which has a `child-src` but no
+`worker-src`. The editor's preview iframe already grants `allow-downloads`, but
+the effective sandbox is the intersection of the attribute and the CSP.
+
 ## Problem
 
 Inside the opaque viewer the button breaks in two ways:
@@ -72,6 +78,14 @@ Rejected: it worked before this PR.
 - Omeka S: ADR-63-01 in exelearning/omeka-s-exelearning (#63), carried into its
   opaque viewer in exelearning/omeka-s-exelearning#21.
 - exelearning/exelearning#2488 (the hang under the content CSP).
+- mod_exelearning: `classes/local/preview/serving.php` in
+  exelearning/moodle-mod_exelearning#80 adds the same two allowances to its
+  editor preview CSP.
+- Browser reproduction (Chrome) of the preview CSP inside an iframe carrying the
+  editor's preview sandbox attribute: without the additions the console reports
+  "Creating a worker from 'blob:null/…' violates … child-src … 'worker-src' was
+  not explicitly set" and "Download is disallowed … 'allow-downloads' is not
+  set"; with them the `blob:` worker runs and the download is not blocked.
 
 ## Decision
 
@@ -80,14 +94,16 @@ iframe attribute in `src/elpx/iframe-renderer.ts` and `IframeSandbox` in PHP,
 whose secure set also feeds the response-level CSP `sandbox` directive), and
 `worker-src 'self' blob:` to the published Content-Security-Policy.
 
-The editor preview CSP (`lib/Service/Preview/PreviewPolicy.php`) is unchanged; it
-mirrors eXe core's `previewCspHeader()` and changes there first.
+The editor preview CSP (`lib/Service/Preview/PreviewPolicy.php`) gets the same two
+additions on top of eXe core's `previewCspHeader()`, as mod_exelearning does in
+`classes/local/preview/serving.php`. It is otherwise kept verbatim with core.
 
 ## Consequences
 
 ### Positive
 
-- The package's download button works in the opaque viewer.
+- The package's download button works in the opaque viewer and in the opaque
+  editor preview.
 
 ### Negative
 
@@ -108,13 +124,14 @@ mirrors eXe core's `previewCspHeader()` and changes there first.
 
 - `IframeSandboxTest` pins `allow-downloads` and `worker-src 'self' blob:`.
 - `iframe-renderer.test.ts` pins the secure iframe token set.
+- `PreviewPolicyTest` pins the editor preview CSP with both additions.
 - Manual: open a package that contains the download-source-file iDevice in the
   viewer and confirm its button saves an `.elpx`.
 
 ## Follow-up work
 
-- If eXe core adds `allow-downloads` to `previewCspHeader()`, mirror it in
-  `PreviewPolicy`.
+- If eXe core adds `allow-downloads` and `worker-src` to `previewCspHeader()`,
+  drop the local additions note from `PreviewPolicy` and keep it verbatim.
 
 ## References
 

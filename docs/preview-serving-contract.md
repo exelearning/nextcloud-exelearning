@@ -12,8 +12,10 @@ route under a sandbox CSP. There is no authored-content `srcdoc` transport and n
 Service Worker fallback here: missing or invalid configuration **fails closed**
 and the filtered preview stays.
 
-The sandbox CSP string must stay **byte-identical** to eXe core's
-`previewCspHeader()`; core is authoritative.
+The sandbox CSP string is eXe core's `previewCspHeader()` plus two additions,
+`allow-downloads` in the sandbox and `worker-src 'self' blob:`, so the previewed
+package's own `.elpx` download button works (ADR-68-01, the same additions as
+mod_exelearning). Core is otherwise authoritative.
 
 ## Why not the Service Worker
 

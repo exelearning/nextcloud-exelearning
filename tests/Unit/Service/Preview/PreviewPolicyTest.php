@@ -14,12 +14,13 @@ use PHPUnit\Framework\TestCase;
  */
 final class PreviewPolicyTest extends TestCase {
 	/**
-	 * Byte-identity with eXe core `previewCspHeader()`. If this ever fails the
-	 * CSP has drifted from core and must be re-synced verbatim (no re-order,
-	 * re-quote, reformat, or trailing `;`).
+	 * Pinned literal: eXe core `previewCspHeader()` plus `allow-downloads` and
+	 * `worker-src 'self' blob:` (ADR-68-01). If this ever fails the CSP has
+	 * drifted and must be re-synced (no re-order, re-quote, reformat, or
+	 * trailing `;`).
 	 */
-	public function testCspIsByteIdenticalToCore(): void {
-		$expected = 'sandbox allow-scripts allow-popups allow-forms; '
+	public function testCspMatchesCorePlusDownloadAdditions(): void {
+		$expected = 'sandbox allow-scripts allow-popups allow-forms allow-downloads; '
 			. "default-src 'self'; "
 			. "script-src 'self' 'unsafe-inline' 'unsafe-eval'; "
 			. "style-src 'self' 'unsafe-inline'; "
@@ -27,6 +28,7 @@ final class PreviewPolicyTest extends TestCase {
 			. "media-src 'self' data: blob: https:; "
 			. "font-src 'self' data:; "
 			. "connect-src 'self'; "
+			. "worker-src 'self' blob:; "
 			. "frame-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; "
 			. "child-src 'self' https://www.youtube-nocookie.com https://player.vimeo.com; "
 			. "object-src 'none'; "
@@ -37,6 +39,7 @@ final class PreviewPolicyTest extends TestCase {
 		// The leading sandbox directive is what makes the document opaque.
 		self::assertStringStartsWith('sandbox allow-scripts allow-popups allow-forms', PreviewPolicy::CSP);
 		self::assertStringNotContainsString('allow-same-origin', PreviewPolicy::CSP);
+		self::assertStringNotContainsString('allow-popups-to-escape-sandbox', PreviewPolicy::CSP);
 	}
 
 	public function testPermissionsPolicyMatchesContract(): void {
