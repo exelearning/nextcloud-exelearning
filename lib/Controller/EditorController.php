@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Controller;
 
+use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Service\EditorHtmlService;
 use OCA\ExeLearning\Service\ElpxPackageService;
@@ -36,6 +37,7 @@ class EditorController extends Controller {
 		private readonly LegacyFileMigrationService $legacyFileMigration,
 		private readonly EditorHtmlService $editorHtml,
 		private readonly IURLGenerator $urlGenerator,
+		private readonly CsrfTokenManager $csrfTokenManager,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -110,7 +112,8 @@ class EditorController extends Controller {
 	 *    asset paths (`./libs/...`, `./style/...`) resolve correctly even
 	 *    when the app is mounted under `/custom_apps/`.
 	 *  - `window.__EXE_EMBEDDING_CONFIG__` populated before any editor
-	 *    script runs (the editor's RuntimeConfig reads it during bootstrap).
+	 *    script runs (the editor's RuntimeConfig reads it during bootstrap),
+	 *    including the `previewSnapshot` transport used by the opaque preview.
 	 *  - A small bridge that forwards Ctrl/Cmd+S to the parent and patches
 	 *    `EmbeddingBridge.handleSaveRequest` for the v4.0.0 export quirk.
 	 *  - A permissive CSP — eXeLearning has many inline scripts and styles;
@@ -143,6 +146,18 @@ class EditorController extends Controller {
 		// save. Deriving from `document.baseURI` (which equals the scoped
 		// `<base href>` at runtime) keeps it correct in both a normal install and
 		// under a scoped path.
+		// The editor preview management API keeps CSRF protection enabled. Add
+		// its transport config before EditorHtmlService prepends the common
+		// embedding config, so both scripts execute before the editor bundle.
+		$previewSnapshot = json_encode($this->previewSnapshotConfig(), JSON_HEX_TAG);
+		$previewScript = '<script>window.__EXE_EMBEDDING_CONFIG__=Object.assign('
+			. 'window.__EXE_EMBEDDING_CONFIG__||{},'
+			. '{previewSnapshot:' . $previewSnapshot . '});</script>';
+		if (preg_match('/<head[^>]*>/i', $html, $match, PREG_OFFSET_CAPTURE)) {
+			$position = $match[0][1] + strlen($match[0][0]);
+			$html = substr($html, 0, $position) . $previewScript . substr($html, $position);
+		}
+
 		$html = $this->editorHtml->prepare($html, $editorBaseHref);
 
 		$response = new DataDisplayResponse($html, Http::STATUS_OK, [
@@ -167,6 +182,44 @@ class EditorController extends Controller {
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
 		$response->addHeader('Cache-Control', 'private, no-cache');
 		return $response;
+	}
+
+	/**
+	 * Builds the editor's opaque-preview transport configuration.
+	 *
+	 * The management routes remain authenticated and CSRF-protected, while the
+	 * serving URL is an authless capability path consumed from the opaque iframe.
+	 *
+	 * @return array{managementUrl:string,servingBaseUrl:string,deleteUrlTemplate:string,managementHeaders:object}
+	 */
+	private function previewSnapshotConfig(): array {
+		$sampleId = '00000000-0000-4000-8000-000000000000';
+
+		$sampleUrl = $this->urlGenerator->linkToRoute(
+			Application::APP_ID . '.preview.serveRoot',
+			['previewId' => $sampleId],
+		);
+		$servingBaseUrl = str_ends_with($sampleUrl, '/' . $sampleId)
+			? substr($sampleUrl, 0, -(strlen($sampleId) + 1))
+			: $sampleUrl;
+
+		$deleteUrlTemplate = str_replace(
+			$sampleId,
+			'{previewId}',
+			$this->urlGenerator->linkToRoute(
+				Application::APP_ID . '.previewSession.delete',
+				['previewId' => $sampleId],
+			),
+		);
+
+		return [
+			'managementUrl' => $this->urlGenerator->linkToRoute(Application::APP_ID . '.previewSession.create'),
+			'servingBaseUrl' => $servingBaseUrl,
+			'deleteUrlTemplate' => $deleteUrlTemplate,
+			'managementHeaders' => (object)[
+				'requesttoken' => $this->csrfTokenManager->getToken()->getEncryptedValue(),
+			],
+		];
 	}
 
 }

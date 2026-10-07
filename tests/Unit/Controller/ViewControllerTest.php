@@ -6,7 +6,9 @@ namespace OCA\ExeLearning\Tests\Unit\Controller;
 
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Controller\ViewController;
+use OCA\ExeLearning\Service\ContentTokenService;
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\IframeSandbox;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Services\IInitialState;
 use OCP\Files\File;
@@ -22,6 +24,8 @@ final class ViewControllerTest extends TestCase {
 	private IUserSession $session;
 	private ElpxPackageService $packages;
 	private InitialStateRecorder $initialState;
+	private ContentTokenService $contentTokens;
+	private IframeSandbox $sandbox;
 	private ViewController $controller;
 
 	protected function setUp(): void {
@@ -29,12 +33,16 @@ final class ViewControllerTest extends TestCase {
 		$this->session = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->initialState = new InitialStateRecorder();
+		$this->contentTokens = new ContentTokenService('unit-test-secret', static fn (): int => 1_700_000_000);
+		$this->sandbox = new IframeSandbox(static fn (string $name): ?string => null);
 		$this->controller = new ViewController(
 			'exelearning',
 			$this->createMock(IRequest::class),
 			$this->session,
 			$this->packages,
 			$this->initialState,
+			$this->contentTokens,
+			$this->sandbox,
 		);
 	}
 
@@ -132,6 +140,9 @@ final class ViewControllerTest extends TestCase {
 
 	private function assertPageStateAndPolicy(object $response, string $mode): void {
 		self::assertSame(Http::STATUS_OK, $response->getStatus());
+		self::assertTrue($this->initialState->states['secureIframe']);
+		self::assertSame('strict', $this->initialState->states['embedRelay']['mode']);
+		self::assertContains('www.youtube.com', $this->initialState->states['embedRelay']['whitelist']);
 		self::assertSame(false, $this->initialState->states['editorAvailable']);
 		self::assertSame($mode, $this->initialState->states['initialMode']);
 		self::assertSame([[Application::APP_ID, 'exelearning-view']], Util::$scripts);
@@ -141,7 +152,9 @@ final class ViewControllerTest extends TestCase {
 		self::assertSame(["'self'"], $policy->workerSrc);
 		self::assertSame(["'self'"], $policy->scriptDomains);
 		self::assertSame(["'self'"], $policy->connectDomains);
-		self::assertSame(["'self'"], $policy->frameDomains);
+		self::assertSame("'self'", $policy->frameDomains[0]);
+		self::assertContains('https://www.youtube.com', $policy->frameDomains);
+		self::assertContains('https://player.vimeo.com', $policy->frameDomains);
 	}
 }
 
