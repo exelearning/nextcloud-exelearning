@@ -19,6 +19,9 @@ updates:
     schedule:
       interval: "weekly"
     ignore:
+      # @nextcloud/vite-config@2.x requires Vite 7; unblock Vite 8 with a coordinated 3.x upgrade.
+      - dependency-name: "vite"
+        versions: [">=8.0.0"]
       # Tooling capped by @nextcloud/eslint-config@8 peers (closed #65/#66, re-rolls of #51/#42)
       - dependency-name: "eslint"
         update-types: ["version-update:semver-major"]
