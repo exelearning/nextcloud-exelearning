@@ -7,6 +7,11 @@ export default defineConfig({
 	test: {
 		globals: true,
 		environment: 'happy-dom',
+		// happy-dom 21 makes iframe page loading opt-in, which leaves
+		// iframes without a contentWindow; the editor-frame tests need one.
+		environmentOptions: {
+			happyDOM: { settings: { enableIframePageLoading: true } },
+		},
 		// @nextcloud/files@3 (aliased as -legacy) imports a named export from
 		// the CJS-only `cancelable-promise`; let Vite transform it instead of
 		// loading it as native ESM.
