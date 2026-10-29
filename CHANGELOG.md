@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+## [4.0.6] - 2026-10-29
+
 ### Fixed
 
 - Nextcloud 31 and 32: the "New eXeLearning resource" entry, the eXeLearning
