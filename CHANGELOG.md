@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- Rewrote the app store summary and description, and added Spanish
+  translations alongside the English originals.
+- Replaced the app store screenshot. The `<screenshot>` URL pointed at
+  `img/screenshot.png`, a file that never existed in the repository, so the
+  store listing showed a broken image.
+
 ## [4.0.6] - 2026-10-29
 
 ### Fixed
