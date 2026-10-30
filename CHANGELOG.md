@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- Unit tests no longer depend on whether `js/editor/` happens to exist. The
+  editor lookup moved behind an injectable `EditorAssetService`, so the suite
+  passes identically with and without the bundle. `EditorControllerTest` also
+  stopped writing to (and restoring) the repository's real
+  `js/editor/index.html`, which clobbered a downloaded editor if a case aborted.
+- CI now checks that every `<screenshot>` URL in `appinfo/info.xml` resolves to
+  a file that exists in the repository. The appstore schema only validates the
+  URL's syntax, which is why a URL pointing at a non-existent
+  `img/screenshot.png` went unnoticed.
+- README and both app store descriptions: corrected the claim that previews
+  open in a Nextcloud Viewer modal. No Viewer handler is registered at all
+  (`src/main.ts`: "The Viewer handler path is intentionally not used"); a Files
+  action opens a full page at `/apps/exelearning/view`. The README also now
+  documents resource creation alongside editing.
+
 ### Added
 
 - Nextcloud 34 support: the supported range is now 31-34. `nextcloud:stable`
