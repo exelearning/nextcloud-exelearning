@@ -20,7 +20,7 @@ The **eXeLearning app for Nextcloud** allows users to **view, edit and create eX
 - **File previews:** use the `screenshot.png` image included in resources to generate thumbnails in Nextcloud.
 - **Integrated editor:** the installation package includes the eXeLearning web editor. Installations from a source checkout must download it using `make download-editor`.
 
-The app registers a Nextcloud Viewer handler to open `.elpx` packages in a navigable modal. HTML pages, CSS, JavaScript and multimedia files are loaded through a scoped Service Worker and rendered inside a sandboxed iframe.
+The app registers a **Files** action that opens `.elpx` packages in a full-page view. HTML pages, CSS, JavaScript and multimedia files are loaded through a scoped Service Worker and rendered inside a sandboxed iframe.
 ]]></description>
 
     <description lang="es"><![CDATA[
@@ -38,7 +38,7 @@ La aplicación **eXeLearning para Nextcloud** permite **visualizar, editar y cre
 - **Vista previa:** utiliza la imagen `screenshot.png` incluida en los recursos para generar miniaturas en Nextcloud.
 - **Editor integrado:** el paquete de instalación incluye el editor web de eXeLearning. Las instalaciones desde el código fuente deben descargarlo mediante `make download-editor`.
 
-La aplicación utiliza el visor de Nextcloud y un Service Worker para cargar los contenidos de los archivos `.elpx` en un entorno aislado (*sandbox*).
+La aplicación añade una acción en **Archivos** que abre los paquetes `.elpx` en una vista a página completa. Las páginas HTML, el CSS, el JavaScript y los archivos multimedia se cargan mediante un Service Worker acotado y se muestran dentro de un iframe aislado (*sandbox*).
 ]]></description>
     <version>0.0.0-alpha</version>
     <licence>agpl</licence>

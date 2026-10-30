@@ -18,9 +18,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
   a file that exists in the repository. The appstore schema only validates the
   URL's syntax, which is why a URL pointing at a non-existent
   `img/screenshot.png` went unnoticed.
-- README: corrected the claim that previews open in a Nextcloud Viewer modal
-  (they open a full page at `/apps/exelearning/view`) and documented resource
-  creation alongside editing.
+- README and both app store descriptions: corrected the claim that previews
+  open in a Nextcloud Viewer modal. No Viewer handler is registered at all
+  (`src/main.ts`: "The Viewer handler path is intentionally not used"); a Files
+  action opens a full page at `/apps/exelearning/view`. The README also now
+  documents resource creation alongside editing.
 
 ### Added
 
