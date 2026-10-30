@@ -51,7 +51,7 @@ La aplicación utiliza el visor de Nextcloud y un Service Worker para cargar los
     <website>https://exelearning.net</website>
     <bugs>https://github.com/exelearning/nextcloud-exelearning/issues</bugs>
     <repository>https://github.com/exelearning/nextcloud-exelearning</repository>
-    <screenshot>https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/img/nextcloud.png</screenshot>
+    <screenshot>https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/img/screenshot.png</screenshot>
 
     <dependencies>
         <php min-version="8.2" max-version="8.5"/>
