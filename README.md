@@ -33,7 +33,9 @@ playground link (posted as a PR comment) built from that branch — see
 
 When a user clicks a `.elpx` file in Nextcloud Files:
 
-1. A Nextcloud Viewer modal opens.
+1. A full-page view opens at `/apps/exelearning/view`. The Nextcloud Viewer
+   modal is deliberately not used: its built-in chrome cannot be customised,
+   and the preview wants a full-bleed layout with a single Edit affordance.
 2. The package is downloaded and validated for the current user.
 3. The internal `index.html` and its relative assets (`html/`, `content/`,
    `libs/`, `theme/`, `idevices/`, images, CSS, JS, audio, video, …) render
@@ -53,12 +55,17 @@ transport (serving contract v2), never the Service Worker. See
 > (a trusted-content compatibility mode, **not** a security boundary); the opaque
 > HTTP path is the default.
 
-Optional features:
+Thumbnails are powered by the `screenshot.png` inside the `.elpx` package.
 
-- Thumbnails powered by `screenshot.png` inside the `.elpx` package.
-- "Edit with eXeLearning" action that opens the static eXeLearning editor.
-  The release package (GitHub release / app store) already bundles it; only a
-  source checkout needs `make download-editor`.
+Editing and creation both need the bundled editor, so both are optional. The
+release package (GitHub release / app store) already bundles it; only a source
+checkout needs `make download-editor`. Preview-only installs are first-class
+and no preview code path depends on `js/editor/` being present.
+
+- **"Edit with eXeLearning"** opens the static editor over the current package.
+- **"New eXeLearning resource"** in the Files New menu writes a blank `.elpx`
+  from a server-side template and opens it in the editor. The file is created
+  either way, but without the editor bundle the page it lands on returns 404.
 
 ## How this is different from sibling projects
 

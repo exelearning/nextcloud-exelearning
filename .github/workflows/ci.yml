@@ -186,6 +186,61 @@ jobs:
             https://apps.nextcloud.com/schema/apps/info.xsd
           xmllint --noout --schema "${RUNNER_TEMP}/info.xsd" appinfo/info.xml
 
+      # The schema only checks that <screenshot> is a syntactically valid
+      # https URL -- it never dereferences it. `img/screenshot.png` was
+      # referenced for months while no such file existed in the repository,
+      # so the store listing showed a broken image and nothing complained.
+      - name: Check screenshot URLs resolve to files in this repository
+        run: |
+          set -euo pipefail
+          urls=$(xmllint --xpath '//screenshot/text() | //screenshot/@small-thumbnail' \
+            appinfo/info.xml 2>/dev/null | sed 's/ *small-thumbnail="//; s/"$//' | tr -s ' \n' '\n' | grep . || true)
+          if [ -z "$urls" ]; then
+            echo "No <screenshot> element in appinfo/info.xml." >&2
+            exit 1
+          fi
+          prefix="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/"
+          status=0
+          for url in $urls; do
+            case "$url" in
+              "$prefix"*)
+                path=${url#"$prefix"}
+                if [ -f "$path" ]; then
+                  echo "ok: $path exists in the repository ($url)"
+                else
+                  echo "MISSING: $url points at '$path', which does not exist in this repository." >&2
+                  status=1
+                fi
+                ;;
+              *)
+                # Hosted elsewhere, so the repository cannot vouch for it.
+                # Fall back to asking the server.
+                if curl -fsI --max-time 20 "$url" >/dev/null; then
+                  echo "ok: $url is reachable"
+                else
+                  echo "UNREACHABLE: $url" >&2
+                  status=1
+                fi
+                ;;
+            esac
+          done
+          exit $status
+
+      # Belt and braces, and only once the change is on main: confirm the URL
+      # the app store will actually fetch really serves the file. Catches a
+      # repository rename or a visibility change, which the path check above
+      # cannot see. Never runs on a pull request, where the file is legitimately
+      # not on main yet.
+      - name: Check screenshot URLs are live
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          set -euo pipefail
+          xmllint --xpath '//screenshot/text()' appinfo/info.xml \
+            | tr -s ' \n' '\n' | grep . | while read -r url; do
+              curl -fsI --max-time 20 "$url" >/dev/null && echo "ok: $url" || {
+                echo "UNREACHABLE: $url" >&2; exit 1; }
+            done
+
   backend:
     name: ${{ matrix.nextcloud }} / PHP ${{ matrix.php }} / ${{ matrix.database }}
     runs-on: ubuntu-latest
@@ -199,13 +254,15 @@ jobs:
           - { php: '8.4', nextcloud: 'stable31', database: 'sqlite' }
           # NC 32 — middle of the range
           - { php: '8.3', nextcloud: 'stable32', database: 'sqlite' }
-          # NC 33 — current latest, the version that exposed the
-          # @nextcloud/files v3→v4 scope mismatch this matrix exists to
-          # prevent regressing on.
+          # NC 33 — the version that exposed the @nextcloud/files v3→v4
+          # scope mismatch this matrix exists to prevent regressing on.
           - { php: '8.2', nextcloud: 'stable33', database: 'sqlite' }
           - { php: '8.4', nextcloud: 'stable33', database: 'sqlite' }
+          # NC 34 — current latest, and what `nextcloud:stable` now resolves to.
+          - { php: '8.2', nextcloud: 'stable34', database: 'sqlite' }
+          - { php: '8.4', nextcloud: 'stable34', database: 'sqlite' }
           # PHP 8.5 preview — informational, allowed to fail.
-          - { php: '8.5', nextcloud: 'stable33', database: 'sqlite', experimental: true }
+          - { php: '8.5', nextcloud: 'stable34', database: 'sqlite', experimental: true }
 
     steps:
       - name: Checkout

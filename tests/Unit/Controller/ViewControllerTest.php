@@ -7,6 +7,7 @@ namespace OCA\ExeLearning\Tests\Unit\Controller;
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Controller\ViewController;
 use OCA\ExeLearning\Service\ContentTokenService;
+use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCA\ExeLearning\Service\IframeSandbox;
 use OCP\AppFramework\Http;
@@ -35,6 +36,9 @@ final class ViewControllerTest extends TestCase {
 		$this->initialState = new InitialStateRecorder();
 		$this->contentTokens = new ContentTokenService('unit-test-secret', static fn (): int => 1_700_000_000);
 		$this->sandbox = new IframeSandbox(static fn (string $name): ?string => null);
+		// Point the editor lookup at a path that cannot exist rather than the
+		// repository's js/editor/, which is present on any checkout where
+		// `make download-editor` has run and absent in CI.
 		$this->controller = new ViewController(
 			'exelearning',
 			$this->createMock(IRequest::class),
@@ -43,7 +47,35 @@ final class ViewControllerTest extends TestCase {
 			$this->initialState,
 			$this->contentTokens,
 			$this->sandbox,
+			new EditorAssetService(sys_get_temp_dir() . '/exelearning-no-editor/index.html'),
 		);
+	}
+
+	public function testReportsTheEditorAsAvailableWhenTheBundleIsPresent(): void {
+		$dir = sys_get_temp_dir() . '/exelearning-view-editor-' . bin2hex(random_bytes(8));
+		mkdir($dir, 0o777, true);
+		file_put_contents($dir . '/index.html', '<html></html>');
+		$controller = new ViewController(
+			'exelearning',
+			$this->createMock(IRequest::class),
+			$this->session,
+			$this->packages,
+			$this->initialState,
+			$this->contentTokens,
+			$this->sandbox,
+			new EditorAssetService($dir . '/index.html'),
+		);
+		$user = $this->createMock(IUser::class);
+		$user->method('getUID')->willReturn('alice');
+		$this->session->method('getUser')->willReturn($user);
+		$this->packages->method('getForUserById')->willThrowException(new NotFoundException());
+
+		$controller->index(fileId: 42);
+
+		self::assertSame(true, $this->initialState->states['editorAvailable']);
+
+		unlink($dir . '/index.html');
+		rmdir($dir);
 	}
 
 	public function testRequiresAuthentication(): void {

@@ -79,3 +79,6 @@ DEVELOPMENT.md              export-ignore
 Makefile                    export-ignore
 make.bat                    export-ignore
 make.cmd                    export-ignore
+
+# --- App store screenshot (fetched from GitHub, never served by the app) -
+img/screenshot.png          export-ignore

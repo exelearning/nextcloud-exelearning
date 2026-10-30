@@ -106,3 +106,8 @@ make.cmd
 # Not required at runtime; keeping them out reduces archive size.
 js/*.map
 js/*.LICENSE.txt
+
+# --- App store screenshot (fetched from GitHub, never served by the app) -
+# The <screenshot> element in appinfo/info.xml points the store at the raw
+# GitHub URL, so the bytes are never read from the install.
+img/screenshot.png

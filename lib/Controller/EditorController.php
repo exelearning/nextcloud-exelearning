@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\Controller;
 
 use OC\Security\CSRF\CsrfTokenManager;
 use OCA\ExeLearning\AppInfo\Application;
+use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\EditorHtmlService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCA\ExeLearning\Service\LegacyFileMigrationService;
@@ -38,6 +39,7 @@ class EditorController extends Controller {
 		private readonly EditorHtmlService $editorHtml,
 		private readonly IURLGenerator $urlGenerator,
 		private readonly CsrfTokenManager $csrfTokenManager,
+		private readonly EditorAssetService $editorAssets,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -126,12 +128,11 @@ class EditorController extends Controller {
 		if ($user === null) {
 			return new DataResponse(['error' => 'Not authenticated'], Http::STATUS_UNAUTHORIZED);
 		}
-		$editorIndexPath = __DIR__ . '/../../js/editor/index.html';
-		if (!is_file($editorIndexPath)) {
+		if (!$this->editorAssets->isAvailable()) {
 			return new DataResponse(['error' => 'Editor not installed'], Http::STATUS_NOT_FOUND);
 		}
-		$html = file_get_contents($editorIndexPath);
-		if ($html === false) {
+		$html = $this->editorAssets->readIndexHtml();
+		if ($html === null) {
 			return new DataResponse(['error' => 'Cannot read editor index'], Http::STATUS_INTERNAL_SERVER_ERROR);
 		}
 

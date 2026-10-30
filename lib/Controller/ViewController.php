@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\Controller;
 
 use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Service\ContentTokenService;
+use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCA\ExeLearning\Service\IframeSandbox;
 use OCP\AppFramework\Controller;
@@ -41,6 +42,7 @@ class ViewController extends Controller {
 		private readonly IInitialState $initialState,
 		private readonly ContentTokenService $contentTokens,
 		private readonly IframeSandbox $sandbox,
+		private readonly EditorAssetService $editorAssets,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -99,7 +101,7 @@ class ViewController extends Controller {
 		);
 		$this->initialState->provideInitialState(
 			'editorAvailable',
-			is_file(__DIR__ . '/../../js/editor/index.html'),
+			$this->editorAssets->isAvailable(),
 		);
 		$this->initialState->provideInitialState(
 			'initialMode',
