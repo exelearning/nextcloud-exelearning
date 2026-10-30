@@ -1,26 +1,45 @@
-<?xml version="1.0"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <info xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
       xsi:noNamespaceSchemaLocation="https://apps.nextcloud.com/schema/apps/info.xsd">
     <id>exelearning</id>
     <name>eXeLearning</name>
-    <summary>Preview and edit eXeLearning .elpx packages in Nextcloud</summary>
+    <summary>View, edit and create eXeLearning resources directly from Nextcloud.</summary>
+    <summary lang="es">Visualiza, edita y crea recursos de eXeLearning directamente desde Nextcloud.</summary>
     <description><![CDATA[
-Provides a Nextcloud Files viewer for eXeLearning `.elpx` packages by
-rendering the internal `index.html` inside a sandboxed iframe.
+The **eXeLearning app for Nextcloud** allows users to **view, edit and create eXeLearning educational resources (`.elpx`)** directly from **Files**, without downloading them.
 
-The app registers a Nextcloud Viewer handler so `.elpx` files open in a modal
-with the package fully navigable: HTML pages, CSS, JavaScript, images, audio
-and video resolve from the package contents through a scoped Service Worker.
+### Main features
 
-Optional features:
+- **Resource viewing:** open `.elpx` files directly in Nextcloud and display their complete contents in an integrated viewer.
+- **Interactive navigation:** browse resource pages and display images, videos, audio and interactive activities.
+- **Resource editing:** use the "Edit with eXeLearning" action to modify existing resources directly from Nextcloud.
+- **Resource creation:** create new eXeLearning projects directly from Nextcloud.
 
-- `screenshot.png` thumbnails as Nextcloud previews.
-- "Edit with eXeLearning" action that opens the static eXeLearning editor
-  bundled in the release package. Only installs from a source checkout need
-  to fetch it with `make download-editor`.
+### Additional features
 
-This app is Nextcloud-native and does not depend on Google Drive.
-    ]]></description>
+- **File previews:** use the `screenshot.png` image included in resources to generate thumbnails in Nextcloud.
+- **Integrated editor:** the installation package includes the eXeLearning web editor. Installations from a source checkout must download it using `make download-editor`.
+
+The app registers a Nextcloud Viewer handler to open `.elpx` packages in a navigable modal. HTML pages, CSS, JavaScript and multimedia files are loaded through a scoped Service Worker and rendered inside a sandboxed iframe.
+]]></description>
+
+    <description lang="es"><![CDATA[
+La aplicación **eXeLearning para Nextcloud** permite **visualizar, editar y crear recursos educativos de eXeLearning (`.elpx`)** directamente desde **Archivos**, sin necesidad de descargarlos.
+
+### Funcionalidades principales
+
+- **Visualización de recursos:** abre archivos `.elpx` directamente en Nextcloud, mostrando su contenido completo en un visor integrado.
+- **Navegación interactiva:** permite recorrer las páginas del recurso y visualizar imágenes, vídeos, audios y actividades interactivas.
+- **Edición de recursos:** incorpora la opción «Editar con eXeLearning» para modificar los recursos desde Nextcloud.
+- **Creación de recursos:** permite crear nuevos proyectos de eXeLearning directamente desde Nextcloud.
+
+### Funcionalidades adicionales
+
+- **Vista previa:** utiliza la imagen `screenshot.png` incluida en los recursos para generar miniaturas en Nextcloud.
+- **Editor integrado:** el paquete de instalación incluye el editor web de eXeLearning. Las instalaciones desde el código fuente deben descargarlo mediante `make download-editor`.
+
+La aplicación utiliza el visor de Nextcloud y un Service Worker para cargar los contenidos de los archivos `.elpx` en un entorno aislado (*sandbox*).
+]]></description>
     <version>0.0.0-alpha</version>
     <licence>agpl</licence>
     <author mail="info@exelearning.net">eXeLearning</author>
