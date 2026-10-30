@@ -5,7 +5,6 @@
     <name>eXeLearning</name>
     <summary lang="es">Visualiza, edita y crea recursos de eXeLearning directamente desde Nextcloud.</summary>
     <summary lang="en">View, edit and create eXeLearning resources directly from Nextcloud.</summary>
-    <!-- ESPAÑOL -->
     <description lang="es"><![CDATA[
 La aplicación **eXeLearning para Nextcloud** permite **visualizar, editar y crear recursos educativos de eXeLearning (`.elpx`)** directamente desde **Archivos**, sin necesidad de descargarlos.
 
@@ -24,7 +23,6 @@ La aplicación **eXeLearning para Nextcloud** permite **visualizar, editar y cre
 La aplicación utiliza el visor de Nextcloud y un Service Worker para cargar los contenidos de los archivos `.elpx` en un entorno aislado (*sandbox*).
 ]]></description>
 
-    <!-- ENGLISH -->
     <description lang="en"><![CDATA[
 The **eXeLearning app for Nextcloud** allows users to **view, edit and create eXeLearning educational resources (`.elpx`)** directly from **Files**, without downloading them.
 
@@ -53,7 +51,6 @@ The app registers a Nextcloud Viewer handler to open `.elpx` packages in a navig
     <website>https://exelearning.net</website>
     <bugs>https://github.com/exelearning/nextcloud-exelearning/issues</bugs>
     <repository>https://github.com/exelearning/nextcloud-exelearning</repository>
-    <!-- IMAGEN DE LA APP -->
     <screenshot small-thumbnail="https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/img/nextcloud.png">https://raw.githubusercontent.com/exelearning/nextcloud-exelearning/main/img/nextcloud.png</screenshot>
 
     <dependencies>
