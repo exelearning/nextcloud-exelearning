@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\Tests\Unit\Controller;
 
 use OCA\ExeLearning\Controller\EditorController;
+use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\EditorHtmlService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCA\ExeLearning\Service\LegacyFileMigrationService;
@@ -27,8 +28,7 @@ final class EditorControllerTest extends TestCase {
 	private IURLGenerator $urlGenerator;
 	private EditorController $controller;
 	private string $editorIndexPath;
-	private ?string $originalEditorIndex = null;
-	private bool $editorIndexExisted = false;
+	private string $editorDir;
 
 	protected function setUp(): void {
 		$this->request = $this->createMock(IRequest::class);
@@ -39,6 +39,12 @@ final class EditorControllerTest extends TestCase {
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->urlGenerator->method('linkTo')->willReturn('/custom_apps/exelearning/');
 		$this->urlGenerator->method('linkToRoute')->willReturn('/apps/exelearning/editor/iframe');
+		// A private temp directory, never the repository's own js/editor/: the
+		// real bundle is present on any checkout where `make download-editor`
+		// has run, and writing to it made these tests both order-dependent and
+		// destructive if a case aborted before tearDown restored the file.
+		$this->editorDir = sys_get_temp_dir() . '/exelearning-editor-' . bin2hex(random_bytes(8));
+		$this->editorIndexPath = $this->editorDir . '/index.html';
 		$this->controller = new EditorController(
 			'exelearning',
 			$this->request,
@@ -47,25 +53,13 @@ final class EditorControllerTest extends TestCase {
 			$this->legacyMigration,
 			$this->editorHtml,
 			$this->urlGenerator,
+			new EditorAssetService($this->editorIndexPath),
 		);
-		$this->editorIndexPath = dirname(__DIR__, 3) . '/js/editor/index.html';
-		$this->editorIndexExisted = is_file($this->editorIndexPath);
-		if ($this->editorIndexExisted) {
-			$contents = file_get_contents($this->editorIndexPath);
-			$this->originalEditorIndex = is_string($contents) ? $contents : null;
-		}
 	}
 
 	protected function tearDown(): void {
-		if ($this->editorIndexExisted) {
-			if ($this->originalEditorIndex !== null) {
-				file_put_contents($this->editorIndexPath, $this->originalEditorIndex);
-			}
-			return;
-		}
-
 		@unlink($this->editorIndexPath);
-		@rmdir(dirname($this->editorIndexPath));
+		@rmdir($this->editorDir);
 	}
 
 	/**
@@ -96,6 +90,7 @@ final class EditorControllerTest extends TestCase {
 			$this->legacyMigration,
 			$this->editorHtml,
 			$urlGenerator,
+			new EditorAssetService($this->editorIndexPath),
 		);
 
 		$response = $controller->index(...$args);
@@ -190,9 +185,8 @@ final class EditorControllerTest extends TestCase {
 	}
 
 	private function writeEditorIndex(string $html): void {
-		$dir = dirname($this->editorIndexPath);
-		if (!is_dir($dir)) {
-			mkdir($dir, 0777, true);
+		if (!is_dir($this->editorDir)) {
+			mkdir($this->editorDir, 0o777, true);
 		}
 		file_put_contents($this->editorIndexPath, $html);
 	}

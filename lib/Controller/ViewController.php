@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\Controller;
 
 use OCA\ExeLearning\AppInfo\Application;
+use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\ElpxPackageService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -37,6 +38,7 @@ class ViewController extends Controller {
 		private readonly IUserSession $userSession,
 		private readonly ElpxPackageService $packageService,
 		private readonly IInitialState $initialState,
+		private readonly EditorAssetService $editorAssets,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -76,7 +78,7 @@ class ViewController extends Controller {
 		}
 		$this->initialState->provideInitialState(
 			'editorAvailable',
-			is_file(__DIR__ . '/../../js/editor/index.html'),
+			$this->editorAssets->isAvailable(),
 		);
 		$this->initialState->provideInitialState(
 			'initialMode',
