@@ -55,6 +55,6 @@ La aplicación utiliza el visor de Nextcloud y un Service Worker para cargar los
 
     <dependencies>
         <php min-version="8.2" max-version="8.5"/>
-        <nextcloud min-version="31" max-version="33"/>
+        <nextcloud min-version="31" max-version="34"/>
     </dependencies>
 </info>

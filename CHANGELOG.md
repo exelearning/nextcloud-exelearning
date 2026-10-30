@@ -7,6 +7,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Nextcloud 34 support: the supported range is now 31-34. `nextcloud:stable`
+  already resolves to 34, so `make up` without an explicit `NC_VERSION` failed
+  to enable the app against the previous `max-version="33"`.
+- CI now covers `stable34` on PHP 8.2 and 8.4, and the informational PHP 8.5
+  cell moves from `stable33` to `stable34`.
+
 ### Changed
 
 - Rewrote the app store summary and description, and added Spanish

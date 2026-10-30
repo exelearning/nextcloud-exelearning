@@ -573,7 +573,7 @@ status:
 # container with a clean install and runs the smoke check (occ status +
 # /sw.js HEAD). Use `NC_VERSIONS=33 PHP_VERSIONS=8.4 make ci-matrix` to
 # narrow the sweep when iterating on a single cell.
-NC_VERSIONS  ?= 31 32 33
+NC_VERSIONS  ?= 31 32 33 34
 PHP_VERSIONS ?= 8.2 8.3 8.4
 
 ci-matrix: check-docker

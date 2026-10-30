@@ -186,13 +186,15 @@ jobs:
           - { php: '8.4', nextcloud: 'stable31', database: 'sqlite' }
           # NC 32 — middle of the range
           - { php: '8.3', nextcloud: 'stable32', database: 'sqlite' }
-          # NC 33 — current latest, the version that exposed the
-          # @nextcloud/files v3→v4 scope mismatch this matrix exists to
-          # prevent regressing on.
+          # NC 33 — the version that exposed the @nextcloud/files v3→v4
+          # scope mismatch this matrix exists to prevent regressing on.
           - { php: '8.2', nextcloud: 'stable33', database: 'sqlite' }
           - { php: '8.4', nextcloud: 'stable33', database: 'sqlite' }
+          # NC 34 — current latest, and what `nextcloud:stable` now resolves to.
+          - { php: '8.2', nextcloud: 'stable34', database: 'sqlite' }
+          - { php: '8.4', nextcloud: 'stable34', database: 'sqlite' }
           # PHP 8.5 preview — informational, allowed to fail.
-          - { php: '8.5', nextcloud: 'stable33', database: 'sqlite', experimental: true }
+          - { php: '8.5', nextcloud: 'stable34', database: 'sqlite', experimental: true }
 
     steps:
       - name: Checkout
