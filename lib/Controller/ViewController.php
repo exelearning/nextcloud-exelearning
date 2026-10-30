@@ -5,8 +5,10 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\Controller;
 
 use OCA\ExeLearning\AppInfo\Application;
+use OCA\ExeLearning\Service\ContentTokenService;
 use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\IframeSandbox;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
 use OCP\AppFramework\Http\Attribute\NoAdminRequired;
@@ -38,6 +40,8 @@ class ViewController extends Controller {
 		private readonly IUserSession $userSession,
 		private readonly ElpxPackageService $packageService,
 		private readonly IInitialState $initialState,
+		private readonly ContentTokenService $contentTokens,
+		private readonly IframeSandbox $sandbox,
 		private readonly EditorAssetService $editorAssets,
 	) {
 		parent::__construct($appName, $request);
@@ -66,6 +70,7 @@ class ViewController extends Controller {
 			}
 		}
 
+		$secureIframe = $this->sandbox->resolveMode() === IframeSandbox::MODE_SECURE;
 		if ($file !== null) {
 			$this->initialState->provideInitialState('file', [
 				'id' => $file->getId(),
@@ -75,7 +80,25 @@ class ViewController extends Controller {
 				'etag' => $file->getEtag(),
 				'writable' => $file->isUpdateable(),
 			]);
+			// In secure mode the package is served into an opaque-origin iframe
+			// over the cookieless /content/{token}/… capability route. The user's
+			// read permission was just checked above (getForUser*), so mint the
+			// bearer token here. Legacy (same-origin Service Worker) mode leaves
+			// this null and the viewer keeps its /runtime SW path.
+			$this->initialState->provideInitialState(
+				'contentToken',
+				$secureIframe ? $this->contentTokens->mint((int)$file->getId(), $user->getUID()) : null,
+			);
 		}
+		$this->initialState->provideInitialState('secureIframe', $secureIframe);
+		// External-media relay config for the trusted parent (see relay-host.ts):
+		// 'strict' mode overlays only the maintained provider hosts.
+		$this->initialState->provideInitialState(
+			'embedRelay',
+			$secureIframe
+				? ['mode' => $this->sandbox->embedMode(), 'whitelist' => $this->sandbox->providerWhitelist()]
+				: null,
+		);
 		$this->initialState->provideInitialState(
 			'editorAvailable',
 			$this->editorAssets->isAvailable(),
@@ -97,6 +120,12 @@ class ViewController extends Controller {
 		$csp->addAllowedScriptDomain("'self'");
 		$csp->addAllowedConnectDomain("'self'");
 		$csp->addAllowedFrameDomain("'self'");
+		// Promoted players are cross-origin frames mounted on THIS page by the relay, so
+		// 'self' alone blocks every one of them. Allowed hosts come from the same list the
+		// relay is given, never a copy.
+		foreach ($this->sandbox->playerFrameDomains() as $host) {
+			$csp->addAllowedFrameDomain('https://' . $host);
+		}
 		$response->setContentSecurityPolicy($csp);
 		return $response;
 	}
