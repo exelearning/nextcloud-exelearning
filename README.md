@@ -79,16 +79,18 @@ reproduce it locally with `make ci-matrix`.
 | 31 (best effort)    | 8.2, 8.4   | Supported (verified in CI)          |
 | 32                  | 8.3        | Supported (verified in CI)          |
 | 33                  | 8.2, 8.4   | Supported (verified in CI)          |
-| 33                  | 8.5        | Experimental (allow-failure in CI)  |
+| 34                  | 8.2, 8.4   | Supported (verified in CI)          |
+| 35                  | 8.3, 8.4   | Supported (verified in CI)          |
+| 35                  | 8.5        | Experimental (allow-failure in CI)  |
 
 Older Nextcloud versions (28, 29, 30) are EOL and not part of the matrix.
 NC 31 enters the supported range as best effort because upstream
-maintenance ends mid-2026; NC 32 and 33 are the reference targets.
+maintenance ends mid-2026. NC 35 requires PHP 8.3 or newer.
 
 The CI matrix checks that the app installs and enables on each version. It
 does not drive the Files app in a browser, so the Files integration (New
 menu entry, file actions) is not covered by it: NC 31-32 read those
-registrations through `@nextcloud/files` v3 and NC 33 through v4, and the
+registrations through `@nextcloud/files` v3 and NC 33+ through v4, and the
 app registers through whichever one the running server reads.
 
 | Component       | Version                                |
@@ -165,7 +167,7 @@ make up DOCKER_NAME=nc-test        # use a different container name
 Reproduce the full CI matrix locally:
 
 ```bash
-make ci-matrix                     # iterates NC 31/32/33 × PHP 8.2/8.3/8.4
+make ci-matrix                     # iterates NC 31-35 × PHP 8.2/8.3/8.4
 NC_VERSIONS=33 PHP_VERSIONS=8.4 make ci-matrix  # narrow to one cell
 ```
 

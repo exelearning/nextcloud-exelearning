@@ -4,7 +4,7 @@ name: CI
 # matrix that boots a real Nextcloud server, installs the app and verifies
 # it enables. Runs on every push to main, every pull request, and on demand.
 #
-# Matrix is intentionally sparse (5 stable + 1 experimental cells, not the
+# Matrix is intentionally sparse (9 stable + 1 experimental cells, not the
 # full Cartesian product). All cells use sqlite — this app has no DB
 # migrations or schema of its own, so a real-DB sweep would only re-test
 # Nextcloud core's own DB layer. `SMillerDev/nextcloud-actions/setup-nextcloud`
@@ -245,11 +245,15 @@ jobs:
           # scope mismatch this matrix exists to prevent regressing on.
           - { php: '8.2', nextcloud: 'stable33', database: 'sqlite' }
           - { php: '8.4', nextcloud: 'stable33', database: 'sqlite' }
-          # NC 34 — current latest, and what `nextcloud:stable` now resolves to.
+          # NC 34 — previous major.
           - { php: '8.2', nextcloud: 'stable34', database: 'sqlite' }
           - { php: '8.4', nextcloud: 'stable34', database: 'sqlite' }
+          # NC 35 — current latest. Requires PHP >= 8.3 (lib/versioncheck.php),
+          # so the low-end cell is 8.3 rather than 8.2.
+          - { php: '8.3', nextcloud: 'stable35', database: 'sqlite' }
+          - { php: '8.4', nextcloud: 'stable35', database: 'sqlite' }
           # PHP 8.5 preview — informational, allowed to fail.
-          - { php: '8.5', nextcloud: 'stable34', database: 'sqlite', experimental: true }
+          - { php: '8.5', nextcloud: 'stable35', database: 'sqlite', experimental: true }
 
     steps:
       - name: Checkout

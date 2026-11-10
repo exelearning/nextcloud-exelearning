@@ -1,7 +1,7 @@
 version: 2
 
 # Dependabot is constrained to versions that are actually installable and supported by this
-# app's Nextcloud target (appinfo/info.xml: NC 31-33). Only semver-MAJOR bumps are held back
+# app's Nextcloud target (appinfo/info.xml: NC 31-35). Only semver-MAJOR bumps are held back
 # below; patch and minor updates for every package still flow normally.
 #
 # Two reasons a major is held:
