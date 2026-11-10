@@ -55,6 +55,6 @@ La aplicación añade una acción en **Archivos** que abre los paquetes `.elpx` 
 
     <dependencies>
         <php min-version="8.2" max-version="8.5"/>
-        <nextcloud min-version="31" max-version="34"/>
+        <nextcloud min-version="31" max-version="35"/>
     </dependencies>
 </info>

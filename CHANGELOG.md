@@ -7,6 +7,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- Nextcloud 35 support: `appinfo/info.xml` now declares `31`–`35`. CI gains
+  `stable35` cells on PHP 8.3 and 8.4 (NC 35 requires PHP 8.3+), and the
+  informational PHP 8.5 cell moves to `stable35`. `make ci-matrix` includes 35.
+
 ### Fixed
 
 - Unit tests no longer depend on whether `js/editor/` happens to exist. The
