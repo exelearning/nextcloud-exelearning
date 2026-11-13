@@ -6,6 +6,7 @@ namespace OCA\ExeLearning\Tests\Unit\Controller;
 
 use OCA\ExeLearning\Controller\AssetController;
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\PackageMimeService;
 use OCA\ExeLearning\Service\ZipEntryService;
 use OCP\AppFramework\Http;
 use OCP\Files\File;
@@ -21,6 +22,7 @@ final class AssetControllerTest extends TestCase {
 	private IUserSession $userSession;
 	private ElpxPackageService $packages;
 	private ZipEntryService $zipEntries;
+	private PackageMimeService $mime;
 	private AssetController $controller;
 
 	protected function setUp(): void {
@@ -28,12 +30,14 @@ final class AssetControllerTest extends TestCase {
 		$this->userSession = $this->createMock(IUserSession::class);
 		$this->packages = $this->createMock(ElpxPackageService::class);
 		$this->zipEntries = $this->createMock(ZipEntryService::class);
+		$this->mime = new PackageMimeService();
 		$this->controller = new AssetController(
 			'exelearning',
 			$this->request,
 			$this->userSession,
 			$this->packages,
 			$this->zipEntries,
+			$this->mime,
 		);
 	}
 
@@ -144,7 +148,7 @@ final class AssetControllerTest extends TestCase {
 		$tsMap = array_combine($matches[1], $matches[2]);
 
 		self::assertNotEmpty($tsMap);
-		self::assertSame($tsMap, (new \ReflectionClassConstant(AssetController::class, 'MIME_MAP'))->getValue());
+		self::assertSame($tsMap, (new \ReflectionClassConstant(PackageMimeService::class, 'MIME_MAP'))->getValue());
 	}
 
 	private function authenticate(): IUser {

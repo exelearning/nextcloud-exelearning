@@ -31,6 +31,13 @@
       "destination": "apps/exelearning/js/editor"
     },
     {
+      "step": "setConfig",
+      "comment": "DEV-ONLY Playground demo hatch — NEVER production. The viewer defaults to the secure opaque-origin /content/{token} route, which a Service Worker CANNOT serve (it 404s in the php-wasm Playground). This app-config value is read by the envReader wired in lib/AppInfo/Application.php and flips lib/Service/IframeSandbox::resolveMode() to 'legacy', so ViewController hands the viewer the same-origin Service-Worker/AssetController path that DOES render in the browser. Mirrors the wp-exelearning mu-plugin / mod_exelearning phpConstants demo hatch. Maps to `occ config:app:set exelearning unsafe_legacy_iframe --value 1`; re-introduces allow-same-origin and drops opaque-origin isolation, so it must never be set on a real deployment.",
+      "app": "exelearning",
+      "key": "unsafe_legacy_iframe",
+      "value": "1"
+    },
+    {
       "step": "writeFile",
       "path": "config/mimetypemapping.json",
       "content": "{\"elpx\":[\"application/vnd.exelearning.elpx\",\"application/zip\"],\"elp\":[\"application/vnd.exelearning.elpx\",\"application/zip\"]}"
