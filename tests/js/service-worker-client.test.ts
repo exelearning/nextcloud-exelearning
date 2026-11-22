@@ -9,11 +9,21 @@ function fakeWorker(state: ServiceWorkerState) {
 	return worker
 }
 
+/** Listener the client installed for messages coming from the worker. */
+let fromWorker: ((event: { data: unknown }) => void) | undefined
+
 async function loadClient(installing: ServiceWorker | null, active: ServiceWorker | null = null, controller: object | null = null) {
 	vi.resetModules()
+	fromWorker = undefined
 	const registration = { installing, waiting: null, active }
 	vi.stubGlobal('navigator', {
-		serviceWorker: { controller, register: vi.fn().mockResolvedValue(registration) },
+		serviceWorker: {
+			controller,
+			register: vi.fn().mockResolvedValue(registration),
+			addEventListener: (_type: string, listener: (event: { data: unknown }) => void) => {
+				fromWorker = listener
+			},
+		},
 	})
 	return import('../../src/elpx/service-worker-client')
 }
@@ -140,6 +150,37 @@ describe('session messages', () => {
 		await expect(unregisterSession(runtime, 's1')).resolves.toBeUndefined()
 		await expect(unregisterSession(gone, 's1')).resolves.toBeUndefined()
 		expect(posted).toEqual([{ type: 'EXELEARNING_UNREGISTER_SESSION', sessionId: 's1' }])
+	})
+
+	it('re-registers a live session when the worker reports it lost', async () => {
+		const posted: Array<Record<string, unknown>> = []
+		const active = Object.assign(fakeWorker('activated'), {
+			postMessage: (message: Record<string, unknown>, [port]: MessagePort[]) => {
+				posted.push(message)
+				port.postMessage({ ok: true })
+			},
+		})
+		const { ensureRuntimeWorker, registerSession, unregisterSession } = await loadClient(null, active, {})
+		const runtime = await ensureRuntimeWorker()
+		await registerSession(runtime, session as never)
+		const lost = (sessionId: unknown) => fromWorker?.({ data: { type: 'EXELEARNING_SESSION_LOST', sessionId } })
+
+		lost('s1')
+		await vi.waitFor(() => expect(posted).toHaveLength(2))
+		expect(posted[1]).toMatchObject({ type: 'EXELEARNING_REGISTER_SESSION', sessionId: 's1' })
+
+		// Other tabs' sessions, malformed messages and torn-down sessions are left alone.
+		lost('someone-else')
+		lost(42)
+		fromWorker?.({ data: null })
+		await unregisterSession(runtime, 's1')
+		lost('s1')
+		await new Promise((resolve) => setTimeout(resolve, 20))
+		expect(posted.map((message) => message.type)).toEqual([
+			'EXELEARNING_REGISTER_SESSION',
+			'EXELEARNING_REGISTER_SESSION',
+			'EXELEARNING_UNREGISTER_SESSION',
+		])
 	})
 
 	it('throws when no Service Worker API exists', async () => {

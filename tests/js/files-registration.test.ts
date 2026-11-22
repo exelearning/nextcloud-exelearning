@@ -76,6 +76,14 @@ describe('registerFileActions', () => {
 		expect(v4ActionIds()).toEqual(ACTION_IDS)
 		expect(g._nc_fileactions).toBeUndefined()
 	})
+
+	// NC 35's Files app is still built on @nextcloud/files@^4.
+	it('registers into the v4 scope on Nextcloud 35', () => {
+		setServerVersion('35.0.2.1')
+		registerFileActions()
+		expect(v4ActionIds()).toEqual(ACTION_IDS)
+		expect(g._nc_fileactions).toBeUndefined()
+	})
 })
 
 describe('toLegacyFileAction', () => {
