@@ -41,19 +41,11 @@ class EditorHtmlService {
 	private function resilienceScript(): string {
 		return <<<'JS'
 (function () {
-    if ("serviceWorker" in navigator) {
-        try {
-            navigator.serviceWorker.register = function () {
-                return Promise.resolve({
-                    scope: "", installing: null, waiting: null, active: null,
-                    addEventListener: function () {}, removeEventListener: function () {},
-                    update: function () { return Promise.resolve(); },
-                    unregister: function () { return Promise.resolve(true); }
-                });
-            };
-        } catch (e) { void e; }
-    }
-
+    // navigator.serviceWorker.register is deliberately left untouched: the editor
+    // serves its new-tab (fullscreen) preview only through its preview Service
+    // Worker, and a stubbed registration left that button dead
+    // (exelearning/exelearning issue 2776). Where the worker cannot register the
+    // editor catches the rejection and falls back to the blob: preview on its own.
     var originalFetch = window.fetch;
     if (originalFetch) {
         window.fetch = function (input, init) {

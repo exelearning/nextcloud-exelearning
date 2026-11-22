@@ -27,7 +27,10 @@ final class EditorHtmlServiceTest extends TestCase {
 			$result,
 		);
 		self::assertStringContainsString('window.__EXE_EMBEDDING_CONFIG__', $result);
-		self::assertStringContainsString('navigator.serviceWorker.register', $result);
+		// The editor serves its new-tab (fullscreen) preview only through its preview
+		// Service Worker, so the bootstrap must leave the registration alone.
+		self::assertDoesNotMatchRegularExpression('/serviceWorker\s*\.\s*register\s*=/', $result);
+		self::assertStringContainsString('window.fetch = function', $result);
 		self::assertStringContainsString("type: 'REQUEST_SAVE'", $result);
 		self::assertStringContainsString('SharedExporters.createExporter', $result);
 		self::assertStringContainsString('</script></body>', $result);

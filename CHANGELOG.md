@@ -15,6 +15,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The embedded editor registers its preview Service Worker again, so the
+  preview panel's Fullscreen button can open the preview in a new tab. The
+  bootstrap used to stub `navigator.serviceWorker.register`. Fullscreen opens
+  the right path only with an editor build that includes
+  exelearning/exelearning#2771.
 - The preview no longer answers "Session not registered. Reload the package."
   after the tab has been idle. Browsers stop idle Service Workers and drop
   their memory; the worker now asks the open page to register the package
