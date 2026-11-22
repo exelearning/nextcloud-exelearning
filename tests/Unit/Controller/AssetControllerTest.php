@@ -121,7 +121,13 @@ final class AssetControllerTest extends TestCase {
 		self::assertSame('<html></html>', $response->getData());
 		self::assertSame('text/html; charset=utf-8', $response->getHeaders()['Content-Type']);
 		self::assertSame('nosniff', $response->getHeaders()['X-Content-Type-Options']);
-		self::assertStringContainsString("frame-ancestors 'self'", $response->getHeaders()['Content-Security-Policy']);
+		$csp = $response->getHeaders()['Content-Security-Policy'];
+		self::assertStringContainsString("frame-ancestors 'self'", $csp);
+		// Video players used by the iDevices load, but scripts are not opened to every https origin.
+		self::assertStringContainsString('https://www.youtube.com', $csp);
+		self::assertStringContainsString('https://player.vimeo.com', $csp);
+		self::assertStringContainsString("frame-src 'self' data: blob: https:;", $csp);
+		self::assertDoesNotMatchRegularExpression('/script-src[^;]* https:(?!\/)/', $csp);
 		self::assertSame('private, max-age=300', $response->getHeaders()['Cache-Control']);
 	}
 
