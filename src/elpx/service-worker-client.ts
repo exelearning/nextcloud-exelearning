@@ -24,6 +24,32 @@ export interface RuntimeWorker {
 
 let activeWorker: RuntimeWorker | null = null
 let pendingRegistration: Promise<RuntimeWorker> | null = null
+// Sessions this page still shows. Browsers stop idle workers and drop their
+// memory, so the page keeps the bytes and re-registers them on request.
+const liveSessions = new Map<string, ViewerSession>()
+let listeningForLostSessions = false
+
+/**
+ * Installs, once, the listener that answers the worker's
+ * `EXELEARNING_SESSION_LOST` by registering that session again.
+ */
+function listenForLostSessions(): void {
+	if (listeningForLostSessions) {
+		return
+	}
+	listeningForLostSessions = true
+	navigator.serviceWorker.addEventListener('message', (event) => {
+		const data = event.data as { type?: unknown; sessionId?: unknown } | null
+		if (data?.type !== 'EXELEARNING_SESSION_LOST' || typeof data.sessionId !== 'string') {
+			return
+		}
+		const session = liveSessions.get(data.sessionId)
+		if (session && activeWorker) {
+			// On failure the worker times out and answers 410 by itself.
+			postSession(activeWorker, session).catch(() => {})
+		}
+	})
+}
 
 /**
  *
@@ -56,6 +82,7 @@ async function registerRuntimeWorker(): Promise<RuntimeWorker> {
 		type: 'classic',
 	})
 	await waitForActive(registration)
+	listenForLostSessions()
 	const worker: RuntimeWorker = { registration, scriptUrl, scope, runtimeBase }
 	activeWorker = worker
 	return worker
@@ -103,6 +130,16 @@ function waitForActive(registration: ServiceWorkerRegistration): Promise<void> {
  * @param session Viewer session containing the decompressed entries.
  */
 export async function registerSession(worker: RuntimeWorker, session: ViewerSession): Promise<void> {
+	await postSession(worker, session)
+	liveSessions.set(session.id, session)
+}
+
+/**
+ * Posts the session's files to the Service Worker and waits for its reply.
+ * @param worker Active runtime worker returned by {@link ensureRuntimeWorker}.
+ * @param session Viewer session containing the decompressed entries.
+ */
+async function postSession(worker: RuntimeWorker, session: ViewerSession): Promise<void> {
 	const target = worker.registration.active ?? worker.registration.waiting ?? worker.registration.installing
 	if (!target) {
 		throw new Error('The eXeLearning Service Worker is not active.')
@@ -136,6 +173,7 @@ export async function registerSession(worker: RuntimeWorker, session: ViewerSess
  * @param sessionId Session id originally passed to {@link registerSession}.
  */
 export async function unregisterSession(worker: RuntimeWorker, sessionId: string): Promise<void> {
+	liveSessions.delete(sessionId)
 	const target = worker.registration.active ?? worker.registration.waiting ?? worker.registration.installing
 	if (!target) {
 		return

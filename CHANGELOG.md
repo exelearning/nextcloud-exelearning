@@ -15,6 +15,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- The preview no longer answers "Session not registered. Reload the package."
+  after the tab has been idle. Browsers stop idle Service Workers and drop
+  their memory; the worker now asks the open page to register the package
+  again and holds the request until it does.
+- Interactive video iDevices and embedded videos load again in the preview.
+  The package Content-Security-Policy now allows externally hosted images,
+  media and embeds over https, and scripts from the players and export helpers
+  eXeLearning's own iDevices use (YouTube, Vimeo, EducaMadrid Mediateca,
+  jsDelivr). The same policy applies to the server-side asset fallback.
 - Unit tests no longer depend on whether `js/editor/` happens to exist. The
   editor lookup moved behind an injectable `EditorAssetService`, so the suite
   passes identically with and without the bundle. `EditorControllerTest` also
