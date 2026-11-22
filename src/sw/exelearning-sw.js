@@ -10,14 +10,46 @@
  *   - Stay out of the way for everything else (we only see in-scope fetches,
  *     but we double-check the URL anyway).
  *
- * Sessions are kept only in this worker's memory. Closing the tab (and the
- * subsequent SW termination) drops them. The page is the source of truth.
+ * Sessions are kept only in this worker's memory, and browsers stop idle
+ * workers after a few seconds, so that memory is routinely lost while the tab
+ * is still open. The page is the source of truth: on a request for a session
+ * we no longer hold, we ask the open pages to register it again.
  *
  * This file is shipped as-is — not bundled by Vite — and served by
  * SwController so the response can set Content-Type and Service-Worker-Allowed.
  */
 
 const sessions = new Map()
+// sessionId -> { promise, resolve, timer } for requests waiting on a re-registration.
+const recoveries = new Map()
+const RECOVERY_TIMEOUT_MS = 20000
+
+// Remote origins whose scripts package HTML may load: the players and export
+// helpers that eXeLearning's own iDevices pull in at runtime. Keep in sync
+// with AssetController::CONTENT_SECURITY_POLICY.
+const SCRIPT_ORIGINS = [
+	'https://www.youtube.com',
+	'https://www.youtube-nocookie.com',
+	'https://youtu.be',
+	'https://s.ytimg.com',
+	'https://player.vimeo.com',
+	'https://mediateca.educa.madrid.org',
+	'https://cdn.jsdelivr.net',
+]
+
+// Keeps package HTML isolated from the parent Nextcloud window even though
+// the iframe sandbox already blocks top navigation. Passive remote content
+// (images, media, embeds) is allowed over https because authors routinely
+// link externally hosted assets; remote code is limited to SCRIPT_ORIGINS and
+// connect-src falls back to default-src so package scripts cannot phone home.
+const CONTENT_SECURITY_POLICY = [
+	"default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:",
+	`script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: ${SCRIPT_ORIGINS.join(' ')}`,
+	"img-src 'self' data: blob: https:",
+	"media-src 'self' data: blob: https:",
+	"frame-src 'self' data: blob: https:",
+	"frame-ancestors 'self'",
+].join('; ')
 
 const RUNTIME_TAIL = '/apps/exelearning/runtime/'
 
@@ -92,6 +124,37 @@ function registerSession(data) {
 		filename: typeof data.filename === 'string' ? data.filename : '',
 		createdAt: Date.now(),
 	})
+	recoveries.get(data.sessionId)?.resolve()
+}
+
+/**
+ * Returns the session, asking the open pages to register it again when this
+ * worker was restarted and lost it. Resolves to `undefined` when nobody
+ * restores it.
+ * @param {string} sessionId Session id taken from the runtime URL.
+ */
+async function recoverSession(sessionId) {
+	let recovery = recoveries.get(sessionId)
+	if (!recovery) {
+		// The viewer page sits outside this worker's scope, hence uncontrolled.
+		const pages = await self.clients.matchAll({ type: 'window', includeUncontrolled: true })
+		if (pages.length === 0) return undefined
+		recovery = {}
+		recovery.promise = new Promise((resolve) => {
+			recovery.resolve = () => {
+				clearTimeout(recovery.timer)
+				recoveries.delete(sessionId)
+				resolve()
+			}
+		})
+		recovery.timer = setTimeout(recovery.resolve, RECOVERY_TIMEOUT_MS)
+		recoveries.set(sessionId, recovery)
+		for (const page of pages) {
+			page.postMessage({ type: 'EXELEARNING_SESSION_LOST', sessionId })
+		}
+	}
+	await recovery.promise
+	return sessions.get(sessionId)
 }
 
 self.addEventListener('fetch', (event) => {
@@ -105,13 +168,13 @@ self.addEventListener('fetch', (event) => {
 
 /**
  * Looks up the session and entry produced by {@link matchRuntimeUrl} and
- * builds the `Response` for the iframe. Missing sessions return 410 (the
- * package was unloaded), missing entries return 404.
+ * builds the `Response` for the iframe. Sessions that no page restores
+ * return 410 (the package was unloaded), missing entries return 404.
  * @param {{ sessionId: string, entry: string }} match
  *   Parsed runtime URL from {@link matchRuntimeUrl}.
  */
-function handleRuntimeFetch(match) {
-	const session = sessions.get(match.sessionId)
+async function handleRuntimeFetch(match) {
+	const session = sessions.get(match.sessionId) || await recoverSession(match.sessionId)
 	if (!session) {
 		return new Response('Session not registered. Reload the package.', {
 			status: 410,
@@ -130,9 +193,7 @@ function handleRuntimeFetch(match) {
 		'Content-Length': String(file.bytes.byteLength),
 		'X-Content-Type-Options': 'nosniff',
 		'Cache-Control': 'private, no-store',
-		// Keep package HTML isolated from the parent Nextcloud window even
-		// though the iframe sandbox already blocks top navigation.
-		'Content-Security-Policy': "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; img-src 'self' data: blob:; media-src 'self' data: blob:; frame-ancestors 'self'",
+		'Content-Security-Policy': CONTENT_SECURITY_POLICY,
 	})
 	return new Response(file.bytes, { status: 200, headers })
 }

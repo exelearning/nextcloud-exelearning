@@ -27,6 +27,20 @@ use OCP\IUserSession;
  * the current user can read the underlying file before serving any bytes.
  */
 class AssetController extends Controller {
+	/**
+	 * Policy for package files. Passive remote content (images, media,
+	 * embeds) is allowed over https; remote code is limited to the players
+	 * and export helpers eXeLearning's own iDevices load at runtime. Keep in
+	 * sync with CONTENT_SECURITY_POLICY in src/sw/exelearning-sw.js.
+	 */
+	private const CONTENT_SECURITY_POLICY
+		= "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; "
+		. "script-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob: https://www.youtube.com https://www.youtube-nocookie.com https://youtu.be https://s.ytimg.com https://player.vimeo.com https://mediateca.educa.madrid.org https://cdn.jsdelivr.net; "
+		. "img-src 'self' data: blob: https:; "
+		. "media-src 'self' data: blob: https:; "
+		. "frame-src 'self' data: blob: https:; "
+		. "frame-ancestors 'self'";
+
 	/** Mirrors `MIME_BY_EXTENSION` in `src/elpx/asset-map.ts` (parity-tested). */
 	private const MIME_MAP = [
 		'html' => 'text/html; charset=utf-8',
@@ -111,7 +125,7 @@ class AssetController extends Controller {
 		$mime = $this->detectMime($entry);
 		$response = new DataDisplayResponse($contents, Http::STATUS_OK, ['Content-Type' => $mime]);
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
-		$response->addHeader('Content-Security-Policy', "default-src 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; frame-ancestors 'self'");
+		$response->addHeader('Content-Security-Policy', self::CONTENT_SECURITY_POLICY);
 		$response->addHeader('Cache-Control', 'private, max-age=300');
 		return $response;
 	}
