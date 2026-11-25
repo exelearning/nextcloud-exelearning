@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace OCA\ExeLearning\Controller;
 
 use OCA\ExeLearning\Service\ElpxPackageService;
+use OCA\ExeLearning\Service\PackageMimeService;
 use OCA\ExeLearning\Service\ZipEntryService;
 use OCP\AppFramework\Controller;
 use OCP\AppFramework\Http;
@@ -41,48 +42,13 @@ class AssetController extends Controller {
 		. "frame-src 'self' data: blob: https:; "
 		. "frame-ancestors 'self'";
 
-	/** Mirrors `MIME_BY_EXTENSION` in `src/elpx/asset-map.ts` (parity-tested). */
-	private const MIME_MAP = [
-		'html' => 'text/html; charset=utf-8',
-		'htm' => 'text/html; charset=utf-8',
-		'xhtml' => 'application/xhtml+xml; charset=utf-8',
-		'css' => 'text/css; charset=utf-8',
-		'js' => 'text/javascript; charset=utf-8',
-		'mjs' => 'text/javascript; charset=utf-8',
-		'json' => 'application/json; charset=utf-8',
-		'xml' => 'application/xml; charset=utf-8',
-		'txt' => 'text/plain; charset=utf-8',
-		'svg' => 'image/svg+xml',
-		'png' => 'image/png',
-		'jpg' => 'image/jpeg',
-		'jpeg' => 'image/jpeg',
-		'gif' => 'image/gif',
-		'webp' => 'image/webp',
-		'ico' => 'image/x-icon',
-		'mp3' => 'audio/mpeg',
-		'mp4' => 'video/mp4',
-		'm4a' => 'audio/mp4',
-		'm4v' => 'video/mp4',
-		'ogg' => 'audio/ogg',
-		'oga' => 'audio/ogg',
-		'ogv' => 'video/ogg',
-		'wav' => 'audio/wav',
-		'webm' => 'video/webm',
-		'vtt' => 'text/vtt',
-		'woff' => 'font/woff',
-		'woff2' => 'font/woff2',
-		'ttf' => 'font/ttf',
-		'otf' => 'font/otf',
-		'eot' => 'application/vnd.ms-fontobject',
-		'pdf' => 'application/pdf',
-	];
-
 	public function __construct(
 		string $appName,
 		IRequest $request,
 		private readonly IUserSession $userSession,
 		private readonly ElpxPackageService $packageService,
 		private readonly ZipEntryService $zipEntries,
+		private readonly PackageMimeService $mime,
 	) {
 		parent::__construct($appName, $request);
 	}
@@ -122,16 +88,11 @@ class AssetController extends Controller {
 			return new DataResponse(['error' => 'Entry not found'], Http::STATUS_NOT_FOUND);
 		}
 
-		$mime = $this->detectMime($entry);
+		$mime = $this->mime->detect($entry);
 		$response = new DataDisplayResponse($contents, Http::STATUS_OK, ['Content-Type' => $mime]);
 		$response->addHeader('X-Content-Type-Options', 'nosniff');
 		$response->addHeader('Content-Security-Policy', self::CONTENT_SECURITY_POLICY);
 		$response->addHeader('Cache-Control', 'private, max-age=300');
 		return $response;
-	}
-
-	private function detectMime(string $entry): string {
-		$extension = strtolower(pathinfo($entry, PATHINFO_EXTENSION));
-		return self::MIME_MAP[$extension] ?? 'application/octet-stream';
 	}
 }

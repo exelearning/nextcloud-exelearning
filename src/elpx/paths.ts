@@ -7,6 +7,7 @@
 
 export const RUNTIME_PREFIX = '/apps/exelearning/runtime'
 export const ASSET_PREFIX = '/apps/exelearning/asset'
+export const CONTENT_PREFIX = '/apps/exelearning/content'
 
 const PROTOCOL_LIKE = /^[a-zA-Z][a-zA-Z0-9+.-]*:/
 
@@ -169,6 +170,28 @@ export function buildAssetUrl(base: string, fileId: number, entry: string): stri
 	}
 	const cleanBase = base.replace(/\/+$/, '')
 	return `${cleanBase}/${encodeURIComponent(String(fileId))}/${normalized
+		.split('/')
+		.map(encodeURIComponent)
+		.join('/')}`
+}
+
+/**
+ * Builds an iframe-loadable URL for an entry served by the **opaque** content
+ * route ({@link CONTENT_PREFIX}). Unlike {@link buildAssetUrl}, the file is
+ * addressed by a short-lived capability `token` (minted server-side, bound to
+ * the file id) rather than the raw file id, because the opaque origin sends no
+ * session cookie — the token is the only credential.
+ * @param base Content base URL (typically `generateUrl(CONTENT_PREFIX)`).
+ * @param token Capability token from initial state (`contentToken`).
+ * @param entry Normalised entry path inside the package.
+ */
+export function buildContentUrl(base: string, token: string, entry: string): string {
+	const normalized = normalizeEntryPath(entry)
+	if (normalized === null) {
+		throw new Error(`Refusing to build content URL for unsafe entry: ${entry}`)
+	}
+	const cleanBase = base.replace(/\/+$/, '')
+	return `${cleanBase}/${encodeURIComponent(token)}/${normalized
 		.split('/')
 		.map(encodeURIComponent)
 		.join('/')}`

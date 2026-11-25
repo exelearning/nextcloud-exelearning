@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace OCA\ExeLearning\Tests\Unit\Controller;
 
+use OC\Security\CSRF\CsrfTokenManager;
+use OCA\ExeLearning\AppInfo\Application;
 use OCA\ExeLearning\Controller\EditorController;
 use OCA\ExeLearning\Service\EditorAssetService;
 use OCA\ExeLearning\Service\EditorHtmlService;
@@ -26,6 +28,7 @@ final class EditorControllerTest extends TestCase {
 	private LegacyFileMigrationService $legacyMigration;
 	private EditorHtmlService $editorHtml;
 	private IURLGenerator $urlGenerator;
+	private CsrfTokenManager $csrfTokenManager;
 	private EditorController $controller;
 	private string $editorIndexPath;
 	private string $editorDir;
@@ -38,7 +41,19 @@ final class EditorControllerTest extends TestCase {
 		$this->editorHtml = $this->createMock(EditorHtmlService::class);
 		$this->urlGenerator = $this->createMock(IURLGenerator::class);
 		$this->urlGenerator->method('linkTo')->willReturn('/custom_apps/exelearning/');
-		$this->urlGenerator->method('linkToRoute')->willReturn('/apps/exelearning/editor/iframe');
+		$this->urlGenerator->method('linkToRoute')->willReturnCallback(
+			static function (string $routeName, array $arguments = []): string {
+				$previewId = $arguments['previewId'] ?? null;
+				return match ($routeName) {
+					Application::APP_ID . '.editor.iframe' => '/apps/exelearning/editor/iframe',
+					Application::APP_ID . '.preview.serveRoot' => '/apps/exelearning/preview/' . $previewId,
+					Application::APP_ID . '.previewSession.delete' => '/apps/exelearning/api/preview-session/' . $previewId,
+					Application::APP_ID . '.previewSession.create' => '/apps/exelearning/api/preview-session',
+					default => '/unknown',
+				};
+			},
+		);
+		$this->csrfTokenManager = new CsrfTokenManager();
 		// A private temp directory, never the repository's own js/editor/: the
 		// real bundle is present on any checkout where `make download-editor`
 		// has run, and writing to it made these tests both order-dependent and
@@ -53,6 +68,7 @@ final class EditorControllerTest extends TestCase {
 			$this->legacyMigration,
 			$this->editorHtml,
 			$this->urlGenerator,
+			$this->csrfTokenManager,
 			new EditorAssetService($this->editorIndexPath),
 		);
 	}
@@ -90,6 +106,7 @@ final class EditorControllerTest extends TestCase {
 			$this->legacyMigration,
 			$this->editorHtml,
 			$urlGenerator,
+			$this->csrfTokenManager,
 			new EditorAssetService($this->editorIndexPath),
 		);
 
@@ -151,7 +168,13 @@ final class EditorControllerTest extends TestCase {
 		$this->editorHtml->expects(self::once())
 			->method('prepare')
 			->with(
-				'<html><head></head><body>Editor</body></html>',
+				self::callback(static function (string $html): bool {
+					return str_contains($html, 'previewSnapshot')
+						&& str_contains($html, 'managementUrl')
+						&& str_contains($html, 'servingBaseUrl')
+						&& str_contains($html, 'deleteUrlTemplate')
+						&& str_contains($html, 'test-request-token');
+				}),
 				'/custom_apps/exelearning/js/editor/',
 			)
 			->willReturn('<html>prepared</html>');
@@ -164,6 +187,47 @@ final class EditorControllerTest extends TestCase {
 		self::assertStringContainsString("frame-ancestors 'self'", $response->getHeaders()['Content-Security-Policy']);
 		self::assertSame('nosniff', $response->getHeaders()['X-Content-Type-Options']);
 		self::assertSame('private, no-cache', $response->getHeaders()['Cache-Control']);
+	}
+
+	public function testIframeAcceptsServingRootThatDoesNotEndWithPlaceholderId(): void {
+		$this->authenticate();
+		$this->writeEditorIndex('<html><head></head><body>Editor</body></html>');
+
+		$urlGenerator = $this->createMock(IURLGenerator::class);
+		$urlGenerator->method('linkTo')->willReturn('/custom_apps/exelearning/');
+		$urlGenerator->method('linkToRoute')->willReturnCallback(
+			static function (string $routeName, array $arguments = []): string {
+				$previewId = $arguments['previewId'] ?? null;
+				return match ($routeName) {
+					Application::APP_ID . '.preview.serveRoot' => '/apps/exelearning/custom-preview-root',
+					Application::APP_ID . '.previewSession.delete' => '/apps/exelearning/api/preview-session/' . $previewId,
+					Application::APP_ID . '.previewSession.create' => '/apps/exelearning/api/preview-session',
+					default => '/apps/exelearning/editor/iframe',
+				};
+			},
+		);
+
+		$this->editorHtml->expects(self::once())
+			->method('prepare')
+			->with(
+				self::callback(static fn (string $html): bool => str_contains($html, 'custom-preview-root')),
+				'/custom_apps/exelearning/js/editor/',
+			)
+			->willReturn('<html>prepared</html>');
+
+		$controller = new EditorController(
+			'exelearning',
+			$this->request,
+			$this->session,
+			$this->packages,
+			$this->legacyMigration,
+			$this->editorHtml,
+			$urlGenerator,
+			$this->csrfTokenManager,
+			new EditorAssetService($this->editorIndexPath),
+		);
+
+		self::assertSame(Http::STATUS_OK, $controller->iframe()->getStatus());
 	}
 
 	private function authenticate(): IUser {

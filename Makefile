@@ -362,7 +362,12 @@ appstore: package
 # sidesteps that.
 #
 # Override host port with `make up DOCKER_PORT=9000`.
-APP_RUNTIME_DIRS := appinfo lib js templates img src/sw
+# src/embed carries the vendored external-media child bundle, which
+# ContentController inlines into every served package AT RUNTIME — like src/sw,
+# it is shipped source, not build input. Leaving it out made shimSource() return
+# null inside the container: no shim injected, no embed ever promoted, and no
+# error anywhere to say so.
+APP_RUNTIME_DIRS := appinfo lib js templates img src/sw src/embed
 
 # Verify both that the docker CLI exists and that its daemon is
 # reachable. `docker version` talks to the daemon, so it fails with a
